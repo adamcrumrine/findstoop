@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// deploy-prod.mjs
+// deploy-test.mjs
 // On develop: stages any uncommitted changes → Haiku commit message → commit →
-// push develop → merge develop into main → push main → vercel --prod
+// push develop → merge develop into stoop-test → push stoop-test → vercel preview
 
 import { execSync, spawnSync } from "child_process";
 import { createInterface } from "readline";
@@ -20,8 +20,8 @@ if (existsSync(envPath)) {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const DEV_BRANCH  = "stoop-test";
-const PROD_BRANCH = "stoop-production";
+const SRC_BRANCH  = "develop";
+const DEST_BRANCH = "stoop-test";
 const MODEL       = "claude-haiku-4-5-20251001";
 const API_URL     = "https://api.anthropic.com/v1/messages";
 
@@ -46,21 +46,13 @@ const ask = (question) =>
   });
 
 // ── Preflight ─────────────────────────────────────────────────────────────────
-if (!process.env.ANTHROPIC_API_KEY) {
-  die("ANTHROPIC_API_KEY is not set.");
-}
-
-// ── Confirm intent ────────────────────────────────────────────────────────────
-console.log(`\n${c.bold}${c.yellow}Production deploy${c.reset}`);
-console.log(`This will:\n  1. Commit any uncommitted changes on ${DEV_BRANCH}\n  2. Push ${DEV_BRANCH}\n  3. Merge ${DEV_BRANCH} → ${PROD_BRANCH} and push\n  4. Deploy to Vercel production\n`);
-const confirm = await ask("Continue? [y/N] ");
-if (confirm.toLowerCase() !== "y") die("Aborted.");
+if (!process.env.ANTHROPIC_API_KEY) die("ANTHROPIC_API_KEY is not set.");
 
 // ── Switch to develop ─────────────────────────────────────────────────────────
 const currentBranch = capture("git rev-parse --abbrev-ref HEAD");
-if (currentBranch !== DEV_BRANCH) {
-  warn(`Switching from '${currentBranch}' to '${DEV_BRANCH}'…`);
-  run(`git checkout ${DEV_BRANCH}`);
+if (currentBranch !== SRC_BRANCH) {
+  warn(`Switching from '${currentBranch}' to '${SRC_BRANCH}'…`);
+  run(`git checkout ${SRC_BRANCH}`);
 }
 
 // ── Commit uncommitted changes if any ────────────────────────────────────────
@@ -122,31 +114,31 @@ if (hasChanges) {
 }
 
 // ── Push develop ──────────────────────────────────────────────────────────────
-info(`Pushing ${DEV_BRANCH}…`);
-run(`git push origin ${DEV_BRANCH}`);
-success(`Pushed origin/${DEV_BRANCH}`);
+info(`Pushing ${SRC_BRANCH}…`);
+run(`git push origin ${SRC_BRANCH}`);
+success(`Pushed origin/${SRC_BRANCH}`);
 
-// ── Merge develop → main ──────────────────────────────────────────────────────
-info(`Switching to ${PROD_BRANCH}…`);
-run(`git checkout ${PROD_BRANCH}`);
+// ── Merge develop → stoop-test ────────────────────────────────────────────────
+info(`Switching to ${DEST_BRANCH}…`);
+run(`git checkout ${DEST_BRANCH}`);
 
-info(`Merging ${DEV_BRANCH} into ${PROD_BRANCH}…`);
+info(`Merging ${SRC_BRANCH} into ${DEST_BRANCH}…`);
 try {
-  run(`git merge ${DEV_BRANCH} --no-edit`);
+  run(`git merge ${SRC_BRANCH} --no-edit`);
 } catch {
-  die(`Merge conflict detected. Resolve conflicts, then run:\n  git push origin ${PROD_BRANCH} && vercel --prod`);
+  die(`Merge conflict detected. Resolve conflicts, then run:\n  git push origin ${DEST_BRANCH} && vercel`);
 }
-success(`Merged ${DEV_BRANCH} → ${PROD_BRANCH}`);
+success(`Merged ${SRC_BRANCH} → ${DEST_BRANCH}`);
 
-// ── Push main ─────────────────────────────────────────────────────────────────
-info(`Pushing ${PROD_BRANCH}…`);
-run(`git push origin ${PROD_BRANCH}`);
-success(`Pushed origin/${PROD_BRANCH}`);
+// ── Push stoop-test ───────────────────────────────────────────────────────────
+info(`Pushing ${DEST_BRANCH}…`);
+run(`git push origin ${DEST_BRANCH}`);
+success(`Pushed origin/${DEST_BRANCH}`);
 
 // ── Switch back to develop ────────────────────────────────────────────────────
-run(`git checkout develop`);
+run(`git checkout ${SRC_BRANCH}`);
 
-// ── Vercel production deploy ──────────────────────────────────────────────────
-info("Deploying to Vercel production…");
-const result = spawnSync("vercel", ["--prod"], { encoding: "utf8", stdio: "inherit", shell: true });
+// ── Vercel preview deploy ─────────────────────────────────────────────────────
+info("Deploying Vercel preview…");
+const result = spawnSync("vercel", [], { encoding: "utf8", stdio: "inherit", shell: true });
 if (result.status !== 0) die("Vercel deploy failed.");

@@ -10,7 +10,8 @@
     "dev": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/web",
     "lint": "npm run lint --workspace=apps/web",
-    "deploy:preview": "node scripts/deploy-preview.mjs",
+    "deploy:dev": "node scripts/deploy-dev.mjs",
+    "deploy:test": "node scripts/deploy-test.mjs",
     "deploy:prod": "node scripts/deploy-prod.mjs"
   },
   "engines": {

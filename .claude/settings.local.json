@@ -4,7 +4,9 @@
       "Bash(vercel --version)",
       "Bash(vercel link:*)",
       "Bash(gh repo:*)",
-      "Bash(vercel --prod)"
+      "Bash(vercel --prod)",
+      "Bash(vercel domains:*)",
+      "Bash(vercel dns:*)"
     ]
   }
 }

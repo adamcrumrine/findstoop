@@ -27,6 +27,25 @@ export function useAuth(): AuthState {
     return data
   }
 
+  const ensureProfile = async (userId: string, email: string, meta: Record<string, string>): Promise<Profile> => {
+    let profile = await fetchProfile(userId)
+    if (!profile) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          role: (meta.role as Profile['role']) ?? 'tenant',
+          full_name: meta.full_name ?? null,
+          email,
+        })
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      profile = data
+    }
+    return profile!
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -53,8 +72,8 @@ export function useAuth(): AuthState {
   const signIn = async (email: string, password: string): Promise<UserRole> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw new Error(error.message)
-    const p = await fetchProfile(data.user.id)
-    if (!p) throw new Error('Profile not found')
+    const meta = (data.user.user_metadata ?? {}) as Record<string, string>
+    const p = await ensureProfile(data.user.id, data.user.email ?? '', meta)
     setProfile(p)
     return p.role
   }

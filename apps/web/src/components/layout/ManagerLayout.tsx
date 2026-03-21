@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../../../packages/shared/src/hooks/useAuth'
+import { useAuth } from '@findstoop/shared/hooks/useAuth'
 
 const navItems = [
   { to: '/manager/dashboard', label: 'Dashboard', icon: '🏠' },

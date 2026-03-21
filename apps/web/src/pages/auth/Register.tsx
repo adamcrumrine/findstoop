@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../../../packages/shared/src/hooks/useAuth'
+import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
 
 export default function Register() {

@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../../../../packages/shared/src/hooks/useAuth'
+import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import LoadingSpinner from './LoadingSpinner'
 
 interface ProtectedRouteProps {

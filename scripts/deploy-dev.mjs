@@ -97,15 +97,7 @@ const json = await response.json();
 let commitMsg = json.content?.[0]?.text?.trim();
 if (!commitMsg) die("Haiku returned an empty message.");
 
-console.log(`\n${c.bold}Generated commit message:${c.reset}`);
-console.log(`  ${c.yellow}${commitMsg}${c.reset}\n`);
-
-const choice = await ask("Use this message? [Y/e/n] ");
-if (choice.toLowerCase() === "n") die("Aborted.");
-if (choice.toLowerCase() === "e") {
-  commitMsg = await ask("Enter your commit message: ");
-  if (!commitMsg) die("Empty commit message. Aborted.");
-}
+info(`Commit message: ${c.yellow}${commitMsg}${c.reset}`);
 
 // ── Commit & push ─────────────────────────────────────────────────────────────
 run(`git commit -m "${commitMsg.replace(/"/g, '\\"')}"`);

@@ -9,7 +9,9 @@
       "Bash(supabase init:*)",
       "Bash(supabase projects:*)",
       "Bash(supabase link:*)",
-      "Bash(supabase db:*)"
+      "Bash(supabase db:*)",
+      "Bash(supabase logs:*)",
+      "Bash(supabase --help)"
     ]
   }
 }

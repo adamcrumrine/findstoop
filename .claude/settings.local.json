@@ -4,7 +4,12 @@
       "Bash(npm install:*)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(npm run:*)",
-      "Bash(echo \"BUILD_EXIT:$?\")"
+      "Bash(echo \"BUILD_EXIT:$?\")",
+      "Bash(supabase --version)",
+      "Bash(supabase init:*)",
+      "Bash(supabase projects:*)",
+      "Bash(supabase link:*)",
+      "Bash(supabase db:*)"
     ]
   }
 }

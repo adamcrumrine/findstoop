@@ -10,6 +10,7 @@ export interface MaintenanceRequest {
   priority: MaintenancePriority
   status: MaintenanceStatus
   images: string[] | null
+  manager_notes: string | null
   created_at: string
   resolved_at: string | null
 }

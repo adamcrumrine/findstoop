@@ -1,6 +1,17 @@
 import { supabase } from '../lib/supabase'
 import type { Lease } from '../types/lease'
 
+export async function getTenantActiveLease(tenantId: string): Promise<Lease | null> {
+  const { data, error } = await supabase
+    .from('leases')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active')
+    .single()
+  if (error) return null
+  return data
+}
+
 export async function getLeases(unitIds: string[]): Promise<Lease[]> {
   if (unitIds.length === 0) return []
   const { data, error } = await supabase

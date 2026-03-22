@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#6366f1"/>
+  <!-- House shape -->
+  <path d="M256 120 L140 220 L140 380 L220 380 L220 300 L292 300 L292 380 L372 380 L372 220 Z" fill="white"/>
+  <!-- Door -->
+  <rect x="220" y="300" width="72" height="80" rx="6" fill="#6366f1"/>
+  <!-- Chimney -->
+  <rect x="300" y="140" width="36" height="60" rx="4" fill="white"/>
+</svg>

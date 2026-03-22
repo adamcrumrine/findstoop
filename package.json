@@ -16,5 +16,12 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "recharts": "^3.8.0"
+  },
+  "devDependencies": {
+    "vite-plugin-pwa": "^1.2.0",
+    "workbox-window": "^7.4.0"
   }
 }

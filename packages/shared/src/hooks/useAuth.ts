@@ -19,6 +19,8 @@ interface AuthState {
   // MFA — SMS / voice (Twilio edge functions)
   sendSmsCode: (channel: 'sms' | 'call') => Promise<void>
   verifySmsCode: (code: string) => Promise<void>
+  // MFA — backup codes
+  verifyBackupCode: (code: string) => Promise<{ remaining: number }>
 }
 
 export function useAuth(): AuthState {
@@ -184,6 +186,10 @@ export function useAuth(): AuthState {
     await callEdge('check-verification', { code })
   }
 
+  const verifyBackupCode = async (code: string): Promise<{ remaining: number }> => {
+    return callEdge('verify-backup-code', { code })
+  }
+
   return {
     user,
     profile,
@@ -198,5 +204,6 @@ export function useAuth(): AuthState {
     verifyTotp,
     sendSmsCode,
     verifySmsCode,
+    verifyBackupCode,
   }
 }

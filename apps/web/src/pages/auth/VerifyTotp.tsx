@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { UserRole } from '@findstoop/shared/types/profile'
 import OtpInput from '../../components/auth/OtpInput'
-import toast from 'react-hot-toast'
 
 const LOCKOUT_KEY  = 'mfa_lockout_until'
 const MAX_ATTEMPTS = 5
-const LOCKOUT_MS   = 10 * 60 * 1000   // 10 minutes
-const RESEND_WAIT  = 30               // seconds
+const LOCKOUT_MS   = 10 * 60 * 1000
+
+interface MfaState {
+  role: UserRole
+  phoneLast4?: string
+  factorId?: string
+  challengeId?: string
+}
 
 function HouseIcon() {
   return (
@@ -18,24 +23,22 @@ function HouseIcon() {
   )
 }
 
-interface LocationState {
-  role: UserRole
-  method?: 'sms' | 'call'
-  phoneLast4?: string
-}
-
-export default function Verify() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const state    = location.state as LocationState | null
-  const { sendSmsCode, verifySmsCode } = useAuth()
+export default function VerifyTotp() {
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const state     = location.state as MfaState | null
+  const { getTotpChallenge, verifyTotp } = useAuth()
 
   const [digits, setDigits]           = useState<string[]>(Array(6).fill(''))
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [attempts, setAttempts]       = useState(0)
   const [lockedUntil, setLockedUntil] = useState<number | null>(null)
-  const [resendCooldown, setResendCooldown] = useState(0)
+  const [totp, setTotp]               = useState<{ factorId: string; challengeId: string } | null>(
+    state?.factorId && state?.challengeId
+      ? { factorId: state.factorId, challengeId: state.challengeId }
+      : null
+  )
 
   // Restore lockout from localStorage
   useEffect(() => {
@@ -61,25 +64,18 @@ export default function Verify() {
     return () => clearInterval(id)
   }, [lockedUntil])
 
-  // Resend cooldown countdown
+  // Fetch TOTP challenge on mount if not already provided
   useEffect(() => {
-    if (resendCooldown <= 0) return
-    const id = setInterval(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000)
-    return () => clearInterval(id)
-  }, [resendCooldown])
-
-  // Auto-send code on mount
-  useEffect(() => {
-    sendSmsCode(state?.method === 'call' ? 'call' : 'sms').catch(() => {})
-    setResendCooldown(RESEND_WAIT)
+    if (!totp) {
+      getTotpChallenge().then(setTotp).catch((e) => setError(e.message))
+    }
   }, [])
 
   if (!state?.role) return <Navigate to="/login" replace />
 
-  const code      = digits.join('')
-  const isLocked  = !!lockedUntil
+  const code     = digits.join('')
+  const isLocked = !!lockedUntil
   const lockMinutes = lockedUntil ? Math.ceil((lockedUntil - Date.now()) / 60000) : 0
-  const channel   = state.method === 'call' ? 'call' : 'sms'
 
   const handleSubmit = useCallback(async () => {
     if (code.length < 6 || loading || isLocked) return
@@ -87,7 +83,8 @@ export default function Verify() {
     setError(null)
 
     try {
-      await verifySmsCode(code)
+      if (!totp) throw new Error('Challenge not ready, please wait.')
+      await verifyTotp(totp.factorId, totp.challengeId, code)
       navigate(state.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed'
@@ -106,25 +103,12 @@ export default function Verify() {
     } finally {
       setLoading(false)
     }
-  }, [code, loading, isLocked, attempts, state.role])
+  }, [code, loading, isLocked, totp, attempts, state.role])
 
   // Auto-submit when all 6 digits filled
   useEffect(() => {
     if (code.length === 6 && !code.includes('')) handleSubmit()
   }, [code])
-
-  const handleResend = async () => {
-    if (resendCooldown > 0) return
-    try {
-      await sendSmsCode(channel)
-      setResendCooldown(RESEND_WAIT)
-      toast.success(channel === 'sms' ? 'Code sent via SMS' : 'Call placed to your phone')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send code')
-    }
-  }
-
-  const label = state.role === 'manager' ? 'landlord' : 'renter'
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -136,17 +120,15 @@ export default function Verify() {
 
         <h1 className="text-xl font-medium text-gray-900">Verify your identity</h1>
         <p className="text-sm text-gray-500 mt-1 mb-5">
-          Welcome to Stoop. Continue as a {label}.
+          Welcome to Stoop. Continue as a {state.role === 'manager' ? 'landlord' : 'renter'}.
         </p>
 
-        {state.phoneLast4 && (
-          <div className="mb-5">
-            <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 text-sm px-3 py-1.5 rounded-full">
-              <span>{channel === 'call' ? '📞' : '📱'}</span>
-              <span>••••••••{state.phoneLast4}</span>
-            </span>
-          </div>
-        )}
+        <div className="mb-5">
+          <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 text-sm px-3 py-1.5 rounded-full">
+            <span>🔐</span>
+            <span>Authenticator app</span>
+          </span>
+        </div>
 
         {isLocked ? (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 text-center mb-4">
@@ -173,19 +155,6 @@ export default function Verify() {
           </>
         )}
 
-        {!isLocked && (
-          <p className="mt-4 text-sm text-center text-gray-500">
-            Didn't receive a code?{' '}
-            {resendCooldown > 0 ? (
-              <span className="text-gray-400">Resend in {resendCooldown}s</span>
-            ) : (
-              <button onClick={handleResend} className="text-brand-600 hover:underline font-medium">
-                Resend
-              </button>
-            )}
-          </p>
-        )}
-
         <div className="mt-4 text-center">
           <button
             onClick={() => navigate('/verify/method', { state })}
@@ -196,12 +165,12 @@ export default function Verify() {
         </div>
 
         <p className="mt-5 text-center">
-          <Link
-            to={state.role === 'tenant' ? '/login/renter' : '/login'}
+          <button
+            onClick={() => navigate(state.role === 'tenant' ? '/login/renter' : '/login')}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
             ← Back to log in
-          </Link>
+          </button>
         </p>
       </div>
     </div>

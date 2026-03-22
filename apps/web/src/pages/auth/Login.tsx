@@ -56,10 +56,11 @@ export default function Login({ role }: Props) {
         return
       }
       if (p.mfa_enabled) {
-        navigate('/verify', {
+        const target = p.mfa_method === 'totp' ? '/verify/totp' : '/verify'
+        navigate(target, {
           state: {
             role: p.role,
-            method: p.mfa_method,
+            method: p.mfa_method !== 'totp' ? p.mfa_method : undefined,
             phoneLast4: p.phone_last_four ?? undefined,
           },
         })

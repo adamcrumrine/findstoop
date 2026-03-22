@@ -9,6 +9,9 @@ const Login          = lazy(() => import('./pages/auth/Login'))
 const Register       = lazy(() => import('./pages/auth/Register'))
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 const Verify         = lazy(() => import('./pages/auth/Verify'))
+const VerifyTotp     = lazy(() => import('./pages/auth/VerifyTotp'))
+const VerifyMethod   = lazy(() => import('./pages/auth/VerifyMethod'))
+const VerifyBackup   = lazy(() => import('./pages/auth/VerifyBackup'))
 
 // Manager pages
 const ManagerDashboard   = lazy(() => import('./pages/manager/Dashboard'))
@@ -51,6 +54,9 @@ export default function App() {
           <Route path="/register/renter" element={<Register role="tenant" />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify"          element={<Verify />} />
+          <Route path="/verify/totp"     element={<VerifyTotp />} />
+          <Route path="/verify/method"   element={<VerifyMethod />} />
+          <Route path="/verify/backup"   element={<VerifyBackup />} />
 
           <Route path="/manager" element={
             <ProtectedRoute requiredRole="manager">

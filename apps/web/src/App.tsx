@@ -1,64 +1,81 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Login from './pages/auth/Login'
-import Register from './pages/auth/Register'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import ManagerLayout from './components/layout/ManagerLayout'
 import TenantLayout from './components/layout/TenantLayout'
-import ManagerDashboard from './pages/manager/Dashboard'
-import ManagerProperties from './pages/manager/Properties'
-import ManagerUnits from './pages/manager/Units'
-import ManagerTenants from './pages/manager/Tenants'
-import ManagerLeases from './pages/manager/Leases'
-import ManagerPayments from './pages/manager/Payments'
-import ManagerMaintenance from './pages/manager/Maintenance'
-import ManagerMessages from './pages/manager/Messages'
-import ManagerDocuments from './pages/manager/Documents'
-import ManagerReports from './pages/manager/Reports'
-import TenantDashboard from './pages/tenant/Dashboard'
-import TenantPayRent from './pages/tenant/PayRent'
-import TenantMaintenance from './pages/tenant/Maintenance'
-import TenantDocuments from './pages/tenant/Documents'
-import TenantMessages from './pages/tenant/Messages'
+
+// Auth
+const Login    = lazy(() => import('./pages/auth/Login'))
+const Register = lazy(() => import('./pages/auth/Register'))
+
+// Manager pages
+const ManagerDashboard   = lazy(() => import('./pages/manager/Dashboard'))
+const ManagerProperties  = lazy(() => import('./pages/manager/Properties'))
+const ManagerUnits       = lazy(() => import('./pages/manager/Units'))
+const ManagerTenants     = lazy(() => import('./pages/manager/Tenants'))
+const ManagerLeases      = lazy(() => import('./pages/manager/Leases'))
+const ManagerPayments    = lazy(() => import('./pages/manager/Payments'))
+const ManagerMaintenance = lazy(() => import('./pages/manager/Maintenance'))
+const ManagerMessages    = lazy(() => import('./pages/manager/Messages'))
+const ManagerDocuments   = lazy(() => import('./pages/manager/Documents'))
+const ManagerReports     = lazy(() => import('./pages/manager/Reports'))
+
+// Tenant pages
+const TenantDashboard   = lazy(() => import('./pages/tenant/Dashboard'))
+const TenantPayRent     = lazy(() => import('./pages/tenant/PayRent'))
+const TenantMaintenance = lazy(() => import('./pages/tenant/Maintenance'))
+const TenantDocuments   = lazy(() => import('./pages/tenant/Documents'))
+const TenantMessages    = lazy(() => import('./pages/tenant/Messages'))
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
-        <Route path="/manager" element={
-          <ProtectedRoute requiredRole="manager">
-            <ManagerLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<Navigate to="/manager/dashboard" replace />} />
-          <Route path="dashboard" element={<ManagerDashboard />} />
-          <Route path="properties" element={<ManagerProperties />} />
-          <Route path="units" element={<ManagerUnits />} />
-          <Route path="tenants" element={<ManagerTenants />} />
-          <Route path="leases" element={<ManagerLeases />} />
-          <Route path="payments" element={<ManagerPayments />} />
-          <Route path="maintenance" element={<ManagerMaintenance />} />
-          <Route path="messages" element={<ManagerMessages />} />
-          <Route path="documents" element={<ManagerDocuments />} />
-          <Route path="reports" element={<ManagerReports />} />
-        </Route>
+          <Route path="/manager" element={
+            <ProtectedRoute requiredRole="manager">
+              <ManagerLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/manager/dashboard" replace />} />
+            <Route path="dashboard"   element={<ManagerDashboard />} />
+            <Route path="properties"  element={<ManagerProperties />} />
+            <Route path="units"       element={<ManagerUnits />} />
+            <Route path="tenants"     element={<ManagerTenants />} />
+            <Route path="leases"      element={<ManagerLeases />} />
+            <Route path="payments"    element={<ManagerPayments />} />
+            <Route path="maintenance" element={<ManagerMaintenance />} />
+            <Route path="messages"    element={<ManagerMessages />} />
+            <Route path="documents"   element={<ManagerDocuments />} />
+            <Route path="reports"     element={<ManagerReports />} />
+          </Route>
 
-        <Route path="/tenant" element={
-          <ProtectedRoute requiredRole="tenant">
-            <TenantLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<Navigate to="/tenant/dashboard" replace />} />
-          <Route path="dashboard" element={<TenantDashboard />} />
-          <Route path="pay-rent" element={<TenantPayRent />} />
-          <Route path="maintenance" element={<TenantMaintenance />} />
-          <Route path="documents" element={<TenantDocuments />} />
-          <Route path="messages" element={<TenantMessages />} />
-        </Route>
-      </Routes>
+          <Route path="/tenant" element={
+            <ProtectedRoute requiredRole="tenant">
+              <TenantLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/tenant/dashboard" replace />} />
+            <Route path="dashboard"   element={<TenantDashboard />} />
+            <Route path="pay-rent"    element={<TenantPayRent />} />
+            <Route path="maintenance" element={<TenantMaintenance />} />
+            <Route path="documents"   element={<TenantDocuments />} />
+            <Route path="messages"    element={<TenantMessages />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

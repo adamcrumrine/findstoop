@@ -46,3 +46,37 @@ export async function getPaymentsByLeaseIds(leaseIds: string[]): Promise<Payment
   if (error) throw new Error(error.message)
   return data ?? []
 }
+
+export async function getAllPayments(leaseIds: string[]): Promise<Payment[]> {
+  if (leaseIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .in('lease_id', leaseIds)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+export async function createPayment(
+  data: Omit<Payment, 'id' | 'created_at'>
+): Promise<Payment> {
+  const { data: result, error } = await supabase
+    .from('payments')
+    .insert(data)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return result
+}
+
+export async function markPaymentPaid(id: string): Promise<Payment> {
+  const { data, error } = await supabase
+    .from('payments')
+    .update({ status: 'completed', paid_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data
+}

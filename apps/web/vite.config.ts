@@ -53,9 +53,11 @@ export default defineConfig({
             },
           },
         ],
-        // Offline fallback
-        navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [/^\/api\//],
+        // SPA fallback — serve index.html for all navigation requests
+        // so React Router handles the URL. /offline.html is kept as a
+        // static asset but only shown by the React app when offline.
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /\/offline\.html$/],
       },
       devOptions: {
         enabled: false, // disable SW in dev to avoid caching issues

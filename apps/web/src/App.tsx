@@ -8,6 +8,7 @@ import TenantLayout from './components/layout/TenantLayout'
 const Login          = lazy(() => import('./pages/auth/Login'))
 const Register       = lazy(() => import('./pages/auth/Register'))
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
+const Verify         = lazy(() => import('./pages/auth/Verify'))
 
 // Manager pages
 const ManagerDashboard   = lazy(() => import('./pages/manager/Dashboard'))
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/register"        element={<Register role="manager" />} />
           <Route path="/register/renter" element={<Register role="tenant" />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify"          element={<Verify />} />
 
           <Route path="/manager" element={
             <ProtectedRoute requiredRole="manager">

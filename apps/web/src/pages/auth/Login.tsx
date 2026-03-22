@@ -50,12 +50,22 @@ export default function Login({ role }: Props) {
     setWrongRoleError(null)
     setLoading(true)
     try {
-      const returnedRole = await signIn(email, password)
-      if (returnedRole !== role) {
-        setWrongRoleError({ actual: returnedRole as 'manager' | 'tenant' })
+      const p = await signIn(email, password)
+      if (p.role !== role) {
+        setWrongRoleError({ actual: p.role })
         return
       }
-      navigate(returnedRole === 'manager' ? '/manager/dashboard' : '/tenant/dashboard')
+      if (p.mfa_enabled) {
+        navigate('/verify', {
+          state: {
+            role: p.role,
+            method: p.mfa_method,
+            phoneLast4: p.phone_last_four ?? undefined,
+          },
+        })
+      } else {
+        navigate(p.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Invalid credentials')
     } finally {

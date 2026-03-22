@@ -5,8 +5,9 @@ import ManagerLayout from './components/layout/ManagerLayout'
 import TenantLayout from './components/layout/TenantLayout'
 
 // Auth
-const Login    = lazy(() => import('./pages/auth/Login'))
-const Register = lazy(() => import('./pages/auth/Register'))
+const Login          = lazy(() => import('./pages/auth/Login'))
+const Register       = lazy(() => import('./pages/auth/Register'))
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 
 // Manager pages
 const ManagerDashboard   = lazy(() => import('./pages/manager/Dashboard'))
@@ -41,8 +42,13 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+
+          {/* Auth */}
+          <Route path="/login"           element={<Login role="manager" />} />
+          <Route path="/login/renter"    element={<Login role="tenant" />} />
+          <Route path="/register"        element={<Register role="manager" />} />
+          <Route path="/register/renter" element={<Register role="tenant" />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           <Route path="/manager" element={
             <ProtectedRoute requiredRole="manager">

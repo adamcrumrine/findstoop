@@ -11,7 +11,13 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   const { user, profile, loading } = useAuth()
 
   if (loading) return <LoadingSpinner />
-  if (!user) return <Navigate to="/login" replace />
+
+  // Not logged in → send to appropriate login page
+  if (!user) {
+    return <Navigate to={requiredRole === 'tenant' ? '/login/renter' : '/login'} replace />
+  }
+
+  // Wrong role → redirect to their correct dashboard
   if (profile?.role !== requiredRole) {
     return <Navigate to={profile?.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard'} replace />
   }

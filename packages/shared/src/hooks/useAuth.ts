@@ -10,7 +10,9 @@ interface AuthState {
   loading: boolean
   signIn: (email: string, password: string) => Promise<UserRole>
   signUp: (email: string, password: string, role: UserRole, fullName: string) => Promise<void>
+  signInWithGoogle: (role: UserRole) => Promise<void>
   signOut: () => Promise<void>
+  sendPasswordReset: (email: string) => Promise<void>
 }
 
 export function useAuth(): AuthState {
@@ -30,12 +32,16 @@ export function useAuth(): AuthState {
   const ensureProfile = async (userId: string, email: string, meta: Record<string, string>): Promise<Profile> => {
     let profile = await fetchProfile(userId)
     if (!profile) {
+      // For OAuth sign-ins the role is stored in localStorage before the redirect
+      const pendingRole = localStorage.getItem('pending_oauth_role') as UserRole | null
+      if (pendingRole) localStorage.removeItem('pending_oauth_role')
+
       const { data, error } = await supabase
         .from('profiles')
         .insert({
           id: userId,
-          role: (meta.role as Profile['role']) ?? 'tenant',
-          full_name: meta.full_name ?? null,
+          role: (meta.role as Profile['role']) ?? pendingRole ?? 'tenant',
+          full_name: meta.full_name ?? meta.name ?? null,
           email,
         })
         .select()
@@ -60,7 +66,14 @@ export function useAuth(): AuthState {
       setUser(session?.user ?? null)
       if (session?.user) {
         const p = await fetchProfile(session.user.id)
-        setProfile(p)
+        // New OAuth user — profile may not exist yet
+        if (!p && session.user.app_metadata?.provider === 'google') {
+          const meta = (session.user.user_metadata ?? {}) as Record<string, string>
+          const created = await ensureProfile(session.user.id, session.user.email ?? '', meta)
+          setProfile(created)
+        } else {
+          setProfile(p)
+        }
       } else {
         setProfile(null)
       }
@@ -90,10 +103,32 @@ export function useAuth(): AuthState {
     if (error) throw new Error(error.message)
   }
 
+  const signInWithGoogle = async (role: UserRole): Promise<void> => {
+    localStorage.setItem('pending_oauth_role', role)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/login`,
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+      },
+    })
+    if (error) {
+      localStorage.removeItem('pending_oauth_role')
+      throw new Error(error.message)
+    }
+  }
+
   const signOut = async (): Promise<void> => {
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
+  }
+
+  const sendPasswordReset = async (email: string): Promise<void> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    })
+    if (error) throw new Error(error.message)
   }
 
   return {
@@ -103,6 +138,8 @@ export function useAuth(): AuthState {
     loading,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
+    sendPasswordReset,
   }
 }

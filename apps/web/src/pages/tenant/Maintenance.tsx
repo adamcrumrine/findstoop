@@ -6,6 +6,7 @@ import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
+import { Wrench, Camera } from 'lucide-react'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
   low: 'Low',
@@ -152,7 +153,7 @@ export default function TenantMaintenance() {
         <Skeleton />
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <p className="text-3xl mb-2">🔧</p>
+          <Wrench className="w-10 h-10 mx-auto mb-2 text-mute-400" strokeWidth={1.5} />
           <p className="text-sm">No maintenance requests</p>
         </div>
       ) : (
@@ -252,7 +253,10 @@ export default function TenantMaintenance() {
               onClick={() => fileRef.current?.click()}
               className="w-full border-2 border-dashed border-gray-300 rounded-lg py-3 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
             >
-              📷 Tap to add photos
+              <span className="inline-flex items-center gap-2">
+                <Camera className="w-4 h-4" strokeWidth={1.75} />
+                Tap to add photos
+              </span>
             </button>
             {previews.length > 0 && (
               <div className="flex gap-2 mt-2">

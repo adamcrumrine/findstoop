@@ -10,6 +10,7 @@ import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
+import { CreditCard } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -325,7 +326,7 @@ export default function ManagerPayments() {
         <div className="space-y-2"><Skeleton /><Skeleton /><Skeleton /><Skeleton /><Skeleton /></div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-4xl mb-3">💳</p>
+          <CreditCard className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">{payments.length === 0 ? 'No payments yet' : 'No payments match filters'}</p>
           <p className="text-sm text-gray-400 mt-1">
             {payments.length === 0 ? 'Record your first payment to get started' : 'Try adjusting the filters'}

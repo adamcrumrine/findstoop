@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'FindStoop',
         short_name: 'FindStoop',
         description: 'Property management made simple',
-        theme_color: '#6366f1',
+        theme_color: '#00A896',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',

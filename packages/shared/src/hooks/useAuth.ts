@@ -39,10 +39,10 @@ export function useAuth(): AuthState {
 
   const ensureProfile = async (userId: string, email: string, meta: Record<string, string>): Promise<Profile> => {
     let profile = await fetchProfile(userId)
-    if (!profile) {
-      const pendingRole = localStorage.getItem('pending_oauth_role') as UserRole | null
-      if (pendingRole) localStorage.removeItem('pending_oauth_role')
+    const pendingRole = localStorage.getItem('pending_oauth_role') as UserRole | null
 
+    if (!profile) {
+      if (pendingRole) localStorage.removeItem('pending_oauth_role')
       const { data, error } = await supabase
         .from('profiles')
         .insert({
@@ -54,7 +54,24 @@ export function useAuth(): AuthState {
         .select()
         .single()
       if (error) throw new Error(error.message)
-      profile = data
+      return data!
+    }
+
+    // The auth trigger creates profiles for OAuth signups with role='tenant'
+    // (since Google sends no role metadata). If the user clicked through the
+    // landlord login page, reconcile by patching the freshly-created row.
+    if (pendingRole && pendingRole !== profile.role) {
+      const ageMs = Date.now() - new Date(profile.created_at).getTime()
+      if (ageMs < 60_000) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({ role: pendingRole })
+          .eq('id', userId)
+          .select()
+          .single()
+        if (!error && data) profile = data
+      }
+      localStorage.removeItem('pending_oauth_role')
     }
     return profile!
   }
@@ -72,13 +89,15 @@ export function useAuth(): AuthState {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        const p = await fetchProfile(session.user.id)
-        if (!p && session.user.app_metadata?.provider === 'google') {
+        // For Google sign-ins, always run ensureProfile — it both creates the
+        // row when missing AND reconciles role if the auth trigger defaulted
+        // a fresh OAuth signup to 'tenant' when the user wanted 'manager'.
+        if (session.user.app_metadata?.provider === 'google') {
           const meta = (session.user.user_metadata ?? {}) as Record<string, string>
-          const created = await ensureProfile(session.user.id, session.user.email ?? '', meta)
-          setProfile(created)
+          const reconciled = await ensureProfile(session.user.id, session.user.email ?? '', meta)
+          setProfile(reconciled)
         } else {
-          setProfile(p)
+          setProfile(await fetchProfile(session.user.id))
         }
       } else {
         setProfile(null)

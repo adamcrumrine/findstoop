@@ -1,4 +1,4 @@
-export type UserRole = 'manager' | 'tenant'
+export type UserRole = 'manager' | 'tenant' | 'admin'
 export type MfaMethod = 'sms' | 'totp' | 'none'
 
 export interface Profile {

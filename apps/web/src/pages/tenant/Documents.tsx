@@ -4,6 +4,10 @@ import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { useTenantDocuments } from '@findstoop/shared/hooks/useDocuments'
 import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import toast from 'react-hot-toast'
+import {
+  ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder,
+  type LucideIcon,
+} from 'lucide-react'
 
 const DOC_TYPE_LABEL: Record<DocumentType, string> = {
   lease: 'Lease Agreement',
@@ -13,12 +17,17 @@ const DOC_TYPE_LABEL: Record<DocumentType, string> = {
   other: 'Other',
 }
 
-const DOC_TYPE_ICON: Record<DocumentType, string> = {
-  lease: '📋',
-  addendum: '📝',
-  inspection: '🔍',
-  notice: '📣',
-  other: '📄',
+const DOC_TYPE_ICON: Record<DocumentType, LucideIcon> = {
+  lease: ClipboardList,
+  addendum: FilePlus2,
+  inspection: Search,
+  notice: Megaphone,
+  other: FileText,
+}
+
+function DocIcon({ type, className = 'w-5 h-5' }: { type: DocumentType; className?: string }) {
+  const Icon = DOC_TYPE_ICON[type]
+  return <Icon className={className} strokeWidth={1.75} />
 }
 
 const DOC_TYPE_COLOR: Record<DocumentType, string> = {
@@ -60,8 +69,8 @@ function DocCard({ doc, onDownload }: { doc: Document; onDownload: (doc: Documen
 
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 border border-gray-100 shadow-sm">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl shrink-0 ${DOC_TYPE_COLOR[doc.type]}`}>
-        {DOC_TYPE_ICON[doc.type]}
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${DOC_TYPE_COLOR[doc.type]}`}>
+        <DocIcon type={doc.type} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-900 text-sm truncate">{doc.name}</p>
@@ -158,7 +167,10 @@ export default function TenantDocuments() {
                   filterType === t ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {DOC_TYPE_ICON[t]} {DOC_TYPE_LABEL[t]} ({counts[t]})
+                <span className="inline-flex items-center gap-1.5">
+                  <DocIcon type={t} className="w-3.5 h-3.5" />
+                  {DOC_TYPE_LABEL[t]} ({counts[t]})
+                </span>
               </button>
             ))}
         </div>
@@ -169,7 +181,7 @@ export default function TenantDocuments() {
         <Skeleton />
       ) : filtered.length === 0 ? (
         <div className="text-center py-14 text-gray-400">
-          <p className="text-4xl mb-2">📁</p>
+          <Folder className="w-12 h-12 mx-auto mb-2 text-mute-400" strokeWidth={1.5} />
           <p className="text-sm">No documents yet</p>
           <p className="text-xs mt-1">Your property manager will upload documents here</p>
         </div>

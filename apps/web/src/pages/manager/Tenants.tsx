@@ -9,6 +9,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import type { Lease } from '@findstoop/shared/types/lease'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass } from '../../components/shared/FormField'
+import { Users } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -142,7 +143,7 @@ export default function ManagerTenants() {
         <div className="space-y-3"><Skeleton /><Skeleton /><Skeleton /></div>
       ) : tenants.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-4xl mb-3">👥</p>
+          <Users className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No tenants yet</p>
           <p className="text-sm text-gray-400 mt-1">Invite a tenant or create a lease to get started</p>
           <button

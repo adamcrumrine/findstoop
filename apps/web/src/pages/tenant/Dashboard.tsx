@@ -3,6 +3,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
+import { MessageSquare, ChevronRight } from 'lucide-react'
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-lg ${className ?? ''}`} />
@@ -191,13 +192,13 @@ export default function TenantDashboard() {
           className="w-full bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-brand-100 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <span className="text-xl">💬</span>
+            <MessageSquare className="w-5 h-5 text-brand-700" strokeWidth={1.75} />
             <div className="text-left">
               <p className="text-sm font-semibold text-brand-700">New messages</p>
               <p className="text-xs text-brand-500">You have {unreadMessages} unread message{unreadMessages > 1 ? 's' : ''}</p>
             </div>
           </div>
-          <span className="text-brand-400">→</span>
+          <ChevronRight className="w-4 h-4 text-brand-400" strokeWidth={2} />
         </button>
       )}
 

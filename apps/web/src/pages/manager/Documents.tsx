@@ -9,6 +9,10 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import toast from 'react-hot-toast'
+import {
+  ClipboardList, FilePlus2, Search, Megaphone, FileText,
+  Folder, Paperclip, type LucideIcon,
+} from 'lucide-react'
 
 const DOC_TYPE_LABEL: Record<DocumentType, string> = {
   lease: 'Lease Agreement',
@@ -18,16 +22,17 @@ const DOC_TYPE_LABEL: Record<DocumentType, string> = {
   other: 'Other',
 }
 
-const DOC_TYPE_ICON: Record<DocumentType, string> = {
-  lease: '📋',
-  addendum: '📝',
-  inspection: '🔍',
-  notice: '📣',
-  other: '📄',
+const DOC_TYPE_ICON: Record<DocumentType, LucideIcon> = {
+  lease: ClipboardList,
+  addendum: FilePlus2,
+  inspection: Search,
+  notice: Megaphone,
+  other: FileText,
 }
 
 function FileIcon({ type }: { type: DocumentType }) {
-  return <span className="text-2xl">{DOC_TYPE_ICON[type]}</span>
+  const Icon = DOC_TYPE_ICON[type]
+  return <Icon className="w-5 h-5 text-ink shrink-0" strokeWidth={1.75} />
 }
 
 function Skeleton() {
@@ -180,7 +185,7 @@ export default function ManagerDocuments() {
         <Skeleton />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-4xl mb-3">📁</p>
+          <Folder className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="text-sm">No documents found</p>
         </div>
       ) : (
@@ -284,9 +289,15 @@ export default function ManagerDocuments() {
               className="w-full border-2 border-dashed border-gray-300 rounded-lg py-4 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
             >
               {file ? (
-                <span className="text-gray-800 font-medium">📄 {file.name}</span>
+                <span className="text-ink font-medium inline-flex items-center gap-2">
+                  <FileText className="w-4 h-4" strokeWidth={1.75} />
+                  {file.name}
+                </span>
               ) : (
-                '📎 Click to choose file'
+                <span className="inline-flex items-center gap-2">
+                  <Paperclip className="w-4 h-4" strokeWidth={1.75} />
+                  Click to choose file
+                </span>
               )}
             </button>
           </FormField>

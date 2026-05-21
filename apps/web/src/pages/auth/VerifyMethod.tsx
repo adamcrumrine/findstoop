@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { UserRole } from '@findstoop/shared/types/profile'
 import toast from 'react-hot-toast'
+import { Smartphone, Phone, ShieldCheck, KeyRound, type LucideIcon } from 'lucide-react'
 
 interface MfaState {
   role: UserRole
@@ -15,17 +16,9 @@ type MethodId = 'sms' | 'call' | 'totp' | 'backup'
 
 interface Method {
   id: MethodId
-  icon: string
+  Icon: LucideIcon
   title: string
   subtitle: string
-}
-
-function HouseIcon() {
-  return (
-    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  )
 }
 
 export default function VerifyMethod() {
@@ -42,13 +35,13 @@ export default function VerifyMethod() {
       ? [
           {
             id: 'sms' as MethodId,
-            icon: '📱',
+            Icon: Smartphone,
             title: 'Text message (SMS)',
             subtitle: `Send a code to ••••••••${state.phoneLast4}`,
           },
           {
             id: 'call' as MethodId,
-            icon: '📞',
+            Icon: Phone,
             title: 'Phone call',
             subtitle: `Call ••••••••${state.phoneLast4} with a code`,
           },
@@ -56,13 +49,13 @@ export default function VerifyMethod() {
       : []),
     {
       id: 'totp',
-      icon: '🔐',
+      Icon: ShieldCheck,
       title: 'Authenticator app',
       subtitle: 'Use Google Authenticator or similar',
     },
     {
       id: 'backup',
-      icon: '🔑',
+      Icon: KeyRound,
       title: 'Backup code',
       subtitle: 'Use one of your saved backup codes',
     },
@@ -93,37 +86,35 @@ export default function VerifyMethod() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        <div className="w-14 h-14 bg-gray-900 rounded-xl flex items-center justify-center mb-6">
-          <HouseIcon />
-        </div>
+        <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
 
-        <h1 className="text-xl font-medium text-gray-900">Try another method</h1>
-        <p className="text-sm text-gray-500 mt-1 mb-6">
+        <h1 className="text-xl font-medium text-ink">Try another method</h1>
+        <p className="text-sm text-mute mt-1 mb-6">
           Choose how you'd like to verify your identity.
         </p>
 
         <div className="space-y-2">
-          {methods.map((m) => (
+          {methods.map(({ id, Icon, title, subtitle }) => (
             <button
-              key={m.id}
-              onClick={() => handleSelect(m.id)}
+              key={id}
+              onClick={() => handleSelect(id)}
               disabled={!!busy}
               className={`w-full flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all disabled:opacity-60 ${
-                busy === m.id
-                  ? 'border-sky-400 bg-sky-50'
+                busy === id
+                  ? 'border-brand-400 bg-brand-50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <span className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-lg text-xl flex-shrink-0">
-                {busy === m.id ? (
-                  <span className="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin inline-block" />
+              <span className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-lg flex-shrink-0">
+                {busy === id ? (
+                  <span className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin inline-block" />
                 ) : (
-                  m.icon
+                  <Icon className="w-5 h-5 text-ink" strokeWidth={1.75} />
                 )}
               </span>
               <div>
-                <p className="text-sm font-medium text-gray-900">{m.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{m.subtitle}</p>
+                <p className="text-sm font-medium text-ink">{title}</p>
+                <p className="text-xs text-mute mt-0.5">{subtitle}</p>
               </div>
             </button>
           ))}
@@ -132,7 +123,7 @@ export default function VerifyMethod() {
         <p className="mt-6 text-center">
           <button
             onClick={() => navigate(-1)}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-sm text-mute-400 hover:text-ink transition-colors"
           >
             ← Back to verification
           </button>

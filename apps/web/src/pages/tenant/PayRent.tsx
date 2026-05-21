@@ -7,6 +7,7 @@ import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { getTenantPayments } from '@findstoop/shared/api/payments'
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
+import { CheckCircle2 } from 'lucide-react'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '')
 
@@ -171,7 +172,7 @@ export default function TenantPayRent() {
         <Skeleton className="h-48" />
       ) : paid ? (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
-          <p className="text-4xl mb-2">✅</p>
+          <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-600" strokeWidth={1.5} />
           <p className="text-lg font-bold text-green-700">Payment Successful!</p>
           <p className="text-sm text-green-600 mt-1">Your payment has been recorded.</p>
           <button onClick={() => setPaid(false)} className="mt-4 text-sm text-green-700 underline">

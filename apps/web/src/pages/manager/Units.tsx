@@ -8,6 +8,7 @@ import type { Property } from '@findstoop/shared/types/property'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
+import { DoorOpen } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -313,13 +314,13 @@ export default function ManagerUnits() {
         <div className="space-y-3"><Skeleton /><Skeleton /><Skeleton /></div>
       ) : properties.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-4xl mb-3">🚪</p>
+          <DoorOpen className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No properties yet</p>
           <p className="text-sm text-gray-400 mt-1">Add a property before adding units</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-4xl mb-3">🚪</p>
+          <DoorOpen className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No units found</p>
           <p className="text-sm text-gray-400 mt-1">
             {units.length === 0 ? 'Add your first unit to get started' : 'Try adjusting your filters'}

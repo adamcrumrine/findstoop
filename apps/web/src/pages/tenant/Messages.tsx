@@ -4,6 +4,7 @@ import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { useMessages } from '@findstoop/shared/hooks/useMessages'
 import { supabase } from '../../lib/supabase'
 import type { Profile } from '@findstoop/shared/types/profile'
+import { MessageSquare } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -118,7 +119,7 @@ export default function TenantMessages() {
       {!lease && !loading && (
         <div className="flex-1 flex items-center justify-center text-center px-6">
           <div>
-            <p className="text-3xl mb-2">💬</p>
+            <MessageSquare className="w-10 h-10 mx-auto mb-2 text-mute-400" strokeWidth={1.5} />
             <p className="text-sm text-gray-500">No active lease found. You'll be able to message your property manager once a lease is set up.</p>
           </div>
         </div>

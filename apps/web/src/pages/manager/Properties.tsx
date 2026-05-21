@@ -7,6 +7,7 @@ import type { Property } from '@findstoop/shared/types/property'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass } from '../../components/shared/FormField'
+import { Building2 } from 'lucide-react'
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton() {
@@ -215,7 +216,7 @@ export default function ManagerProperties() {
         </div>
       ) : properties.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-4xl mb-3">🏢</p>
+          <Building2 className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No properties yet</p>
           <p className="text-sm text-gray-400 mt-1">Add your first property to get started</p>
           <button

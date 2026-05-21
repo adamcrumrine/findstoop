@@ -4,6 +4,7 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useConversations, useMessages } from '@findstoop/shared/hooks/useMessages'
 import type { ConversationSummary } from '@findstoop/shared/api/messages'
+import { MessageSquare } from 'lucide-react'
 
 function Avatar({ name }: { name: string }) {
   return (
@@ -62,7 +63,7 @@ function ConversationList({
   if (conversations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-12">
-        <p className="text-3xl mb-2">💬</p>
+        <MessageSquare className="w-10 h-10 mb-2 text-mute-400" strokeWidth={1.5} />
         <p className="text-sm text-gray-500">No tenant conversations yet</p>
         <p className="text-xs text-gray-400 mt-1">Conversations appear once tenants have active leases</p>
       </div>
@@ -274,7 +275,7 @@ export default function ManagerMessages() {
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-            <p className="text-4xl mb-3">💬</p>
+            <MessageSquare className="w-12 h-12 mb-3 text-mute-400" strokeWidth={1.5} />
             <p className="text-sm">Select a conversation to start messaging</p>
           </div>
         )}

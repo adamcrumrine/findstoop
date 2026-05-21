@@ -11,6 +11,7 @@ import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
+import { FileText } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -318,7 +319,7 @@ export default function ManagerLeases() {
         <div className="space-y-3"><Skeleton /><Skeleton /><Skeleton /></div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-4xl mb-3">📄</p>
+          <FileText className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">
             {leases.length === 0 ? 'No leases yet' : 'No leases match this filter'}
           </p>

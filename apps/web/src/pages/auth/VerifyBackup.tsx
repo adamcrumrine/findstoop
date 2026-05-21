@@ -8,14 +8,6 @@ interface MfaState {
   phoneLast4?: string
 }
 
-function HouseIcon() {
-  return (
-    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  )
-}
-
 export default function VerifyBackup() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -38,7 +30,7 @@ export default function VerifyBackup() {
       const { remaining } = await verifyBackupCode(code.trim())
       setCodesRemaining(remaining)
       setTimeout(() => {
-        navigate(state.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard', { replace: true })
+        navigate(state.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard', { replace: true })
       }, 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid backup code')
@@ -51,9 +43,7 @@ export default function VerifyBackup() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
-          <div className="w-14 h-14 bg-gray-900 rounded-xl flex items-center justify-center mb-6">
-            <HouseIcon />
-          </div>
+          <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             <p className="font-medium mb-1">Backup code used</p>
             <p>
@@ -61,7 +51,7 @@ export default function VerifyBackup() {
               Generate new codes in settings.
             </p>
           </div>
-          <p className="text-sm text-gray-400 text-center mt-5">Redirecting…</p>
+          <p className="text-sm text-mute-400 text-center mt-5">Redirecting…</p>
         </div>
       </div>
     )
@@ -71,16 +61,14 @@ export default function VerifyBackup() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        <div className="w-14 h-14 bg-gray-900 rounded-xl flex items-center justify-center mb-6">
-          <HouseIcon />
-        </div>
+        <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
 
-        <h1 className="text-xl font-medium text-gray-900">Enter a backup code</h1>
-        <p className="text-sm text-gray-500 mt-1 mb-6">Each backup code can only be used once.</p>
+        <h1 className="text-xl font-medium text-ink">Enter a backup code</h1>
+        <p className="text-sm text-mute mt-1 mb-6">Each backup code can only be used once.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-ink mb-2">
               Backup code <span className="text-red-500">*</span>
             </label>
             <input
@@ -90,7 +78,7 @@ export default function VerifyBackup() {
               placeholder="xxxx-xxxx-xxxx-xxxx"
               autoComplete="off"
               autoFocus
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder-gray-400"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-ink placeholder-mute"
             />
           </div>
 
@@ -99,7 +87,7 @@ export default function VerifyBackup() {
           <button
             type="submit"
             disabled={!code.trim() || loading}
-            className="w-full bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-40"
+            className="w-full bg-brand-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-40"
           >
             {loading ? 'Verifying…' : 'Continue'}
           </button>
@@ -109,7 +97,7 @@ export default function VerifyBackup() {
           <Link
             to="/verify/method"
             state={state}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-sm text-mute-400 hover:text-ink transition-colors"
           >
             Try another method
           </Link>

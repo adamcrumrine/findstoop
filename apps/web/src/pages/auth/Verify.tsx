@@ -4,19 +4,12 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { UserRole } from '@findstoop/shared/types/profile'
 import OtpInput from '../../components/auth/OtpInput'
 import toast from 'react-hot-toast'
+import { Phone, Smartphone } from 'lucide-react'
 
 const LOCKOUT_KEY  = 'mfa_lockout_until'
 const MAX_ATTEMPTS = 5
 const LOCKOUT_MS   = 10 * 60 * 1000   // 10 minutes
 const RESEND_WAIT  = 30               // seconds
-
-function HouseIcon() {
-  return (
-    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-    </svg>
-  )
-}
 
 interface LocationState {
   role: UserRole
@@ -88,7 +81,7 @@ export default function Verify() {
 
     try {
       await verifySmsCode(code)
-      navigate(state.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard', { replace: true })
+      navigate(state.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed'
       const next = attempts + 1
@@ -130,19 +123,19 @@ export default function Verify() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        <div className="w-14 h-14 bg-gray-900 rounded-xl flex items-center justify-center mb-6">
-          <HouseIcon />
-        </div>
+        <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
 
-        <h1 className="text-xl font-medium text-gray-900">Verify your identity</h1>
-        <p className="text-sm text-gray-500 mt-1 mb-5">
+        <h1 className="text-xl font-medium text-ink">Verify your identity</h1>
+        <p className="text-sm text-mute mt-1 mb-5">
           Welcome to Stoop. Continue as a {label}.
         </p>
 
         {state.phoneLast4 && (
           <div className="mb-5">
-            <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 text-sm px-3 py-1.5 rounded-full">
-              <span>{channel === 'call' ? '📞' : '📱'}</span>
+            <span className="inline-flex items-center gap-2 bg-gray-100 text-ink text-sm px-3 py-1.5 rounded-full">
+              {channel === 'call'
+                ? <Phone className="w-4 h-4" strokeWidth={1.75} />
+                : <Smartphone className="w-4 h-4" strokeWidth={1.75} />}
               <span>••••••••{state.phoneLast4}</span>
             </span>
           </div>
@@ -155,7 +148,7 @@ export default function Verify() {
           </div>
         ) : (
           <>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+            <label className="block text-sm font-medium text-ink mb-3">
               Enter the 6-digit code <span className="text-red-500">*</span>
             </label>
 
@@ -166,7 +159,7 @@ export default function Verify() {
             <button
               onClick={handleSubmit}
               disabled={code.length < 6 || code.includes('') || loading}
-              className="w-full mt-5 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-40"
+              className="w-full mt-5 bg-brand-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-40"
             >
               {loading ? 'Verifying…' : 'Continue'}
             </button>
@@ -174,10 +167,10 @@ export default function Verify() {
         )}
 
         {!isLocked && (
-          <p className="mt-4 text-sm text-center text-gray-500">
+          <p className="mt-4 text-sm text-center text-mute">
             Didn't receive a code?{' '}
             {resendCooldown > 0 ? (
-              <span className="text-gray-400">Resend in {resendCooldown}s</span>
+              <span className="text-mute-400">Resend in {resendCooldown}s</span>
             ) : (
               <button onClick={handleResend} className="text-brand-600 hover:underline font-medium">
                 Resend
@@ -189,7 +182,7 @@ export default function Verify() {
         <div className="mt-4 text-center">
           <button
             onClick={() => navigate('/verify/method', { state })}
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-sm text-mute hover:text-ink transition-colors"
           >
             Try another method
           </button>
@@ -198,7 +191,7 @@ export default function Verify() {
         <p className="mt-5 text-center">
           <Link
             to={state.role === 'tenant' ? '/login/renter' : '/login'}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-sm text-mute-400 hover:text-ink transition-colors"
           >
             ← Back to log in
           </Link>

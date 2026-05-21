@@ -7,6 +7,7 @@ import Modal from '../../components/shared/Modal'
 import FormField, { selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
+import { Wrench } from 'lucide-react'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
   low: 'Low',
@@ -198,7 +199,7 @@ export default function ManagerMaintenance() {
         <Skeleton />
       ) : rest.length === 0 && emergency.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-4xl mb-3">🔧</p>
+          <Wrench className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="text-sm">No maintenance requests</p>
         </div>
       ) : rest.length > 0 ? (

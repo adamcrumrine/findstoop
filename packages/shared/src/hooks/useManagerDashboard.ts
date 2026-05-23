@@ -4,6 +4,7 @@ import { getUnits } from '../api/units'
 import { getLeases, getUpcomingLeaseRenewals } from '../api/leases'
 import { getRecentPayments, getPaymentsByLeaseIds } from '../api/payments'
 import { getMaintenanceRequests } from '../api/maintenance'
+import { supabase } from '../lib/supabase'
 import type { Property } from '../types/property'
 import type { Unit } from '../types/unit'
 import type { Lease } from '../types/lease'
@@ -24,6 +25,12 @@ export interface DashboardData {
   recentPayments: Payment[]
   openMaintenance: MaintenanceRequest[]
   upcomingRenewals: Lease[]
+  /** Leases the tenant has e-signed but the manager hasn't — waiting on the
+   *  manager to finalize. Surfaced as a CTA on the dashboard. */
+  awaitingManagerSignature: Lease[]
+  /** True once the manager has at least one fully-signed lease but no
+   *  active FindStoop subscription. Surfaces a hard CTA to complete billing. */
+  needsBillingSetup: boolean
   properties: Property[]
   units: Unit[]
   leases: Lease[]
@@ -41,9 +48,16 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
   const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [openMaintenance, setOpenMaintenance] = useState<MaintenanceRequest[]>([])
   const [upcomingRenewals, setUpcomingRenewals] = useState<Lease[]>([])
+  const [awaitingManagerSignature, setAwaitingManagerSignature] = useState<Lease[]>([])
+  const [needsBillingSetup, setNeedsBillingSetup] = useState(false)
 
   useEffect(() => {
-    if (!managerId) return
+    if (!managerId) {
+      // Without a manager id we can't load — flip loading off so the page
+      // can render its (empty) state instead of spinning forever.
+      setLoading(false)
+      return
+    }
     let cancelled = false
 
     const load = async () => {
@@ -72,13 +86,57 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
         setUpcomingRenewals(renewals)
 
         const leaseIds = allLeases.map((l) => l.id)
-        const [recent, all] = await Promise.all([
+        const [recent, all, sigsRes] = await Promise.all([
           getRecentPayments(leaseIds, 5),
           getPaymentsByLeaseIds(leaseIds),
+          // Fetch all signatures across the manager's leases. We use this to
+          // identify leases where the tenant has signed but the manager
+          // hasn't yet — the dashboard surfaces these as a CTA.
+          leaseIds.length > 0
+            ? supabase.from('lease_signatures').select('lease_id, signer_role').in('lease_id', leaseIds)
+            : Promise.resolve({ data: [] as Array<{ lease_id: string; signer_role: string }> }),
         ])
         if (cancelled) return
         setRecentPayments(recent)
         setAllPayments(all)
+
+        // Group signatures by lease, then surface leases where the tenant has
+        // signed but no manager/admin has. Exclude fully-signed leases.
+        const rolesByLease = new Map<string, Set<string>>()
+        const sigs = (sigsRes as { data?: Array<{ lease_id: string; signer_role: string }> }).data ?? []
+        for (const s of sigs) {
+          const set = rolesByLease.get(s.lease_id) ?? new Set<string>()
+          set.add(s.signer_role)
+          rolesByLease.set(s.lease_id, set)
+        }
+        const awaiting = allLeases.filter((l) => {
+          if (l.signed_at) return false
+          if (l.status === 'terminated' || l.status === 'expired') return false
+          const roles = rolesByLease.get(l.id)
+          if (!roles) return false
+          return roles.has('tenant') && !roles.has('manager') && !roles.has('admin')
+        })
+        setAwaitingManagerSignature(awaiting)
+
+        // Billing-setup detection: if the manager has any fully-signed lease
+        // (or the tenant has signed and they're about to finalize), check
+        // whether their FindStoop subscription is active. If not, surface a
+        // hard CTA on the dashboard.
+        const hasExecutedLease = allLeases.some((l) => l.signed_at != null) ||
+          awaiting.length > 0
+        if (hasExecutedLease) {
+          const { data: subData } = await supabase
+            .from('profiles')
+            .select('stripe_subscription_id, subscription_status')
+            .eq('id', managerId)
+            .single()
+          const sub = subData as { stripe_subscription_id?: string | null; subscription_status?: string | null } | null
+          const subscriptionActive = !!sub?.stripe_subscription_id &&
+            (sub?.subscription_status === 'active' || sub?.subscription_status === 'trialing')
+          if (!cancelled) setNeedsBillingSetup(!subscriptionActive)
+        } else {
+          if (!cancelled) setNeedsBillingSetup(false)
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load dashboard')
       } finally {
@@ -111,6 +169,8 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
     recentPayments,
     openMaintenance: openMaintenance.slice(0, 5),
     upcomingRenewals,
+    awaitingManagerSignature,
+    needsBillingSetup,
     properties,
     units,
     leases,

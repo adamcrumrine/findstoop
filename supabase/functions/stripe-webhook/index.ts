@@ -163,6 +163,86 @@ Deno.serve(async (req) => {
         }
         break
       }
+      // ── Tenant rent payments (autopay + manual) ─────────────────────────
+      // Matches by metadata.findstoop_payment_id when the cron created the
+      // row, otherwise by stripe_payment_id when the client inserted it.
+      case 'payment_intent.succeeded': {
+        const pi = event.data.object as Stripe.PaymentIntent
+        const update = { status: 'completed', paid_at: new Date().toISOString(), stripe_payment_id: pi.id }
+        if (pi.metadata?.findstoop_payment_id) {
+          await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
+        } else {
+          await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
+        }
+        const tenantId = pi.metadata?.findstoop_tenant_id || pi.metadata?.tenantId
+        if (tenantId) {
+          await admin.from('profiles')
+            .update({ payment_method_setup_at: new Date().toISOString() })
+            .eq('id', tenantId)
+            .is('payment_method_setup_at', null)
+        }
+        break
+      }
+      case 'payment_intent.processing': {
+        const pi = event.data.object as Stripe.PaymentIntent
+        const update = { status: 'processing', stripe_payment_id: pi.id }
+        if (pi.metadata?.findstoop_payment_id) {
+          await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
+        } else {
+          await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
+        }
+        break
+      }
+      case 'payment_intent.payment_failed': {
+        const pi = event.data.object as Stripe.PaymentIntent
+        const update = { status: 'failed', stripe_payment_id: pi.id }
+        if (pi.metadata?.findstoop_payment_id) {
+          await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
+        } else {
+          await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
+        }
+        break
+      }
+      // ── Tenant saved-payment-method (SetupIntent) ───────────────────────
+      case 'setup_intent.succeeded': {
+        const si = event.data.object as Stripe.SetupIntent
+        const tenantId = si.metadata?.findstoop_tenant_id
+        const pmId = typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id
+        if (tenantId && pmId) {
+          // Set as the customer's default PM so off-session autopay can use it.
+          try {
+            const cust = typeof si.customer === 'string' ? si.customer : si.customer?.id
+            if (cust) {
+              await stripe.customers.update(cust, {
+                invoice_settings: { default_payment_method: pmId },
+              })
+            }
+          } catch { /* non-fatal */ }
+
+          // Fetch the PM to mirror its display fields onto the profile.
+          let pmType: string | null = null
+          let pmBrand: string | null = null
+          let pmLast4: string | null = null
+          let pmBankName: string | null = null
+          try {
+            const pm = await stripe.paymentMethods.retrieve(pmId)
+            pmType = pm.type ?? null
+            pmBrand = pm.card?.brand ?? null
+            pmLast4 = pm.card?.last4 ?? pm.us_bank_account?.last4 ?? null
+            pmBankName = pm.us_bank_account?.bank_name ?? null
+          } catch { /* non-fatal — UI falls back to a generic label */ }
+
+          await admin.from('profiles').update({
+            stripe_default_payment_method_id: pmId,
+            payment_method_setup_at: new Date().toISOString(),
+            stripe_default_pm_type: pmType,
+            stripe_default_pm_brand: pmBrand,
+            stripe_default_pm_last4: pmLast4,
+            stripe_default_pm_bank_name: pmBankName,
+          }).eq('id', tenantId)
+        }
+        break
+      }
       default:
         // No-op for events we don't care about. The audit row is enough.
         break

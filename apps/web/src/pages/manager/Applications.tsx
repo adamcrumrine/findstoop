@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import {
   ClipboardList, ShieldCheck, Loader2, ChevronRight, CheckCircle2, XCircle,
   Sparkles, Link as LinkIcon, Mail, Phone, Briefcase, Home as HomeIcon,
-  Users as UsersIcon, Copy,
+  Users as UsersIcon, Copy, Archive, ArchiveRestore, Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -35,6 +35,7 @@ interface Application {
   background_summary: string | null
   landlord_notes: string | null
   submitted_at: string
+  archived_at: string | null
   unit?: {
     unit_number: string
     properties: { name: string }
@@ -70,6 +71,7 @@ export default function Applications() {
   const [apps, setApps] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<AppStatus | 'all'>('all')
+  const [showArchived, setShowArchived] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const refresh = async () => {
@@ -84,10 +86,15 @@ export default function Applications() {
   }
   useEffect(() => { refresh() }, [profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = useMemo(
-    () => filter === 'all' ? apps : apps.filter((a) => a.status === filter),
-    [apps, filter],
+  const visible = useMemo(
+    () => apps.filter((a) => showArchived ? a.archived_at != null : a.archived_at == null),
+    [apps, showArchived],
   )
+  const filtered = useMemo(
+    () => filter === 'all' ? visible : visible.filter((a) => a.status === filter),
+    [visible, filter],
+  )
+  const archivedCount = useMemo(() => apps.filter((a) => a.archived_at != null).length, [apps])
   const selected = useMemo(
     () => apps.find((a) => a.id === selectedId) ?? null,
     [apps, selectedId],
@@ -105,6 +112,53 @@ export default function Applications() {
       .eq('id', id)
     if (error) toast.error(error.message)
     else toast.success(`Marked ${STATUS_LABEL[status]}`)
+  }
+
+  // Calls the application-decision edge function which:
+  //   approve  → invites the applicant, creates a pending lease, parks unit
+  //              at 'pending', sends acceptance email
+  //   decline  → marks declined + sends a polite rejection email
+  const submitDecision = async (id: string, decision: 'approve' | 'decline', declineReason?: string) => {
+    const verb = decision === 'approve' ? 'Approving' : 'Declining'
+    const toastId = toast.loading(`${verb} application…`)
+    const { data, error } = await supabase.functions.invoke('application-decision', {
+      body: { applicationId: id, decision, declineReason },
+    })
+    if (error || data?.error) {
+      toast.error((error?.message ?? data?.error) || 'Decision failed', { id: toastId })
+      return
+    }
+    if (decision === 'approve') {
+      toast.success('Approved — acceptance email sent and draft lease created', { id: toastId, duration: 5000 })
+    } else {
+      toast.success('Decline email sent', { id: toastId })
+    }
+    refresh()
+  }
+
+  const setArchived = async (id: string, archived: boolean) => {
+    const archived_at = archived ? new Date().toISOString() : null
+    setApps((prev) => prev.map((a) => a.id === id ? { ...a, archived_at } : a))
+    if (selectedId === id) setSelectedId(null)
+    const { error } = await supabase
+      .from('applications')
+      .update({ archived_at })
+      .eq('id', id)
+    if (error) toast.error(error.message)
+    else toast.success(archived ? 'Application archived' : 'Application unarchived')
+  }
+
+  const deleteApplication = async (id: string) => {
+    setApps((prev) => prev.filter((a) => a.id !== id))
+    if (selectedId === id) setSelectedId(null)
+    const { error } = await supabase.from('applications').delete().eq('id', id)
+    if (error) {
+      toast.error(error.message)
+      // Roll back optimistic delete by refetching — safest given RLS.
+      refresh()
+    } else {
+      toast.success('Application deleted')
+    }
   }
 
   const requestScreening = async (id: string) => {
@@ -139,7 +193,7 @@ export default function Applications() {
       </header>
 
       {/* Filters */}
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
         {(['all', 'submitted', 'under_review', 'approved', 'declined'] as const).map((s) => (
           <button
             key={s}
@@ -148,11 +202,26 @@ export default function Applications() {
               filter === s ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
             }`}
           >
-            {s === 'all' ? `All (${apps.length})` :
-             s === 'under_review' ? `Reviewing (${apps.filter((a) => a.status === s).length})` :
-             `${STATUS_LABEL[s]} (${apps.filter((a) => a.status === s).length})`}
+            {s === 'all' ? `All (${visible.length})` :
+             s === 'under_review' ? `Reviewing (${visible.filter((a) => a.status === s).length})` :
+             `${STATUS_LABEL[s]} (${visible.filter((a) => a.status === s).length})`}
           </button>
         ))}
+
+        <div className="ml-auto" />
+
+        <button
+          onClick={() => { setShowArchived((v) => !v); setSelectedId(null) }}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            showArchived
+              ? 'bg-gray-800 text-white border-gray-800'
+              : 'bg-white text-mute border-gray-200 hover:border-gray-300'
+          }`}
+          title="Toggle archived applications"
+        >
+          <Archive className="w-3.5 h-3.5" strokeWidth={1.75} />
+          {showArchived ? `Viewing archived (${archivedCount})` : `Archived (${archivedCount})`}
+        </button>
       </div>
 
       {filtered.length === 0 ? (
@@ -210,6 +279,9 @@ export default function Applications() {
                 app={selected}
                 onStatus={(s) => updateStatus(selected.id, s)}
                 onRequestScreening={() => requestScreening(selected.id)}
+                onDecision={(decision, reason) => submitDecision(selected.id, decision, reason)}
+                onArchiveToggle={() => setArchived(selected.id, selected.archived_at == null)}
+                onDelete={() => deleteApplication(selected.id)}
               />
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-mute text-sm">
@@ -224,12 +296,20 @@ export default function Applications() {
 }
 
 function ApplicationDetail({
-  app, onStatus, onRequestScreening,
+  app, onStatus, onRequestScreening, onDecision, onArchiveToggle, onDelete,
 }: {
   app: Application
   onStatus: (status: AppStatus) => void
   onRequestScreening: () => void
+  onDecision: (decision: 'approve' | 'decline', reason?: string) => void
+  onArchiveToggle: () => void
+  onDelete: () => void
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDecision, setConfirmDecision] = useState<'approve' | 'decline' | null>(null)
+  const [declineReason, setDeclineReason] = useState('')
+  const isArchived = app.archived_at != null
+  const isDecided = app.status === 'approved' || app.status === 'declined'
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
       <div className="p-5 border-b border-gray-100">
@@ -243,32 +323,87 @@ function ApplicationDetail({
         </div>
       </div>
 
-      {/* Quick decisions */}
-      <div className="p-5 border-b border-gray-100 grid grid-cols-3 gap-2">
-        <button
-          onClick={() => onStatus('approved')}
-          disabled={app.status === 'approved'}
-          className="inline-flex items-center justify-center gap-1.5 bg-green-50 text-green-800 border border-green-200 hover:bg-green-100 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
-        >
-          <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-          Approve
-        </button>
-        <button
-          onClick={() => onStatus('declined')}
-          disabled={app.status === 'declined'}
-          className="inline-flex items-center justify-center gap-1.5 bg-red-50 text-red-800 border border-red-200 hover:bg-red-100 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
-        >
-          <XCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
-          Decline
-        </button>
-        <button
-          onClick={() => onStatus('under_review')}
-          disabled={app.status === 'under_review'}
-          className="inline-flex items-center justify-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
-        >
-          Review
-        </button>
-      </div>
+      {/* Decisions */}
+      {!confirmDecision ? (
+        <div className="p-5 border-b border-gray-100 grid grid-cols-3 gap-2">
+          <button
+            onClick={() => setConfirmDecision('approve')}
+            disabled={app.status === 'approved'}
+            className="inline-flex items-center justify-center gap-1.5 bg-green-50 text-green-800 border border-green-200 hover:bg-green-100 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+            Approve
+          </button>
+          <button
+            onClick={() => setConfirmDecision('decline')}
+            disabled={app.status === 'declined'}
+            className="inline-flex items-center justify-center gap-1.5 bg-red-50 text-red-800 border border-red-200 hover:bg-red-100 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
+          >
+            <XCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
+            Decline
+          </button>
+          <button
+            onClick={() => onStatus('under_review')}
+            disabled={app.status === 'under_review' || isDecided}
+            className="inline-flex items-center justify-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-xs font-semibold px-3 py-2 rounded-lg disabled:opacity-50"
+          >
+            Review
+          </button>
+        </div>
+      ) : confirmDecision === 'approve' ? (
+        <div className="p-5 border-b border-gray-100 bg-green-50">
+          <p className="text-sm font-semibold text-green-900 mb-2">Approve {app.first_name} {app.last_name}?</p>
+          <ul className="text-xs text-green-900 leading-relaxed space-y-1 mb-3 ml-4 list-disc">
+            <li>Send an acceptance email with an account-setup link</li>
+            <li>Create a draft (pending) lease prefilled from this application</li>
+            <li>Park the unit at <strong>pending</strong> so it stops accepting new applicants</li>
+          </ul>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirmDecision(null)}
+              className="flex-1 text-xs font-semibold text-green-900 bg-white border border-green-200 hover:bg-green-100 px-3 py-2 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { setConfirmDecision(null); onDecision('approve') }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Approve & send email
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-5 border-b border-gray-100 bg-red-50">
+          <p className="text-sm font-semibold text-red-900 mb-1">Decline {app.first_name} {app.last_name}?</p>
+          <p className="text-xs text-red-900 leading-relaxed mb-3">
+            A polite rejection email will be sent. Add an optional note if you'd like to explain — it appears in the email.
+          </p>
+          <textarea
+            rows={2}
+            value={declineReason}
+            onChange={(e) => setDeclineReason(e.target.value)}
+            placeholder="Optional note (e.g. selected a different applicant, income didn't meet 3× rent, etc.)"
+            className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 mb-3 bg-white"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setConfirmDecision(null); setDeclineReason('') }}
+              className="flex-1 text-xs font-semibold text-red-900 bg-white border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { const r = declineReason; setConfirmDecision(null); setDeclineReason(''); onDecision('decline', r || undefined) }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg"
+            >
+              <XCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Decline & send email
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Screening */}
       <div className="p-5 border-b border-gray-100">
@@ -318,6 +453,57 @@ function ApplicationDetail({
         {app.has_pets && <Row label="Pets" value={app.pets_description ?? 'Yes'} multiline />}
         {app.desired_move_in_date && <Row label="Desired move-in" value={new Date(app.desired_move_in_date).toLocaleDateString()} />}
       </DetailBlock>
+
+      {/* Footer actions: archive + delete */}
+      <div className="p-5 bg-gray-50 border-t border-gray-100">
+        {isArchived && (
+          <p className="text-[11px] text-mute italic mb-3">
+            Archived {new Date(app.archived_at!).toLocaleDateString()}. Hidden from the default list — unarchive to restore.
+          </p>
+        )}
+        {!confirmDelete ? (
+          <div className="flex gap-2">
+            <button
+              onClick={onArchiveToggle}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-ink bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 px-3 py-2 rounded-lg"
+              title={isArchived ? 'Unarchive this application' : 'Archive — hides from list but keeps the record'}
+            >
+              {isArchived
+                ? <><ArchiveRestore className="w-3.5 h-3.5" strokeWidth={1.75} /> Unarchive</>
+                : <><Archive className="w-3.5 h-3.5" strokeWidth={1.75} /> Archive</>}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-red-700 bg-white border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg"
+              title="Delete permanently — cannot be undone"
+            >
+              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Delete
+            </button>
+          </div>
+        ) : (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-xs font-semibold text-red-900 mb-2">Permanently delete this application?</p>
+            <p className="text-[11px] text-red-800 leading-relaxed mb-3">
+              This removes the submission entirely. If you might want it later, archive it instead.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 text-xs font-semibold text-red-900 bg-white border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setConfirmDelete(false); onDelete() }}
+                className="flex-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg"
+              >
+                Delete forever
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

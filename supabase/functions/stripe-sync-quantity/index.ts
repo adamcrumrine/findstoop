@@ -58,24 +58,23 @@ Deno.serve(async (req) => {
       manager_uuid: user.id,
       free_units: FREE_UNITS,
     })
-    const newQty = Number(paidUnitsRpc ?? 0)
+    const rawQty = Number(paidUnitsRpc ?? 0)
     const previousQty = profile.subscription_quantity ?? 0
 
-    // No subscription yet — tell the client whether one is required.
+    // No subscription yet — let the client know a subscription is needed.
     if (!profile.stripe_subscription_item_id) {
       return json({
-        status: newQty > 0 ? 'subscribe_required' : 'no_payment_needed',
-        paidUnits: newQty,
+        status: 'subscribe_required',
+        paidUnits: rawQty,
       })
     }
 
-    // Dropped back to or below free tier — cancel at period end.
-    if (newQty === 0) {
-      await stripe.subscriptions.update(profile.stripe_subscription_id, {
-        cancel_at_period_end: true,
-      })
-      return json({ status: 'will_cancel', paidUnits: 0, previousQuantity: previousQty })
-    }
+    // Subscription floor is 1. Managers can subscribe proactively (before any
+    // active units) and keep the subscription at quantity 1 until they
+    // actually have units. We never drop the quantity below 1 — that would
+    // cancel the subscription and break the paywall gate (signing requires
+    // an active subscription).
+    const newQty = Math.max(1, rawQty)
 
     // Already in sync.
     if (newQty === previousQty) {

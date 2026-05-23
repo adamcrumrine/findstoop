@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import {
   getMessages,
   sendMessage as apiSendMessage,
-  markMessagesRead,
+  markConversationRead,
   getConversationSummaries,
 } from '../api/messages'
 import type { Message } from '../types/message'
@@ -15,13 +15,12 @@ interface UseMessagesResult {
   messages: Message[]
   loading: boolean
   sending: boolean
-  send: (body: string) => Promise<void>
+  send: (body: string, image?: { url: string; path: string } | null) => Promise<void>
 }
 
 export function useMessages(
-  leaseId: string | null,
+  conversationId: string | null,
   currentUserId: string | undefined,
-  recipientId: string | undefined
 ): UseMessagesResult {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,45 +28,46 @@ export function useMessages(
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const load = useCallback(async () => {
-    if (!leaseId) return
+    if (!conversationId) {
+      // Without a conversation we have nothing to load, but we also have to
+      // clear the loading flag — otherwise the Skeleton sticks forever while
+      // the page is still trying to resolve which conversation to open.
+      setMessages([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
-      const data = await getMessages(leaseId)
+      const data = await getMessages(conversationId)
       setMessages(data)
-      // Mark incoming messages as read
-      if (currentUserId) await markMessagesRead(leaseId, currentUserId)
+      if (currentUserId) await markConversationRead(conversationId, currentUserId)
     } finally {
       setLoading(false)
     }
-  }, [leaseId, currentUserId])
+  }, [conversationId, currentUserId])
 
   useEffect(() => {
     load()
   }, [load])
 
-  // Realtime subscription
   useEffect(() => {
-    if (!leaseId) return
+    if (!conversationId) return
 
     const channel = supabase
-      .channel(`messages:${leaseId}`)
+      .channel(`messages:${conversationId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `lease_id=eq.${leaseId}`,
+          filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
           const msg = payload.new as Message
-          setMessages((prev) => {
-            if (prev.find((m) => m.id === msg.id)) return prev
-            return [...prev, msg]
-          })
-          // Mark as read if we're the recipient
-          if (currentUserId && msg.recipient_id === currentUserId) {
-            markMessagesRead(leaseId, currentUserId)
+          setMessages((prev) => (prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]))
+          if (currentUserId && msg.sender_id !== currentUserId) {
+            void markConversationRead(conversationId, currentUserId)
           }
         }
       )
@@ -75,13 +75,14 @@ export function useMessages(
 
     channelRef.current = channel
     return () => { supabase.removeChannel(channel) }
-  }, [leaseId, currentUserId])
+  }, [conversationId, currentUserId])
 
-  const send = async (body: string) => {
-    if (!leaseId || !currentUserId || !recipientId || !body.trim()) return
+  const send: UseMessagesResult['send'] = async (body, image) => {
+    if (!conversationId || !currentUserId) return
+    if (!body.trim() && !image) return
     setSending(true)
     try {
-      const msg = await apiSendMessage(currentUserId, recipientId, leaseId, body.trim())
+      const msg = await apiSendMessage(currentUserId, conversationId, body.trim(), image ?? null)
       setMessages((prev) => (prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]))
     } finally {
       setSending(false)
@@ -91,42 +92,44 @@ export function useMessages(
   return { messages, loading, sending, send }
 }
 
-// ── Conversations list hook (manager) ────────────────────────────────────────
+// ── Conversations list hook ──────────────────────────────────────────────────
 
 interface UseConversationsResult {
   conversations: ConversationSummary[]
   loading: boolean
-  reload: () => void
+  reload: () => Promise<void>
 }
 
-export function useConversations(unitIds: string[], managerId: string | undefined): UseConversationsResult {
+export function useConversations(currentUserId: string | undefined): UseConversationsResult {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    if (!managerId || unitIds.length === 0) { setLoading(false); return }
+    if (!currentUserId) { setLoading(false); return }
     setLoading(true)
     try {
-      const data = await getConversationSummaries(unitIds, managerId)
+      const data = await getConversationSummaries(currentUserId)
       setConversations(data)
     } finally {
       setLoading(false)
     }
-  }, [unitIds.join(','), managerId])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUserId])
 
   useEffect(() => { load() }, [load])
 
-  // Realtime: refresh conversation list on any new message
   useEffect(() => {
-    if (!managerId) return
+    if (!currentUserId) return
     const channel = supabase
-      .channel(`conversations:${managerId}`)
+      .channel(`conversations:${currentUserId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        load()
+        void load()
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, () => {
+        void load()
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [managerId, load])
+  }, [currentUserId, load])
 
   return { conversations, loading, reload: load }
 }

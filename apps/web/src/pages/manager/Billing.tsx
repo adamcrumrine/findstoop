@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   CreditCard, RefreshCw, ExternalLink, CheckCircle2, AlertTriangle,
   PauseCircle, Sparkles, Loader2, FileText, Receipt,
 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
+import { formatUsd } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
+import SubscribeModal from '../../components/manager/SubscribeModal'
+import ManageBillingModal from '../../components/manager/ManageBillingModal'
 
 // Single-tier pricing: $9 per active unit per month, billed from unit 1.
 // (Annual prepay variant: $90/unit/year — non-refundable.)
@@ -21,6 +24,7 @@ interface BillingState {
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
   interval: 'month' | 'year' | null
+  complimentary: boolean
 }
 
 interface BillingEvent {
@@ -33,7 +37,7 @@ async function fetchBillingState(managerId: string): Promise<BillingState> {
   const [profileRes, countRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('subscription_status, subscription_quantity, subscription_current_period_end, subscription_interval, stripe_customer_id, stripe_subscription_id')
+      .select('subscription_status, subscription_quantity, subscription_current_period_end, subscription_interval, stripe_customer_id, stripe_subscription_id, subscription_complimentary')
       .eq('id', managerId)
       .single(),
     supabase.rpc('count_manager_active_units', { manager_uuid: managerId }),
@@ -50,11 +54,18 @@ async function fetchBillingState(managerId: string): Promise<BillingState> {
     stripeCustomerId: profileRes.data?.stripe_customer_id ?? null,
     stripeSubscriptionId: profileRes.data?.stripe_subscription_id ?? null,
     interval,
+    complimentary: profileRes.data?.subscription_complimentary === true,
   }
 }
 
+// sessionStorage key used to carry a "return after billing" deep-link across
+// the Stripe Checkout round-trip (Stripe's success_url strips our query
+// params, so we stash and restore from sessionStorage).
+const RETURN_AFTER_BILLING_KEY = 'findstoop:billing-return-url'
+
 export default function Billing() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [state, setState] = useState<BillingState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -62,6 +73,23 @@ export default function Billing() {
   const [syncing, setSyncing] = useState(false)
   const [events, setEvents] = useState<BillingEvent[]>([])
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly')
+  // Embedded Stripe Elements subscription flow — opened in-place instead of
+  // redirecting to hosted Checkout (which carries the wrong brand identity).
+  const [subscribeModal, setSubscribeModal] = useState<{
+    clientSecret: string
+    plan: 'monthly' | 'annual'
+    quantity: number
+  } | null>(null)
+  const [manageModalOpen, setManageModalOpen] = useState(false)
+
+  // Capture the ?return= deep-link on arrival and stash it for after checkout.
+  useEffect(() => {
+    const returnTo = searchParams.get('return')
+    if (returnTo) {
+      try { sessionStorage.setItem(RETURN_AFTER_BILLING_KEY, returnTo) } catch { /* ignore */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Handle return-from-Checkout messages
   useEffect(() => {
@@ -73,6 +101,22 @@ export default function Billing() {
       setSearchParams({}, { replace: true })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Once a stored return URL exists and billing is active, redirect there
+  // and clear the stash. Used to send the manager straight back to the
+  // sign-lease page after they finish FindStoop subscription setup.
+  useEffect(() => {
+    if (!state) return
+    const active = state.status === 'active' || state.status === 'trialing'
+    if (!active) return
+    let returnTo: string | null = null
+    try { returnTo = sessionStorage.getItem(RETURN_AFTER_BILLING_KEY) } catch { /* ignore */ }
+    if (returnTo) {
+      try { sessionStorage.removeItem(RETURN_AFTER_BILLING_KEY) } catch { /* ignore */ }
+      toast.success('Billing active — taking you back to sign the lease.')
+      navigate(returnTo, { replace: true })
+    }
+  }, [state, navigate])
 
   // Load billing state
   const refresh = async () => {
@@ -104,12 +148,23 @@ export default function Billing() {
         body: { plan: selectedPlan },
       })
       if (error) throw error
-      if (data?.status === 'checkout' && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl
+      if (data?.status === 'complimentary') {
+        toast(data.message ?? 'Your account is on a complimentary plan.', { icon: '✓' })
+        await refresh()
         return
       }
-      if (data?.status === 'manage' && data.portalUrl) {
-        window.location.href = data.portalUrl
+      if (data?.status === 'setup' && data.clientSecret) {
+        setSubscribeModal({
+          clientSecret: data.clientSecret,
+          plan: data.plan ?? selectedPlan,
+          quantity: data.quantity ?? Math.max(1, data.paidUnits ?? 1),
+        })
+        return
+      }
+      if (data?.status === 'manage') {
+        // Already subscribed — open the FindStoop-branded manage modal
+        // instead of redirecting to Stripe's (Prospekteer-branded) portal.
+        setManageModalOpen(true)
         return
       }
       if (data?.status === 'no_payment_needed') {
@@ -138,7 +193,7 @@ export default function Billing() {
       } else if (data?.status === 'subscribe_required') {
         toast.error('You need to start a subscription first.')
       } else if (data?.status === 'no_payment_needed') {
-        toast('You\'re back in the free tier — nothing to bill.', { icon: '✓' })
+        toast('No active units right now — nothing to bill until your next lease activates.', { icon: '✓' })
       }
       await refresh()
     } catch (err) {
@@ -156,7 +211,7 @@ export default function Billing() {
     )
   }
 
-  const statusInfo = getStatusInfo(state.status, state.stripeSubscriptionId)
+  const statusInfo = getStatusInfo(state.status, state.stripeSubscriptionId, state.complimentary)
   const driftDetected = state.stripeSubscriptionId && state.quantity !== state.paidUnits
 
   return (
@@ -164,7 +219,9 @@ export default function Billing() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Billing</h1>
         <p className="text-sm text-mute mt-1">
-          ${PER_UNIT} per active unit per month. Or save 16.7% with annual prepay (${PER_UNIT * 10}/unit/year, non-refundable).
+          {state.complimentary
+            ? 'All FindStoop features unlocked at no charge.'
+            : `${formatUsd(PER_UNIT)} per active unit per month. Or save 16.7% with annual prepay (${formatUsd(PER_UNIT * 10)}/unit/year, non-refundable).`}
         </p>
       </header>
 
@@ -175,15 +232,28 @@ export default function Billing() {
           <p className={`text-sm font-semibold ${statusInfo.headingCls}`}>{statusInfo.heading}</p>
           <p className={`text-xs mt-0.5 ${statusInfo.subCls}`}>{statusInfo.subtitle}</p>
         </div>
+        {state?.status === 'incomplete' && (
+          <button
+            type="button"
+            onClick={handleSubscribe}
+            disabled={subscribing}
+            className="shrink-0 inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-50"
+          >
+            {subscribing ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} /> : null}
+            Finish payment
+          </button>
+        )}
       </section>
 
       {/* Math card */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
-        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">This month's bill</h2>
-        <div className="grid sm:grid-cols-3 gap-4">
+        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">
+          {state.complimentary ? 'Active units' : "This month's bill"}
+        </h2>
+        <div className={`grid gap-4 ${state.complimentary ? 'sm:grid-cols-1' : 'sm:grid-cols-3'}`}>
           <Stat label="Active units" value={String(state.activeUnits)} />
-          <Stat label="Per unit" value={`$${PER_UNIT}`} muted />
-          <Stat label="Per month" value={`$${monthlyCost}`} accent />
+          {!state.complimentary && <Stat label="Per unit" value={formatUsd(PER_UNIT)} muted />}
+          {!state.complimentary && <Stat label="Per month" value={formatUsd(monthlyCost)} accent />}
         </div>
 
         {driftDetected ? (
@@ -227,7 +297,7 @@ export default function Billing() {
       )}
 
       {/* Billing cycle toggle — only when not yet subscribed and there are paid units to charge */}
-      {!state.stripeSubscriptionId && state.paidUnits > 0 && (
+      {!state.complimentary && !state.stripeSubscriptionId && state.paidUnits > 0 && (
         <section className="mb-4">
           <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-2">Billing cycle</p>
           <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1">
@@ -259,7 +329,8 @@ export default function Billing() {
         </section>
       )}
 
-      {/* Actions */}
+      {/* Actions — hidden for complimentary accounts (no Stripe interactions). */}
+      {!state.complimentary && (
       <section className="grid sm:grid-cols-2 gap-4 mb-6">
         {state.stripeSubscriptionId ? (
           <button
@@ -277,24 +348,24 @@ export default function Billing() {
         ) : (
           <button
             onClick={handleSubscribe}
-            disabled={subscribing || state.paidUnits === 0}
-            className="bg-brand-50 rounded-2xl border-2 border-brand-200 p-5 text-left hover:border-brand-400 hover:bg-brand-100/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={subscribing}
+            className="bg-brand-50 rounded-2xl border-2 border-brand-300 p-5 text-left hover:border-brand-400 hover:bg-brand-100/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex items-center justify-between">
               <Sparkles className="w-5 h-5 text-brand-600" strokeWidth={1.75} />
               {subscribing && <Loader2 className="w-4 h-4 animate-spin text-mute" />}
             </div>
             <p className="mt-3 font-semibold text-ink">
-              {state.paidUnits === 0
-                ? 'No payment method needed yet'
-                : selectedPlan === 'annual' ? 'Prepay annual' : 'Start subscription'}
+              {selectedPlan === 'annual' ? 'Prepay annual' : 'Start subscription'}
             </p>
             <p className="text-xs text-mute mt-1">
               {state.paidUnits === 0
-                ? `You'll be prompted once your first lease goes active.`
+                ? selectedPlan === 'annual'
+                  ? `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. Annual prepay billed at $90/unit once your first lease activates.`
+                  : `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. $9/unit/mo, billed only on active units.`
                 : selectedPlan === 'annual'
-                  ? `One-time charge of $${state.paidUnits * 90} for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'} for the year.`
-                  : `Add a payment method to bill $${monthlyCost}/mo for ${state.paidUnits} active unit${state.paidUnits === 1 ? '' : 's'}.`}
+                  ? `One-time charge of ${formatUsd(state.paidUnits * 90)} for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'} for the year.`
+                  : `Add a payment method to bill ${formatUsd(monthlyCost)}/mo for ${state.paidUnits} active unit${state.paidUnits === 1 ? '' : 's'}.`}
             </p>
           </button>
         )}
@@ -311,8 +382,10 @@ export default function Billing() {
           <p className="text-xs text-mute mt-1">Reconcile your subscription quantity with active leases.</p>
         </button>
       </section>
+      )}
 
-      {/* Plan summary */}
+      {/* Plan summary — hidden for complimentary accounts. */}
+      {!state.complimentary && (
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">Your plan</h2>
         <div className="flex items-start gap-3">
@@ -328,8 +401,8 @@ export default function Billing() {
             </p>
             <p className="text-sm text-mute mt-1">
               {state.interval === 'year'
-                ? `$${PER_UNIT * 10} per active unit per year, billed up front from unit 1.`
-                : `$${PER_UNIT} per active unit per month, billed from unit 1.`}
+                ? `${formatUsd(PER_UNIT * 10)} per active unit per year, billed up front from unit 1.`
+                : `${formatUsd(PER_UNIT)} per active unit per month, billed from unit 1.`}
               {' '}Includes every platform feature, ACH and card billing for your tenants, free ACH for your tenants, lease e-sign, maintenance tracking, and more.
             </p>
             <ul className="mt-3 text-xs text-mute space-y-1">
@@ -343,13 +416,14 @@ export default function Billing() {
                 <>
                   <li>· Cancel any time; monthly subscriptions stop at the end of the current billing period</li>
                   <li>· Add or remove units freely — we prorate the difference</li>
-                  <li>· Annual prepay available at ${PER_UNIT * 10}/unit/year (16.7% off the monthly rate) — non-refundable</li>
+                  <li>· Annual prepay available at {formatUsd(PER_UNIT * 10)}/unit/year (16.7% off the monthly rate) — non-refundable</li>
                 </>
               )}
             </ul>
           </div>
         </div>
       </section>
+      )}
 
       {/* Recent events */}
       {events.length > 0 && (
@@ -376,6 +450,21 @@ export default function Billing() {
           </ul>
         </section>
       )}
+
+      <SubscribeModal
+        open={!!subscribeModal}
+        onClose={() => setSubscribeModal(null)}
+        onSuccess={() => { void refresh() }}
+        clientSecret={subscribeModal?.clientSecret ?? null}
+        plan={subscribeModal?.plan ?? 'monthly'}
+        quantity={subscribeModal?.quantity ?? 1}
+      />
+
+      <ManageBillingModal
+        open={manageModalOpen}
+        onClose={() => setManageModalOpen(false)}
+        onChange={() => { void refresh() }}
+      />
     </div>
   )
 }
@@ -391,16 +480,27 @@ function Stat({ label, value, accent, muted }: { label: string; value: string; a
   )
 }
 
-function getStatusInfo(status: string | null, subscriptionId: string | null) {
+function getStatusInfo(status: string | null, subscriptionId: string | null, complimentary: boolean = false) {
+  if (complimentary) {
+    return {
+      heading: 'Complimentary account',
+      subtitle: 'This account is comped — all features unlocked at no charge.',
+      Icon: CheckCircle2,
+      bannerCls: 'bg-brand-50 border-brand-200',
+      iconCls: 'text-brand-700',
+      headingCls: 'text-brand-900',
+      subCls: 'text-brand-800',
+    }
+  }
   if (!subscriptionId || !status) {
     return {
-      heading: 'No subscription yet',
-      subtitle: 'You\'re in the free tier. We\'ll prompt you when you cross the free quota.',
-      Icon: PauseCircle,
-      bannerCls: 'bg-gray-50 border-gray-200',
-      iconCls: 'text-mute',
-      headingCls: 'text-ink',
-      subCls: 'text-mute',
+      heading: 'Subscription required',
+      subtitle: 'FindStoop is $9 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through FindStoop.',
+      Icon: AlertTriangle,
+      bannerCls: 'bg-red-50 border-red-200',
+      iconCls: 'text-red-700',
+      headingCls: 'text-red-900',
+      subCls: 'text-red-800',
     }
   }
   if (status === 'active' || status === 'trialing') {
@@ -430,6 +530,28 @@ function getStatusInfo(status: string | null, subscriptionId: string | null) {
       heading: 'Subscription canceled',
       subtitle: 'Access continues through the end of your last paid period.',
       Icon: PauseCircle,
+      bannerCls: 'bg-amber-50 border-amber-200',
+      iconCls: 'text-amber-700',
+      headingCls: 'text-amber-900',
+      subCls: 'text-amber-800',
+    }
+  }
+  if (status === 'incomplete') {
+    return {
+      heading: 'Payment not yet confirmed',
+      subtitle: 'Your subscription was created but the first payment never went through. Click Finish payment to complete it — Stripe holds the slot for ~23 hours, after which it auto-cancels.',
+      Icon: AlertTriangle,
+      bannerCls: 'bg-amber-50 border-amber-200',
+      iconCls: 'text-amber-700',
+      headingCls: 'text-amber-900',
+      subCls: 'text-amber-800',
+    }
+  }
+  if (status === 'incomplete_expired') {
+    return {
+      heading: 'Previous signup expired',
+      subtitle: 'Your earlier attempt timed out without a confirmed payment. Subscribe below to start fresh — no charge happened.',
+      Icon: AlertTriangle,
       bannerCls: 'bg-amber-50 border-amber-200',
       iconCls: 'text-amber-700',
       headingCls: 'text-amber-900',

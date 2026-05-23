@@ -12,15 +12,12 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   if (loading) return <LoadingSpinner />
 
-  // Not logged in → send to appropriate login page
   if (!user) {
     return <Navigate to={requiredRole === 'tenant' ? '/login/renter' : '/login'} replace />
   }
 
-  // Admin passes every role check (super-user)
   if (profile?.role === 'admin') return <>{children}</>
 
-  // Wrong role → redirect to their correct dashboard
   if (profile?.role !== requiredRole) {
     return <Navigate to={profile?.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard'} replace />
   }

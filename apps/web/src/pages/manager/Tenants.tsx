@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
@@ -9,6 +10,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import type { Lease } from '@findstoop/shared/types/lease'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
+import Avatar from '../../components/shared/Avatar'
 import { Users } from 'lucide-react'
 
 function Skeleton() {
@@ -25,18 +27,6 @@ function Skeleton() {
   )
 }
 
-function Avatar({ name, url }: { name: string; url?: string | null }) {
-  if (url) {
-    return <img src={url} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
-  }
-  const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-  return (
-    <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold shrink-0">
-      {initials || '?'}
-    </div>
-  )
-}
-
 interface TenantCardProps {
   tenant: Profile
   activeLease: Lease | null
@@ -47,9 +37,9 @@ interface TenantCardProps {
 function TenantCard({ tenant, activeLease, unitNumber, propertyName }: TenantCardProps) {
   const name = tenant.full_name ?? tenant.email ?? 'Unknown'
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 transition-colors">
+    <Link to={`/manager/tenants/${tenant.id}`} className="block bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition-all">
       <div className="flex items-center gap-3">
-        <Avatar name={name} url={tenant.avatar_url} />
+        <Avatar name={tenant.full_name} email={tenant.email} url={tenant.avatar_url} size={40} />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 truncate">{name}</p>
           <p className="text-sm text-gray-500 truncate">{tenant.email}</p>
@@ -77,7 +67,7 @@ function TenantCard({ tenant, activeLease, unitNumber, propertyName }: TenantCar
           </div>
         </div>
       )}
-    </div>
+    </Link>
   )
 }
 
@@ -116,8 +106,16 @@ export default function ManagerTenants() {
     if (!validateInvite()) return
     setInviting(true)
     try {
-      await inviteTenant(inviteForm.email, inviteForm.fullName, inviteForm.applyUnitId || undefined)
-      toast.success(`Invite sent to ${inviteForm.email}`)
+      const result = await inviteTenant(inviteForm.email, inviteForm.fullName, inviteForm.applyUnitId || undefined)
+      if (result.alreadyExists) {
+        const who = result.name && result.name !== inviteForm.email ? `${result.name} (${inviteForm.email})` : inviteForm.email
+        toast(`${who} is already on FindStoop — no invite email sent. Add them to a lease from the Leases page.`, {
+          icon: 'ℹ️',
+          duration: 6000,
+        })
+      } else {
+        toast.success(`Invite sent to ${inviteForm.email}`)
+      }
       setInviteOpen(false)
       setInviteForm({ email: '', fullName: '', applyUnitId: '' })
     } catch (err) {
@@ -198,17 +196,32 @@ export default function ManagerTenants() {
             />
           </FormField>
           <FormField label="Send rental application link (optional)">
-            <select
-              className={selectClass}
-              value={inviteForm.applyUnitId}
-              onChange={(e) => setInviteForm((f) => ({ ...f, applyUnitId: e.target.value }))}
-            >
-              <option value="">No — just create their account</option>
-              {units.filter((u) => u.status !== 'occupied').map((u) => {
-                const propName = propertyMap[u.property_id]?.name ?? 'Property'
-                return <option key={u.id} value={u.id}>{propName} — Unit {u.unit_number} (${Number(u.rent_amount).toLocaleString()}/mo)</option>
-              })}
-            </select>
+            {units.length === 0 ? (
+              <p className="text-xs text-mute italic">
+                Add a property and unit first to share an application link in the invite email.
+              </p>
+            ) : (
+              <>
+                <select
+                  className={selectClass}
+                  value={inviteForm.applyUnitId}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, applyUnitId: e.target.value }))}
+                >
+                  <option value="">Don't include an application link</option>
+                  {units.map((u) => {
+                    const propName = propertyMap[u.property_id]?.name ?? 'Property'
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {propName} — Unit {u.unit_number} (${Number(u.rent_amount).toLocaleString()}/mo) · {u.status}
+                      </option>
+                    )
+                  })}
+                </select>
+                <p className="text-xs text-mute mt-1.5">
+                  Pick a unit to embed a public rental-application link in the invite email.
+                </p>
+              </>
+            )}
           </FormField>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setInviteOpen(false)} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">

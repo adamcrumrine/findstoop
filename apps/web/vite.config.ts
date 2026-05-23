@@ -37,15 +37,10 @@ export default defineConfig({
         globIgnores: ['**/illustrations/**'],
         // Network-first for API calls, cache-first for assets
         runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 5 * 60 },
-              networkTimeoutSeconds: 10,
-            },
-          },
+          // NOTE: Supabase REST/Auth/Storage calls are intentionally NOT cached
+          // by the service worker. They contain RLS-scoped data, mutate often,
+          // and previously caused the SW to wait up to 10s before falling back
+          // to stale cache — which manifested as pages "loading forever".
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
             handler: 'CacheFirst',

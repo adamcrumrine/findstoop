@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Profile, UserRole } from '../types/profile'
 import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
@@ -23,10 +23,14 @@ interface AuthState {
   verifyBackupCode: (code: string) => Promise<{ remaining: number }>
 }
 
-export function useAuth(): AuthState {
+const AuthContext = createContext<AuthState | null>(null)
+
+// ── Internal: the real auth state, instantiated ONCE inside <AuthProvider> ───
+function useAuthState(): AuthState {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const mounted = useRef(true)
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
     const { data } = await supabase
@@ -57,9 +61,6 @@ export function useAuth(): AuthState {
       return data!
     }
 
-    // The auth trigger creates profiles for OAuth signups with role='tenant'
-    // (since Google sends no role metadata). If the user clicked through the
-    // landlord login page, reconcile by patching the freshly-created row.
     if (pendingRole && pendingRole !== profile.role) {
       const ageMs = Date.now() - new Date(profile.created_at).getTime()
       if (ageMs < 60_000) {
@@ -77,37 +78,53 @@ export function useAuth(): AuthState {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id)
-        setProfile(p)
+    mounted.current = true
+
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!mounted.current) return
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          try {
+            const p = await fetchProfile(session.user.id)
+            if (mounted.current) setProfile(p)
+          } catch {
+            // Profile fetch failure should not block the app — user is still
+            // authenticated; downstream code can handle a null profile.
+          }
+        }
+      } catch {
+        // If session retrieval fails, treat as logged out rather than spin forever.
+      } finally {
+        if (mounted.current) setLoading(false)
       }
-      setLoading(false)
-    })
+    })()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
+      if (!mounted.current) return
       setUser(session?.user ?? null)
       if (session?.user) {
-        // For Google sign-ins, always run ensureProfile — it both creates the
-        // row when missing AND reconciles role if the auth trigger defaulted
-        // a fresh OAuth signup to 'tenant' when the user wanted 'manager'.
         if (session.user.app_metadata?.provider === 'google') {
           const meta = (session.user.user_metadata ?? {}) as Record<string, string>
           const reconciled = await ensureProfile(session.user.id, session.user.email ?? '', meta)
-          setProfile(reconciled)
+          if (mounted.current) setProfile(reconciled)
         } else {
-          setProfile(await fetchProfile(session.user.id))
+          const p = await fetchProfile(session.user.id)
+          if (mounted.current) setProfile(p)
         }
       } else {
         setProfile(null)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted.current = false
+      subscription.unsubscribe()
+    }
   }, [])
 
-  // ── Auth ────────────────────────────────────────────────────────────────────
+  // ── Auth actions ──────────────────────────────────────────────────────────
 
   const signIn = async (email: string, password: string): Promise<Profile> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -158,7 +175,7 @@ export function useAuth(): AuthState {
     if (error) throw new Error(error.message)
   }
 
-  // ── MFA — TOTP (Supabase native) ────────────────────────────────────────────
+  // ── MFA — TOTP (Supabase native) ─────────────────────────────────────────
 
   const getTotpChallenge = async (): Promise<{ factorId: string; challengeId: string }> => {
     const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors()
@@ -177,7 +194,7 @@ export function useAuth(): AuthState {
     if (error) throw new Error(error.message)
   }
 
-  // ── MFA — SMS / Voice (Twilio via edge functions) ───────────────────────────
+  // ── MFA — SMS / Voice (Twilio via edge functions) ────────────────────────
 
   const callEdge = async (fn: string, body: Record<string, unknown>) => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -209,7 +226,7 @@ export function useAuth(): AuthState {
     return callEdge('verify-backup-code', { code })
   }
 
-  return {
+  return useMemo<AuthState>(() => ({
     user,
     profile,
     role: profile?.role ?? null,
@@ -224,5 +241,20 @@ export function useAuth(): AuthState {
     sendSmsCode,
     verifySmsCode,
     verifyBackupCode,
+  }), [user, profile, loading])
+}
+
+// ── Provider — mount once at app root ────────────────────────────────────────
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const value = useAuthState()
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+// ── Public hook — reads from context (no per-call effect/listener) ───────────
+export function useAuth(): AuthState {
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
+    throw new Error('useAuth must be used inside <AuthProvider>. Wrap your app root with it.')
   }
+  return ctx
 }

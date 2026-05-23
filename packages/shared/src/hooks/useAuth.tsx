@@ -226,6 +226,34 @@ function useAuthState(): AuthState {
     return callEdge('verify-backup-code', { code })
   }
 
+  // ── Idle auto-logout (30 minutes) ────────────────────────────────────────
+  // Sign the user out after IDLE_MS of no interaction. Pointer / key / touch
+  // events reset the timer. Disabled when no user is signed in.
+  useEffect(() => {
+    if (!user) return
+    const IDLE_MS = 30 * 60 * 1000
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const reset = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        // Best-effort sign-out; onAuthStateChange will null out state.
+        supabase.auth.signOut().catch(() => {})
+      }, IDLE_MS)
+    }
+
+    const winEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'] as const
+    winEvents.forEach((e) => window.addEventListener(e, reset, { passive: true }))
+    document.addEventListener('visibilitychange', reset)
+    reset()
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      winEvents.forEach((e) => window.removeEventListener(e, reset))
+      document.removeEventListener('visibilitychange', reset)
+    }
+  }, [user])
+
   return useMemo<AuthState>(() => ({
     user,
     profile,

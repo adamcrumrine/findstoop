@@ -142,7 +142,7 @@ export function useReports(managerId: string | undefined): ReportsData {
   const [activeLeases, setActiveLeases] = useState(0)
 
   const load = useCallback(async () => {
-    if (!managerId) return
+    if (!managerId) { setLoading(false); return }
     setLoading(true)
     setError(null)
     try {

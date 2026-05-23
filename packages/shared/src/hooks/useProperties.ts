@@ -8,7 +8,7 @@ export function useProperties(managerId: string | undefined) {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    if (!managerId) return
+    if (!managerId) { setLoading(false); return }
     try {
       setLoading(true)
       setError(null)

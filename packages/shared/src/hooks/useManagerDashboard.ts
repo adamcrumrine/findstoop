@@ -43,7 +43,12 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
   const [upcomingRenewals, setUpcomingRenewals] = useState<Lease[]>([])
 
   useEffect(() => {
-    if (!managerId) return
+    if (!managerId) {
+      // Without a manager id we can't load — flip loading off so the page
+      // can render its (empty) state instead of spinning forever.
+      setLoading(false)
+      return
+    }
     let cancelled = false
 
     const load = async () => {

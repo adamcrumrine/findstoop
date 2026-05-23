@@ -27,7 +27,7 @@ export function useTenantDashboard(tenantId: string | undefined): TenantDashboar
   const [unreadMessages, setUnreadMessages] = useState(0)
 
   useEffect(() => {
-    if (!tenantId) return
+    if (!tenantId) { setLoading(false); return }
     let cancelled = false
 
     const load = async () => {

@@ -2,32 +2,44 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import {
-  LayoutGrid, Building2, DoorOpen, Users, FileText,
-  CreditCard, Wrench, MessageSquare, Folder, BarChart3, MoreHorizontal,
-  type LucideIcon,
+  LayoutGrid, Building2, Megaphone, ClipboardList, ShieldCheck,
+  Users, FileText, CreditCard, Wrench, MessageSquare, Folder, BarChart3,
+  Receipt, Settings as SettingsIcon, MoreHorizontal, type LucideIcon,
 } from 'lucide-react'
 
 interface NavItem {
   to: string
   label: string
   Icon: LucideIcon
+  group?: 'find' | 'manage' | 'operate' | 'insights' | 'account'
 }
 
+// Lifecycle-aligned: Find tenants → Manage relationships → Operate property → Insights
 const navItems: NavItem[] = [
-  { to: '/manager/dashboard',   label: 'Dashboard',   Icon: LayoutGrid },
-  { to: '/manager/properties',  label: 'Properties',  Icon: Building2 },
-  { to: '/manager/units',       label: 'Units',       Icon: DoorOpen },
-  { to: '/manager/tenants',     label: 'Tenants',     Icon: Users },
-  { to: '/manager/leases',      label: 'Leases',      Icon: FileText },
-  { to: '/manager/payments',    label: 'Payments',    Icon: CreditCard },
-  { to: '/manager/maintenance', label: 'Maintenance', Icon: Wrench },
-  { to: '/manager/messages',    label: 'Messages',    Icon: MessageSquare },
-  { to: '/manager/documents',   label: 'Documents',   Icon: Folder },
-  { to: '/manager/reports',     label: 'Reports',     Icon: BarChart3 },
+  { to: '/manager/dashboard',    label: 'Dashboard',    Icon: LayoutGrid,     group: 'manage' },
+  { to: '/manager/properties',   label: 'Properties',   Icon: Building2,      group: 'manage' },
+  { to: '/manager/listings',     label: 'Listings',     Icon: Megaphone,      group: 'find' },
+  { to: '/manager/applications', label: 'Applications', Icon: ClipboardList,  group: 'find' },
+  { to: '/manager/screening',    label: 'Screening',    Icon: ShieldCheck,    group: 'find' },
+  { to: '/manager/tenants',      label: 'Tenants',      Icon: Users,          group: 'manage' },
+  { to: '/manager/leases',       label: 'Leases',       Icon: FileText,       group: 'manage' },
+  { to: '/manager/payments',     label: 'Payments',     Icon: CreditCard,     group: 'operate' },
+  { to: '/manager/maintenance',  label: 'Maintenance',  Icon: Wrench,         group: 'operate' },
+  { to: '/manager/messages',     label: 'Messages',     Icon: MessageSquare,  group: 'operate' },
+  { to: '/manager/documents',    label: 'Documents',    Icon: Folder,         group: 'operate' },
+  { to: '/manager/reports',      label: 'Reports',      Icon: BarChart3,      group: 'insights' },
+  { to: '/manager/billing',      label: 'Billing',      Icon: Receipt,        group: 'insights' },
+  { to: '/manager/settings',     label: 'Settings',     Icon: SettingsIcon,   group: 'account' },
 ]
 
-const primaryNav = navItems.slice(0, 4)
-const moreNav    = navItems.slice(4)
+// Mobile bottom nav: 4 most-used items
+const primaryNav = [
+  navItems.find((n) => n.to === '/manager/dashboard')!,
+  navItems.find((n) => n.to === '/manager/properties')!,
+  navItems.find((n) => n.to === '/manager/leases')!,
+  navItems.find((n) => n.to === '/manager/payments')!,
+]
+const moreNav = navItems.filter((n) => !primaryNav.includes(n))
 
 function Avatar({ name }: { name: string }) {
   const initials = name
@@ -73,14 +85,26 @@ export default function ManagerLayout() {
           <p className="text-[11px] text-mute mt-1.5 font-medium uppercase tracking-wide">Manager Portal</p>
         </div>
 
-        {/* Nav */}
+        {/* Nav — grouped by landlord lifecycle stage */}
         <nav className="flex-1 overflow-y-auto px-2 py-3">
-          {navItems.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} className={desktopLink}>
-              <Icon className="w-5 h-5 shrink-0" strokeWidth={1.75} />
-              {label}
-            </NavLink>
-          ))}
+          {(['manage', 'find', 'operate', 'insights', 'account'] as const).map((group, gi) => {
+            const items = navItems.filter((n) => n.group === group)
+            if (!items.length) return null
+            const label = { manage: 'Manage', find: 'Find Tenants', operate: 'Operate', insights: 'Insights', account: 'Account' }[group]
+            return (
+              <div key={group} className={gi === 0 ? '' : 'mt-4'}>
+                <p className="px-3 mb-1.5 text-[10px] font-semibold text-mute-400 uppercase tracking-wider">
+                  {label}
+                </p>
+                {items.map(({ to, label, Icon }) => (
+                  <NavLink key={to} to={to} className={desktopLink}>
+                    <Icon className="w-5 h-5 shrink-0" strokeWidth={1.75} />
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            )
+          })}
         </nav>
 
         {/* User footer */}

@@ -1,0 +1,154 @@
+// Stripe webhook receiver.
+// Processes subscription lifecycle events for landlord billing,
+// updates the corresponding profile row, and logs every event for audit.
+//
+// IMPORTANT: this function must be deployed with `--no-verify-jwt` so
+// Stripe (not a Supabase-authed user) can call it.
+
+import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+  apiVersion: '2023-10-16',
+})
+const WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? ''
+
+const admin = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+)
+
+interface UpdateFields {
+  stripe_subscription_id?: string | null
+  stripe_subscription_item_id?: string | null
+  subscription_status?: string | null
+  subscription_quantity?: number
+  subscription_current_period_end?: string | null
+  subscription_interval?: string | null
+}
+
+async function applySubscriptionToProfile(sub: Stripe.Subscription) {
+  const item = sub.items.data[0]
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
+  const fields: UpdateFields = {
+    stripe_subscription_id: sub.id,
+    stripe_subscription_item_id: item?.id ?? null,
+    subscription_status: sub.status,
+    subscription_quantity: item?.quantity ?? 0,
+    subscription_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+    subscription_interval: item?.price?.recurring?.interval ?? null,
+  }
+  await admin.from('profiles').update(fields).eq('stripe_customer_id', customerId)
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+
+  const sig = req.headers.get('stripe-signature')
+  if (!sig) return new Response('Missing signature', { status: 400 })
+
+  const raw = await req.text()
+  let event: Stripe.Event
+  try {
+    event = await stripe.webhooks.constructEventAsync(raw, sig, WEBHOOK_SECRET)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'invalid signature'
+    return new Response(`Webhook error: ${msg}`, { status: 400 })
+  }
+
+  // ── Idempotency: bail if we've already processed this event ──────────
+  const obj = event.data.object as Record<string, unknown>
+  const customerId =
+    typeof obj.customer === 'string' ? obj.customer :
+    obj.customer && typeof obj.customer === 'object' && 'id' in (obj.customer as object) ?
+      (obj.customer as { id: string }).id : null
+
+  // Look up manager_id for the audit row, best-effort.
+  let managerId: string | null = null
+  if (customerId) {
+    const { data } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+    managerId = data?.id ?? null
+  }
+
+  const { error: insertErr } = await admin.from('billing_events').insert({
+    stripe_event_id: event.id,
+    event_type: event.type,
+    stripe_customer_id: customerId,
+    manager_id: managerId,
+    payload: event,
+  })
+  if (insertErr && (insertErr as { code?: string }).code === '23505') {
+    return new Response(JSON.stringify({ received: true, duplicate: true }), { status: 200 })
+  }
+
+  // ── Handle event ─────────────────────────────────────────────────────
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.subscription) {
+          const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id
+          const sub = await stripe.subscriptions.retrieve(subId)
+          await applySubscriptionToProfile(sub)
+        }
+        break
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.resumed':
+      case 'customer.subscription.paused': {
+        await applySubscriptionToProfile(event.data.object as Stripe.Subscription)
+        break
+      }
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object as Stripe.Subscription
+        const cust = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
+        await admin.from('profiles').update({
+          subscription_status: 'canceled',
+          stripe_subscription_id: null,
+          stripe_subscription_item_id: null,
+          subscription_quantity: 0,
+          subscription_current_period_end: null,
+        }).eq('stripe_customer_id', cust)
+        break
+      }
+      case 'invoice.payment_failed': {
+        const inv = event.data.object as Stripe.Invoice
+        const cust = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
+        if (cust) {
+          await admin.from('profiles').update({ subscription_status: 'past_due' }).eq('stripe_customer_id', cust)
+        }
+        break
+      }
+      case 'invoice.paid': {
+        const inv = event.data.object as Stripe.Invoice
+        const cust = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
+        if (cust) {
+          // Refresh status from the source-of-truth subscription record.
+          const subRef = inv.subscription
+          const subId = typeof subRef === 'string' ? subRef : subRef?.id
+          if (subId) {
+            const sub = await stripe.subscriptions.retrieve(subId)
+            await applySubscriptionToProfile(sub)
+          }
+        }
+        break
+      }
+      default:
+        // No-op for events we don't care about. The audit row is enough.
+        break
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unknown error'
+    return new Response(JSON.stringify({ error: msg }), { status: 500 })
+  }
+
+  return new Response(JSON.stringify({ received: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
+})

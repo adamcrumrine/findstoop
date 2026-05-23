@@ -11,7 +11,8 @@ import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
-import { FileText } from 'lucide-react'
+import { FileText, FileSignature } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 function Skeleton() {
   return (
@@ -207,6 +208,29 @@ function LeaseCard({ lease, unitNumber, propertyName, onUpdateStatus }: LeaseCar
       {lease.utility_notes && (
         <p className="mt-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">{lease.utility_notes}</p>
       )}
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-xs text-mute inline-flex items-center gap-1.5">
+          {lease.signed_at ? (
+            <>
+              <FileSignature className="w-3.5 h-3.5 text-green-600" strokeWidth={1.75} />
+              Fully signed
+            </>
+          ) : (
+            <>
+              <FileSignature className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Awaiting signatures
+            </>
+          )}
+        </div>
+        {!lease.signed_at && (
+          <Link
+            to={`/manager/sign-lease/${lease.id}`}
+            className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+          >
+            Sign now →
+          </Link>
+        )}
+      </div>
     </div>
   )
 }

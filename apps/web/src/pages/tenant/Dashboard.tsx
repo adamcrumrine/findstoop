@@ -3,7 +3,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
-import { MessageSquare, ChevronRight } from 'lucide-react'
+import { MessageSquare, ChevronRight, FileSignature } from 'lucide-react'
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-lg ${className ?? ''}`} />
@@ -114,6 +114,23 @@ export default function TenantDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">Hi, {firstName}!</h1>
         <p className="text-gray-500 text-sm mt-0.5">Welcome to your home portal.</p>
       </div>
+
+      {/* Lease awaiting signature */}
+      {!loading && lease && !lease.signed_at && (
+        <button
+          onClick={() => navigate(`/tenant/sign-lease/${lease.id}`)}
+          className="w-full bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-amber-100 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <FileSignature className="w-5 h-5 text-amber-700" strokeWidth={1.75} />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Your lease is ready to sign</p>
+              <p className="text-xs text-amber-700">Review the terms and add your signature.</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-amber-600" strokeWidth={2} />
+        </button>
+      )}
 
       {/* Rent CTA card */}
       {loading ? (

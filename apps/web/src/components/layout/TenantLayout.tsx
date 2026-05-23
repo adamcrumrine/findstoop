@@ -1,6 +1,6 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
-import { Home, CreditCard, Wrench, Folder, MessageSquare, type LucideIcon } from 'lucide-react'
+import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, type LucideIcon } from 'lucide-react'
 
 interface NavItem {
   to: string
@@ -53,6 +53,13 @@ export default function TenantLayout() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            to="/tenant/settings"
+            className="text-mute hover:text-ink transition-colors p-1.5 rounded-lg hover:bg-gray-50"
+            aria-label="Settings"
+          >
+            <SettingsIcon className="w-4 h-4" strokeWidth={1.75} />
+          </Link>
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium text-ink">{displayName}</p>
             <button

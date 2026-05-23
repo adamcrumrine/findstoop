@@ -31,8 +31,10 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Cache app shell + JS/CSS
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Cache app shell + JS/CSS, but skip the marketing illustrations —
+        // they're large PNGs that don't need to live in the offline cache.
+        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icons/*.png', 'favicon-*.png', 'apple-touch-icon.png', 'findstoop-logo*.png'],
+        globIgnores: ['**/illustrations/**'],
         // Network-first for API calls, cache-first for assets
         runtimeCaching: [
           {
@@ -50,6 +52,16 @@ export default defineConfig({
             options: {
               cacheName: 'google-fonts-cache',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
+            // Marketing illustrations — runtime CacheFirst, NOT precached.
+            // Loaded on demand, then served from cache for repeat visits.
+            urlPattern: /\/illustrations\/.*\.(png|webp|svg)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'marketing-illustrations',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
         ],

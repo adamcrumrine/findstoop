@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
 
@@ -23,9 +23,11 @@ interface Props {
 
 export default function Register({ role }: Props) {
   const { signUp, signInWithGoogle, user, profile, loading: authLoading } = useAuth()
+  const [searchParams] = useSearchParams()
+  const prefilledEmail = searchParams.get('email') ?? ''
 
   const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(prefilledEmail)
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)

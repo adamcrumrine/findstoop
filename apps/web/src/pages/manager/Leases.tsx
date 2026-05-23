@@ -11,8 +11,9 @@ import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
-import { FileText, FileSignature } from 'lucide-react'
+import { FileText, FileSignature, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import LeaseWizard from '../../components/manager/LeaseWizard'
 
 function Skeleton() {
   return (
@@ -242,10 +243,11 @@ export default function ManagerLeases() {
   const propertyIds = useMemo(() => properties.map((p) => p.id), [properties])
   const { units } = useUnits(propertyIds)
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
-  const { leases, loading, add, update } = useLeases(unitIds)
+  const { leases, loading, add, update, reload } = useLeases(unitIds)
 
   const [filterStatus, setFilterStatus] = useState<LeaseStatus | 'all'>('all')
   const [addOpen, setAddOpen] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
@@ -312,13 +314,22 @@ export default function ManagerLeases() {
           <h1 className="text-2xl font-bold text-gray-900">Leases</h1>
           <p className="text-sm text-gray-500 mt-0.5">{filtered.length} lease{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setAddOpen(true)}
-          disabled={units.length === 0}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
-        >
-          + New Lease
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setWizardOpen(true)}
+            disabled={units.length === 0}
+            className="inline-flex items-center gap-1.5 bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} /> New lease (state-aware)
+          </button>
+          <button
+            onClick={() => setAddOpen(true)}
+            disabled={units.length === 0}
+            className="text-sm font-medium text-brand-700 hover:text-brand-800 border border-gray-200 hover:border-brand-300 px-3 py-2 rounded-lg transition-colors"
+          >
+            Quick add
+          </button>
+        </div>
       </div>
 
       {!loading && leases.length > 0 && (
@@ -373,6 +384,8 @@ export default function ManagerLeases() {
           })}
         </div>
       )}
+
+      <LeaseWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={() => reload()} />
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Create Lease">
         <LeaseForm

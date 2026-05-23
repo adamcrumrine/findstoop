@@ -29,6 +29,7 @@ const SignLease           = lazy(() => import('./pages/shared/SignLease'))
 // Manager pages
 const ManagerDashboard    = lazy(() => import('./pages/manager/Dashboard'))
 const ManagerProperties   = lazy(() => import('./pages/manager/Properties'))
+const ManagerPropertyDetail = lazy(() => import('./pages/manager/PropertyDetail'))
 const ManagerUnits        = lazy(() => import('./pages/manager/Units'))
 const ManagerListings     = lazy(() => import('./pages/manager/Listings'))
 const ManagerApplications = lazy(() => import('./pages/manager/Applications'))
@@ -93,7 +94,8 @@ export default function App() {
           }>
             <Route index element={<Navigate to="/manager/dashboard" replace />} />
             <Route path="dashboard"    element={<ManagerDashboard />} />
-            <Route path="properties"   element={<ManagerProperties />} />
+            <Route path="properties"      element={<ManagerProperties />} />
+            <Route path="properties/:id"  element={<ManagerPropertyDetail />} />
             <Route path="units"        element={<ManagerUnits />} />
             <Route path="listings"     element={<ManagerListings />} />
             <Route path="applications" element={<ManagerApplications />} />

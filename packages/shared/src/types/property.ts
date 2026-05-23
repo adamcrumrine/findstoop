@@ -6,5 +6,6 @@ export interface Property {
   city: string
   state: string
   zip: string
+  thumbnail_url?: string | null
   created_at: string
 }

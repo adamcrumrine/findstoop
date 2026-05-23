@@ -9,6 +9,8 @@ export interface Profile {
   phone: string | null
   phone_last_four: string | null
   avatar_url: string | null
+  company_name: string | null
+  company_logo_url: string | null
   mfa_enabled: boolean
   mfa_method: MfaMethod
   created_at: string

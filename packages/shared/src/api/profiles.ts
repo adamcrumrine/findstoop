@@ -29,18 +29,14 @@ export async function getProfileByEmail(email: string): Promise<Profile | null> 
   return data
 }
 
-export async function inviteTenant(email: string, fullName: string): Promise<void> {
-  // Uses Supabase Admin invite — calls signUp with a temporary password
-  // The tenant receives an email to set their password
-  const { error } = await supabase.auth.signUp({
-    email,
-    password: Math.random().toString(36).slice(-12) + 'Aa1!',
-    options: {
-      data: { role: 'tenant', full_name: fullName },
-      emailRedirectTo: `${window.location.origin}/login`,
-    },
+export async function inviteTenant(email: string, fullName: string, applyUnitId?: string): Promise<void> {
+  // Calls the invite-tenant edge function (manager JWT verified there).
+  // The function admin-creates the auth user, generates a magic invite link,
+  // and sends a branded email via Resend. If applyUnitId is provided, the
+  // email also includes a rental-application link for that unit.
+  const { data, error } = await supabase.functions.invoke('invite-tenant', {
+    body: { email, fullName, applyUnitId },
   })
-  if (error && !error.message.includes('already registered')) {
-    throw new Error(error.message)
-  }
+  if (error) throw new Error(error.message)
+  if (data?.error) throw new Error(data.error)
 }

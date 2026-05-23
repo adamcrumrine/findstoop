@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { Mail, Bell, Loader2, CheckCircle2 } from 'lucide-react'
+import { Mail, Bell, Loader2, CheckCircle2, UserCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ImageUploader from '../../components/shared/ImageUploader'
 
 export default function TenantSettings() {
   const { profile } = useAuth()
   const [emailEnabled, setEmailEnabled] = useState(true)
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -16,15 +21,36 @@ export default function TenantSettings() {
     ;(async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('notification_email_enabled')
+        .select('notification_email_enabled, full_name, phone, avatar_url')
         .eq('id', profile.id)
         .single()
       if (cancelled) return
       setEmailEnabled(data?.notification_email_enabled ?? true)
+      setFullName(data?.full_name ?? '')
+      setPhone(data?.phone ?? '')
+      setAvatarUrl(data?.avatar_url ?? null)
       setLoading(false)
     })()
     return () => { cancelled = true }
   }, [profile?.id])
+
+  const persistAvatar = async (url: string | null) => {
+    setAvatarUrl(url)
+    if (!profile?.id) return
+    await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id)
+  }
+
+  const saveProfile = async () => {
+    if (!profile?.id) return
+    setSavingProfile(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ full_name: fullName.trim(), phone: phone.trim() || null })
+      .eq('id', profile.id)
+    setSavingProfile(false)
+    if (error) toast.error(error.message)
+    else toast.success('Profile saved')
+  }
 
   const save = async (next: boolean) => {
     if (!profile?.id) return
@@ -56,8 +82,60 @@ export default function TenantSettings() {
     <div className="max-w-2xl mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Settings</h1>
-        <p className="text-sm text-mute mt-1">Manage how FindStoop reaches you about your rental.</p>
+        <p className="text-sm text-mute mt-1">Your profile and how FindStoop reaches you.</p>
       </header>
+
+      {/* Profile */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <UserCircle className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Profile</h2>
+        </div>
+
+        <div className="space-y-5">
+          <ImageUploader
+            currentUrl={avatarUrl}
+            onChange={persistAvatar}
+            pathPrefix={`avatars/${profile?.id}`}
+            variant="circle"
+            size={72}
+            label="Your photo"
+          />
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Full name</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Phone</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="555-555-5555"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              onClick={saveProfile}
+              disabled={savingProfile}
+              className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save profile
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Notifications */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">

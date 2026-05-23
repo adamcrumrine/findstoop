@@ -8,7 +8,7 @@ import type { Property } from '@findstoop/shared/types/property'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
-import { DoorOpen } from 'lucide-react'
+import { DoorOpen, Copy } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -137,6 +137,10 @@ interface UnitCardProps {
 }
 
 function UnitCard({ unit, propertyName, onEdit, onDelete }: UnitCardProps) {
+  const copyApplyLink = () => {
+    const link = `${window.location.origin}/apply/${unit.id}`
+    navigator.clipboard.writeText(link).then(() => toast.success('Apply link copied'))
+  }
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -156,6 +160,13 @@ function UnitCard({ unit, propertyName, onEdit, onDelete }: UnitCardProps) {
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
+          <button
+            onClick={copyApplyLink}
+            className="text-xs font-medium text-brand-700 hover:text-brand-800 px-2 py-1 border border-gray-200 rounded-lg hover:border-brand-300 transition-colors inline-flex items-center gap-1"
+            title="Copy public apply link"
+          >
+            <Copy className="w-3.5 h-3.5" strokeWidth={1.75} /> Apply link
+          </button>
           <button
             onClick={() => onEdit(unit)}
             className="text-xs font-medium text-gray-500 hover:text-brand-600 px-2 py-1 border border-gray-200 rounded-lg hover:border-brand-300 transition-colors"

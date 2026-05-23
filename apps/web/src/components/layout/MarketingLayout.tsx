@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, Navigate } from 'react-router-dom'
 import { Menu, X, UserCircle2 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 
@@ -13,7 +13,14 @@ const navLinks = [
 export default function MarketingLayout() {
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
-  const { user, profile } = useAuth()
+  const { user, profile, loading } = useAuth()
+
+  // If a signed-in user lands on the marketing site (most commonly after the
+  // Google OAuth callback drops them on "/" instead of "/login"), bounce them
+  // straight to their dashboard. Wait for profile so we route to the right one.
+  if (!loading && user && profile) {
+    return <Navigate to={profile.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard'} replace />
+  }
 
   const myAccountHref =
     !user ? '/login'

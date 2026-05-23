@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+import { FileSignature, ChevronRight, CreditCard } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import type { Payment } from '@findstoop/shared/types/payment'
@@ -149,7 +151,7 @@ function Section({ title, children, loading, empty, emptyText }: {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { profile } = useAuth()
-  const { stats, recentPayments, openMaintenance, upcomingRenewals, loading, error } =
+  const { stats, recentPayments, openMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, loading, error } =
     useManagerDashboard(profile?.id)
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
@@ -167,9 +169,80 @@ export default function ManagerDashboard() {
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Greeting */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {firstName} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Good morning, {firstName}</h1>
         <p className="text-gray-500 text-sm mt-1">Here&apos;s what&apos;s happening with your properties.</p>
       </div>
+
+      {/* Billing setup required — surfaces once the manager has any executed lease but no active subscription. */}
+      {!loading && needsBillingSetup && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5 text-red-700" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-red-900">Action required — set up FindStoop billing</p>
+              <p className="text-sm text-red-800 mt-0.5 leading-relaxed">
+                You have at least one signed lease. To unlock the formatted lease PDF, open your tenant's portal (rent payments, maintenance, documents), and start collecting rent through FindStoop, set up your subscription now.
+                $9/unit per month, billed only on active units.
+              </p>
+              <Link
+                to="/manager/billing"
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
+              >
+                Set up billing now
+                <ChevronRight className="w-4 h-4" strokeWidth={2} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Awaiting your signature — surfaces when a tenant has signed but the manager hasn't */}
+      {!loading && awaitingManagerSignature.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+              <FileSignature className="w-5 h-5 text-amber-700" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-amber-900">
+                {awaitingManagerSignature.length === 1
+                  ? '1 lease is waiting for your signature'
+                  : `${awaitingManagerSignature.length} leases are waiting for your signature`}
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                The tenant has signed. Add your countersignature to finalize and activate{awaitingManagerSignature.length === 1 ? ' it' : ' them'}.
+              </p>
+              <div className="mt-3 space-y-1.5">
+                {awaitingManagerSignature.slice(0, 3).map((l) => (
+                  <Link
+                    key={l.id}
+                    to={`/manager/sign-lease/${l.id}`}
+                    className="flex items-center justify-between gap-2 text-sm text-amber-900 bg-white border border-amber-200 rounded-lg px-3 py-2 hover:border-amber-400 transition-colors"
+                  >
+                    <span className="truncate">
+                      Lease starting {new Date(l.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      <span className="text-amber-700"> · ${Number(l.rent_amount).toLocaleString()}/mo</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0">
+                      Sign now <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+                    </span>
+                  </Link>
+                ))}
+                {awaitingManagerSignature.length > 3 && (
+                  <Link
+                    to="/manager/leases"
+                    className="text-xs font-medium text-amber-800 hover:text-amber-900 inline-block pt-0.5"
+                  >
+                    + {awaitingManagerSignature.length - 3} more — view all in Leases →
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">

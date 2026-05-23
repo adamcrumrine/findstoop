@@ -11,6 +11,7 @@ import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import { CreditCard } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 
 function Skeleton() {
   return (
@@ -22,9 +23,10 @@ function Skeleton() {
 }
 
 const statusColors: Record<PaymentStatus, string> = {
-  pending:   'bg-yellow-100 text-yellow-700',
-  completed: 'bg-green-100 text-green-700',
-  failed:    'bg-red-100 text-red-700',
+  pending:    'bg-yellow-100 text-yellow-700',
+  processing: 'bg-amber-100 text-amber-800',
+  completed:  'bg-green-100 text-green-700',
+  failed:     'bg-red-100 text-red-700',
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ interface AddPaymentFormData {
   type: PaymentType
   status: PaymentStatus
   due_date: string
+  memo: string
 }
 
 interface AddPaymentFormProps {
@@ -73,9 +76,10 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
   const [form, setForm] = useState<AddPaymentFormData>({
     lease_id: leases[0]?.id ?? '',
     amount: '',
-    type: 'rent',
-    status: 'completed',
+    type: 'fee',
+    status: 'pending',
     due_date: '',
+    memo: '',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof AddPaymentFormData, string>>>({})
 
@@ -117,19 +121,21 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
         <FormField label="Type">
           <select className={selectClass} value={form.type} onChange={set('type')}>
             <option value="rent">Rent</option>
+            <option value="fee">Fee</option>
+            <option value="fine">Fine</option>
             <option value="late_fee">Late Fee</option>
+            <option value="utility">Utility</option>
             <option value="pet_fee">Pet Fee</option>
             <option value="pet_deposit">Pet Deposit</option>
-            <option value="utility">Utility</option>
-            <option value="other">Other</option>
+            <option value="other">Other / Misc</option>
           </select>
         </FormField>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Status">
           <select className={selectClass} value={form.status} onChange={set('status')}>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
+            <option value="pending">Pending (tenant owes)</option>
+            <option value="completed">Completed (already paid)</option>
             <option value="failed">Failed</option>
           </select>
         </FormField>
@@ -137,6 +143,16 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
           <input className={inputClass} type="date" value={form.due_date} onChange={set('due_date')} />
         </FormField>
       </div>
+      <FormField label="Memo / reason">
+        <input
+          className={inputClass}
+          type="text"
+          value={form.memo}
+          onChange={set('memo')}
+          placeholder="e.g., December water bill, dog walking deposit, lock-out fee"
+        />
+        <p className="text-xs text-mute mt-1">Shown on the payment row and on the tenant's portal.</p>
+      </FormField>
       <div className="flex gap-3 pt-2">
         <button type="button" onClick={onCancel} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
           Cancel
@@ -154,9 +170,11 @@ interface PaymentRowProps {
   payment: Payment
   tenantName: string
   onMarkPaid: (id: string) => void
+  onApplyCredit: (payment: Payment) => void
 }
 
-function PaymentRow({ payment, tenantName, onMarkPaid }: PaymentRowProps) {
+function PaymentRow({ payment, tenantName, onMarkPaid, onApplyCredit }: PaymentRowProps) {
+  const isCreditable = payment.status === 'pending' && (payment.type === 'rent' || payment.type === 'utility' || payment.type === 'fee' || payment.type === 'fine' || payment.type === 'other')
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
       <div className="flex-1 min-w-0">
@@ -170,9 +188,20 @@ function PaymentRow({ payment, tenantName, onMarkPaid }: PaymentRowProps) {
         {payment.due_date && (
           <p className="text-xs text-gray-400">Due: {new Date(payment.due_date).toLocaleDateString()}</p>
         )}
+        {payment.memo && (
+          <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
+        )}
       </div>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <p className="text-sm font-semibold text-gray-900">${Number(payment.amount).toLocaleString()}</p>
+        {isCreditable && (
+          <button
+            onClick={() => onApplyCredit(payment)}
+            className="text-xs font-medium text-amber-700 border border-amber-200 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors"
+          >
+            Credit
+          </button>
+        )}
         {payment.status === 'pending' && (
           <button
             onClick={() => onMarkPaid(payment.id)}
@@ -195,12 +224,13 @@ export default function ManagerPayments() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
-  const { payments, loading, add, markPaid, totalCollected, totalOutstanding } = usePayments(leaseIds)
+  const { payments, loading, add, markPaid, totalCollected, totalOutstanding, reload } = usePayments(leaseIds)
 
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | 'all'>('all')
   const [filterType, setFilterType] = useState<PaymentType | 'all'>('all')
   const [addOpen, setAddOpen] = useState(false)
   const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null)
+  const [creditTarget, setCreditTarget] = useState<Payment | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const leaseMap = useMemo(
@@ -231,6 +261,10 @@ export default function ManagerPayments() {
         stripe_payment_id: null,
         due_date: data.due_date || null,
         paid_at: data.status === 'completed' ? new Date().toISOString() : null,
+        memo: data.memo.trim() || null,
+        scheduled_for: null,
+        original_due_date: data.due_date || null,
+        initiated_at: null,
       })
       toast.success('Payment recorded')
       setAddOpen(false)
@@ -340,6 +374,7 @@ export default function ManagerPayments() {
               payment={p}
               tenantName={leaseMap[p.lease_id]?.profile?.full_name ?? leaseMap[p.lease_id]?.profile?.email ?? '—'}
               onMarkPaid={(id) => setMarkPaidTarget(payments.find((pay) => pay.id === id) ?? null)}
+              onApplyCredit={(payment) => setCreditTarget(payment)}
             />
           ))}
         </div>
@@ -362,6 +397,122 @@ export default function ManagerPayments() {
         onConfirm={handleMarkPaid}
         onCancel={() => setMarkPaidTarget(null)}
       />
+
+      <Modal open={!!creditTarget} onClose={() => setCreditTarget(null)} title="Apply credit">
+        {creditTarget && (
+          <ApplyCreditForm
+            target={creditTarget}
+            tenantName={leaseMap[creditTarget.lease_id]?.profile?.full_name ?? leaseMap[creditTarget.lease_id]?.profile?.email ?? '—'}
+            onClose={() => setCreditTarget(null)}
+            onDone={async () => { setCreditTarget(null); await reload() }}
+          />
+        )}
+      </Modal>
     </div>
+  )
+}
+
+// ── Apply credit form ─────────────────────────────────────────────────────────
+function ApplyCreditForm({
+  target,
+  tenantName,
+  onClose,
+  onDone,
+}: {
+  target: Payment
+  tenantName: string
+  onClose: () => void
+  onDone: () => Promise<void>
+}) {
+  const [amount, setAmount] = useState('')
+  const [memo, setMemo] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const numAmount = Number(amount)
+  const valid = amount && numAmount > 0 && numAmount <= Number(target.amount) && memo.trim().length > 0
+  const newTotal = Math.max(Number(target.amount) - numAmount, 0)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!valid) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const { error: rpcErr } = await supabase.rpc('apply_rent_credit', {
+        target_payment_id: target.id,
+        credit_amount: numAmount,
+        memo_text: memo.trim(),
+      })
+      if (rpcErr) throw rpcErr
+      toast.success(`Credit of $${numAmount.toLocaleString()} applied`)
+      await onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not apply credit')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
+        <p className="font-semibold text-ink capitalize">{target.type.replace(/_/g, ' ')} · {tenantName}</p>
+        <p className="text-mute mt-0.5">
+          Current amount: <strong>${Number(target.amount).toLocaleString()}</strong>
+          {target.due_date && <> · Due {new Date(target.due_date).toLocaleDateString()}</>}
+        </p>
+      </div>
+
+      <FormField label="Credit amount ($)" required>
+        <input
+          className={inputClass}
+          type="number"
+          min="0.01"
+          step="0.01"
+          max={Number(target.amount)}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="99.23"
+          autoFocus
+        />
+      </FormField>
+
+      <FormField label="Memo / reason" required>
+        <input
+          className={inputClass}
+          type="text"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          placeholder="e.g., Tenant paid for mulch this month — $99.23"
+        />
+        <p className="text-xs text-mute mt-1">
+          Stored permanently on the payment and visible to the tenant. An audit row is also written.
+        </p>
+      </FormField>
+
+      {amount && numAmount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+          New balance for this payment:{' '}
+          <strong>${newTotal.toLocaleString()}</strong>{' '}
+          <span className="text-mute">
+            (${Number(target.amount).toLocaleString()} − ${numAmount.toLocaleString()})
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>
+      )}
+
+      <div className="flex gap-3 pt-2">
+        <button type="button" onClick={onClose} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+          Cancel
+        </button>
+        <button type="submit" disabled={!valid || submitting} className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+          {submitting ? 'Applying…' : 'Apply credit'}
+        </button>
+      </div>
+    </form>
   )
 }

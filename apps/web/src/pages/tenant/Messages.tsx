@@ -2,9 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { useMessages } from '@findstoop/shared/hooks/useMessages'
+import { findOrCreateDirectConversation, uploadChatImage } from '@findstoop/shared/api/messages'
 import { supabase } from '../../lib/supabase'
 import type { Profile } from '@findstoop/shared/types/profile'
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, ImagePlus, Loader2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import Avatar from '../../components/shared/Avatar'
+import EmptyIllustration from '../../components/shared/EmptyIllustration'
 
 function Skeleton() {
   return (
@@ -18,7 +22,10 @@ function Skeleton() {
   )
 }
 
-function MessageBubble({ msg, isOwn }: { msg: { id: string; body: string; created_at: string }; isOwn: boolean }) {
+function MessageBubble({ msg, isOwn }: {
+  msg: { id: string; body: string; created_at: string; image_url?: string | null; image_purged_at?: string | null }
+  isOwn: boolean
+}) {
   return (
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -28,7 +35,15 @@ function MessageBubble({ msg, isOwn }: { msg: { id: string; body: string; create
             : 'bg-gray-100 text-gray-800 rounded-bl-sm'
         }`}
       >
-        <p className="leading-relaxed">{msg.body}</p>
+        {msg.image_url && !msg.image_purged_at && (
+          <a href={msg.image_url} target="_blank" rel="noreferrer" className="block mb-1.5">
+            <img src={msg.image_url} alt="" className="max-w-full max-h-64 rounded-lg" />
+          </a>
+        )}
+        {msg.image_purged_at && (
+          <p className="text-xs italic opacity-70 mb-1.5">Image expired (older than 12 months)</p>
+        )}
+        {msg.body && <p className="leading-relaxed whitespace-pre-line">{msg.body}</p>}
         <p className={`text-[10px] mt-1 ${isOwn ? 'text-brand-200' : 'text-gray-400'}`}>
           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
@@ -42,6 +57,7 @@ export default function TenantMessages() {
   const tenantId = user?.id
   const { lease } = useTenantDashboard(tenantId)
   const [manager, setManager] = useState<Profile | null>(null)
+  const [conversationId, setConversationId] = useState<string | null>(null)
 
   // Fetch manager profile once we have the lease's unit
   useEffect(() => {
@@ -57,15 +73,28 @@ export default function TenantMessages() {
       })
   }, [lease?.unit_id])
 
-  const { messages, loading, sending, send } = useMessages(
-    lease?.id ?? null,
-    tenantId,
-    manager?.id
-  )
+  // Resolve / create the 1:1 conversation with the manager.
+  useEffect(() => {
+    if (!manager?.id) return
+    let cancelled = false
+    findOrCreateDirectConversation(manager.id)
+      .then((c) => { if (!cancelled) setConversationId(c.id) })
+      .catch((e) => { if (!cancelled) toast.error(e instanceof Error ? e.message : 'Could not open conversation') })
+    return () => { cancelled = true }
+  }, [manager?.id])
+
+  // markConversationRead fires from useMessages when the thread loads, which
+  // clears unread for the participant row, which the badge hook re-checks
+  // via realtime — so the green dot disappears once the tenant opens this
+  // page. No extra write needed here.
+
+  const { messages, loading, sending, send } = useMessages(conversationId, tenantId)
 
   const [draft, setDraft] = useState('')
+  const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
@@ -79,6 +108,20 @@ export default function TenantMessages() {
     await send(body)
   }
 
+  const handleImage = async (file: File) => {
+    if (!conversationId) return
+    setUploading(true)
+    try {
+      const img = await uploadChatImage(conversationId, file)
+      await send(draft.trim(), img)
+      setDraft('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Image upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -86,7 +129,10 @@ export default function TenantMessages() {
     }
   }
 
-  const managerName = manager?.full_name ?? 'Property Manager'
+  const companyName = (manager?.company_name ?? '').trim() || null
+  const displayName = companyName ?? manager?.full_name ?? 'Property Manager'
+  const displayLogo = manager?.company_logo_url ?? manager?.avatar_url ?? null
+  const subtitle = companyName && manager?.full_name ? manager.full_name : 'Property Manager'
 
   // Group messages by date
   const grouped: { date: string; msgs: typeof messages }[] = []
@@ -103,15 +149,13 @@ export default function TenantMessages() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-lg mx-auto">
+    <div className="flex flex-col bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-sm overflow-hidden max-w-3xl mx-auto" style={{ height: 'calc(100vh - 11rem)' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
-        <div className="w-9 h-9 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
-          {managerName[0]?.toUpperCase() ?? 'M'}
-        </div>
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
+        <Avatar url={displayLogo} name={displayName} email={manager?.email} size={36} />
         <div>
-          <p className="font-semibold text-gray-900 text-sm">{managerName}</p>
-          <p className="text-xs text-gray-400">Property Manager</p>
+          <p className="font-semibold text-gray-900 text-sm">{displayName}</p>
+          <p className="text-xs text-gray-400">{subtitle}</p>
         </div>
       </div>
 
@@ -133,10 +177,13 @@ export default function TenantMessages() {
           ) : (
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {messages.length === 0 && (
-                <div className="text-center py-8 text-gray-400">
-                  <p className="text-2xl mb-1">👋</p>
-                  <p className="text-sm">Send a message to your property manager</p>
-                </div>
+                <EmptyIllustration
+                  name="messages"
+                  Fallback={MessageSquare}
+                  title="Start the conversation"
+                  subtitle="Ping your property manager about anything — rent, maintenance, scheduling. Drag in an image if it helps."
+                  size="md"
+                />
               )}
               {grouped.map(({ date, msgs }) => (
                 <div key={date} className="space-y-2">
@@ -155,7 +202,23 @@ export default function TenantMessages() {
           )}
 
           {/* Input */}
-          <div className="bg-white border-t border-gray-200 px-3 py-3 flex items-end gap-2 shrink-0">
+          <div className="bg-gray-50 border-t border-gray-200 px-3 py-3 flex items-end gap-2 shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); e.target.value = '' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!conversationId || uploading}
+              className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors"
+              title="Send image"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
+            </button>
             <textarea
               ref={textareaRef}
               value={draft}

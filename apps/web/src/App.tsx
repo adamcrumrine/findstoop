@@ -4,6 +4,7 @@ import ProtectedRoute from './components/shared/ProtectedRoute'
 import ManagerLayout from './components/layout/ManagerLayout'
 import TenantLayout from './components/layout/TenantLayout'
 import MarketingLayout from './components/layout/MarketingLayout'
+import ApplyLayout from './components/layout/ApplyLayout'
 
 // Public marketing
 const MarketingHome        = lazy(() => import('./pages/marketing/Home'))
@@ -29,12 +30,17 @@ const SignLease           = lazy(() => import('./pages/shared/SignLease'))
 // Manager pages
 const ManagerDashboard    = lazy(() => import('./pages/manager/Dashboard'))
 const ManagerProperties   = lazy(() => import('./pages/manager/Properties'))
+const ManagerPropertyDetail = lazy(() => import('./pages/manager/PropertyDetail'))
 const ManagerUnits        = lazy(() => import('./pages/manager/Units'))
 const ManagerListings     = lazy(() => import('./pages/manager/Listings'))
 const ManagerApplications = lazy(() => import('./pages/manager/Applications'))
 const ManagerScreening    = lazy(() => import('./pages/manager/Screening'))
 const ManagerTenants      = lazy(() => import('./pages/manager/Tenants'))
+const ManagerTenantDetail = lazy(() => import('./pages/manager/TenantDetail'))
 const ManagerLeases       = lazy(() => import('./pages/manager/Leases'))
+const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
+const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
+const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
 const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
@@ -72,6 +78,10 @@ export default function App() {
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
             <Route path="/how-it-works" element={<MarketingHowItWorks />} />
+          </Route>
+
+          {/* Public rental application — bare layout, no marketing nav, no auth redirect */}
+          <Route element={<ApplyLayout />}>
             <Route path="/apply/:unitId" element={<MarketingApply />} />
           </Route>
 
@@ -86,6 +96,14 @@ export default function App() {
           <Route path="/verify/method"   element={<VerifyMethod />} />
           <Route path="/verify/backup"   element={<VerifyBackup />} />
 
+          {/* Lease PDF — standalone (no role-protected layout). The page does
+              its own access check: caller must be the manager who owns the
+              property, the tenant on the lease, or an admin. Keeping it out
+              of /manager and /tenant means it renders without a sidebar and
+              can be opened cleanly in a new tab for printing. */}
+          <Route path="/lease-pdf/:id"   element={<ManagerLeasePdf />} />
+          <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
+
           <Route path="/manager" element={
             <ProtectedRoute requiredRole="manager">
               <ManagerLayout />
@@ -93,13 +111,16 @@ export default function App() {
           }>
             <Route index element={<Navigate to="/manager/dashboard" replace />} />
             <Route path="dashboard"    element={<ManagerDashboard />} />
-            <Route path="properties"   element={<ManagerProperties />} />
+            <Route path="properties"      element={<ManagerProperties />} />
+            <Route path="properties/:id"  element={<ManagerPropertyDetail />} />
             <Route path="units"        element={<ManagerUnits />} />
             <Route path="listings"     element={<ManagerListings />} />
             <Route path="applications" element={<ManagerApplications />} />
             <Route path="screening"    element={<ManagerScreening />} />
             <Route path="tenants"      element={<ManagerTenants />} />
-            <Route path="leases"       element={<ManagerLeases />} />
+            <Route path="tenants/:id"  element={<ManagerTenantDetail />} />
+            <Route path="leases"            element={<ManagerLeases />} />
+            <Route path="review-lease/:id"  element={<ManagerReviewLease />} />
             <Route path="payments"     element={<ManagerPayments />} />
             <Route path="maintenance"  element={<ManagerMaintenance />} />
             <Route path="messages"     element={<ManagerMessages />} />

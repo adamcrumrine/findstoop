@@ -4,11 +4,16 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import {
   Mail, Bell, AlertTriangle, Loader2, CheckCircle2, DollarSign, Calendar,
-  Landmark, ExternalLink,
+  Landmark, ExternalLink, UserCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ImageUploader from '../../components/shared/ImageUploader'
 
 interface LandlordSettings {
+  full_name: string
+  company_name: string
+  company_logo_url: string | null
+  avatar_url: string | null
   notification_email_enabled: boolean
   late_fee_enabled: boolean
   late_fee_amount: number
@@ -25,6 +30,10 @@ interface ConnectState {
 }
 
 const defaults: LandlordSettings = {
+  full_name: '',
+  company_name: '',
+  company_logo_url: null,
+  avatar_url: null,
   notification_email_enabled: true,
   late_fee_enabled: false,
   late_fee_amount: 50,
@@ -40,6 +49,7 @@ export default function ManagerSettings() {
   const [loading, setLoading] = useState(true)
   const [savingNotif, setSavingNotif] = useState(false)
   const [savingFees, setSavingFees] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
   const [connect, setConnect] = useState<ConnectState>({
     hasAccount: false, chargesEnabled: false, payoutsEnabled: false, onboardedAt: null,
   })
@@ -51,12 +61,16 @@ export default function ManagerSettings() {
     ;(async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('notification_email_enabled, late_fee_enabled, late_fee_amount, late_fee_grace_days, late_fee_type, late_fee_percent, stripe_connect_account_id, stripe_connect_charges_enabled, stripe_connect_payouts_enabled, stripe_connect_onboarded_at')
+        .select('full_name, company_name, company_logo_url, avatar_url, notification_email_enabled, late_fee_enabled, late_fee_amount, late_fee_grace_days, late_fee_type, late_fee_percent, stripe_connect_account_id, stripe_connect_charges_enabled, stripe_connect_payouts_enabled, stripe_connect_onboarded_at')
         .eq('id', profile.id)
         .single()
       if (cancelled) return
       if (data) {
         setSettings({
+          full_name: data.full_name ?? '',
+          company_name: data.company_name ?? '',
+          company_logo_url: data.company_logo_url ?? null,
+          avatar_url: data.avatar_url ?? null,
           notification_email_enabled: data.notification_email_enabled ?? true,
           late_fee_enabled: data.late_fee_enabled ?? false,
           late_fee_amount: Number(data.late_fee_amount ?? 50),
@@ -103,6 +117,35 @@ export default function ManagerSettings() {
     } finally {
       setConnecting(false)
     }
+  }
+
+  const saveProfile = async () => {
+    if (!profile?.id) return
+    setSavingProfile(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: settings.full_name.trim(),
+        company_name: settings.company_name.trim() || null,
+        company_logo_url: settings.company_logo_url,
+        avatar_url: settings.avatar_url,
+      })
+      .eq('id', profile.id)
+    setSavingProfile(false)
+    if (error) toast.error(error.message)
+    else toast.success('Profile saved')
+  }
+
+  const persistAvatar = async (url: string | null) => {
+    setSettings((s) => ({ ...s, avatar_url: url }))
+    if (!profile?.id) return
+    await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id)
+  }
+
+  const persistLogo = async (url: string | null) => {
+    setSettings((s) => ({ ...s, company_logo_url: url }))
+    if (!profile?.id) return
+    await supabase.from('profiles').update({ company_logo_url: url }).eq('id', profile.id)
   }
 
   const updateNotif = async (next: boolean) => {
@@ -155,6 +198,69 @@ export default function ManagerSettings() {
         <h1 className="text-2xl font-semibold text-ink">Settings</h1>
         <p className="text-sm text-mute mt-1">Configure notifications and billing rules for your portfolio.</p>
       </header>
+
+      {/* Profile */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <UserCircle className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Profile</h2>
+        </div>
+
+        <div className="space-y-5">
+          <ImageUploader
+            currentUrl={settings.avatar_url}
+            onChange={persistAvatar}
+            pathPrefix={`avatars/${profile?.id}`}
+            variant="circle"
+            size={72}
+            label="Your photo"
+          />
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Full name</label>
+            <input
+              type="text"
+              value={settings.full_name}
+              onChange={(e) => setSettings((s) => ({ ...s, full_name: e.target.value }))}
+              placeholder="Your name"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Company name</label>
+            <input
+              type="text"
+              value={settings.company_name}
+              onChange={(e) => setSettings((s) => ({ ...s, company_name: e.target.value }))}
+              placeholder="e.g. Acme Properties LLC (optional)"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <p className="text-xs text-mute mt-1.5">Appears on tenant invites, lease docs, and the renter portal.</p>
+          </div>
+
+          <ImageUploader
+            currentUrl={settings.company_logo_url}
+            onChange={persistLogo}
+            pathPrefix={`company-logos/${profile?.id}`}
+            variant="square"
+            size={72}
+            label="Company logo"
+          />
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={saveProfile}
+              disabled={savingProfile}
+              className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save profile
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Notifications */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">

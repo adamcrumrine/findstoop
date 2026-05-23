@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnitsByProperty } from '@findstoop/shared/hooks/useUnits'
 import type { Property } from '@findstoop/shared/types/property'
 import Modal from '../../components/shared/Modal'
-import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass } from '../../components/shared/FormField'
-import { Building2 } from 'lucide-react'
+import ImageUploader from '../../components/shared/ImageUploader'
+import { Building2, ChevronRight } from 'lucide-react'
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton() {
@@ -27,20 +28,23 @@ interface PropertyFormData {
   city: string
   state: string
   zip: string
+  thumbnail_url: string | null
 }
 
-const emptyForm: PropertyFormData = { name: '', address: '', city: '', state: '', zip: '' }
+const emptyForm: PropertyFormData = { name: '', address: '', city: '', state: '', zip: '', thumbnail_url: null }
 
 interface PropertyFormProps {
   initial?: PropertyFormData
   onSubmit: (data: PropertyFormData) => Promise<void>
   onCancel: () => void
   submitting: boolean
+  /** For thumbnail upload path — needs an existing property id (edit mode) or a temp slug (add mode). */
+  pathPrefixSeed: string
 }
 
-function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting }: PropertyFormProps) {
+function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting, pathPrefixSeed }: PropertyFormProps) {
   const [form, setForm] = useState<PropertyFormData>(initial)
-  const [errors, setErrors] = useState<Partial<PropertyFormData>>({})
+  const [errors, setErrors] = useState<Partial<Record<keyof PropertyFormData, string>>>({})
 
   const set = (field: keyof PropertyFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -48,7 +52,7 @@ function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting }: P
   }
 
   const validate = (): boolean => {
-    const e: Partial<PropertyFormData> = {}
+    const e: Partial<Record<keyof PropertyFormData, string>> = {}
     if (!form.name.trim())    e.name    = 'Name is required'
     if (!form.address.trim()) e.address = 'Address is required'
     if (!form.city.trim())    e.city    = 'City is required'
@@ -66,6 +70,14 @@ function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting }: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <ImageUploader
+        currentUrl={form.thumbnail_url}
+        onChange={(url) => setForm((f) => ({ ...f, thumbnail_url: url }))}
+        pathPrefix={`property-thumbnails/${pathPrefixSeed}`}
+        variant="square"
+        size={80}
+        label="Thumbnail photo"
+      />
       <FormField label="Property Name" required error={errors.name}>
         <input className={inputClass} value={form.name} onChange={set('name')} placeholder="Sunset Apartments" />
       </FormField>
@@ -88,7 +100,7 @@ function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting }: P
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors">
-          {submitting ? 'Saving\u2026' : 'Save Property'}
+          {submitting ? 'Saving…' : 'Save Property'}
         </button>
       </div>
     </form>
@@ -98,7 +110,7 @@ function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting }: P
 // ── Unit count badge ───────────────────────────────────────────────────────────
 function UnitCountBadge({ propertyId }: { propertyId: string }) {
   const { units, loading } = useUnitsByProperty(propertyId)
-  if (loading) return <span className="text-xs text-gray-400">\u2026</span>
+  if (loading) return <span className="text-xs text-gray-400">…</span>
   const occupied = units.filter((u) => u.status === 'occupied').length
   return (
     <span className="text-xs text-gray-500">
@@ -110,36 +122,33 @@ function UnitCountBadge({ propertyId }: { propertyId: string }) {
 // ── Property card ─────────────────────────────────────────────────────────────
 interface PropertyCardProps {
   property: Property
-  onEdit: (p: Property) => void
-  onDelete: (p: Property) => void
+  onOpen: (p: Property) => void
 }
 
-function PropertyCard({ property, onEdit, onDelete }: PropertyCardProps) {
+function PropertyCard({ property, onOpen }: PropertyCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 transition-colors">
-      <div className="flex items-start justify-between gap-3">
+    <div
+      className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition cursor-pointer group"
+      onClick={() => onOpen(property)}
+      role="button"
+    >
+      <div className="flex items-start gap-4">
+        <div className="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+          {property.thumbnail_url ? (
+            <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Building2 className="w-7 h-7 text-mute-400" strokeWidth={1.5} />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 truncate">{property.name}</h3>
+          <h3 className="font-semibold text-gray-900 truncate group-hover:text-brand-700">{property.name}</h3>
           <p className="text-sm text-gray-500 mt-0.5 truncate">{property.address}</p>
           <p className="text-sm text-gray-500 truncate">{property.city}, {property.state} {property.zip}</p>
           <div className="mt-2">
             <UnitCountBadge propertyId={property.id} />
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            onClick={() => onEdit(property)}
-            className="text-xs font-medium text-gray-500 hover:text-brand-600 px-2 py-1 border border-gray-200 rounded-lg hover:border-brand-300 transition-colors"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(property)}
-            className="text-xs font-medium text-gray-500 hover:text-red-600 px-2 py-1 border border-gray-200 rounded-lg hover:border-red-200 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
+        <ChevronRight className="w-4 h-4 text-mute-400 group-hover:text-brand-600 shrink-0 self-center" strokeWidth={1.75} />
       </div>
     </div>
   )
@@ -148,14 +157,13 @@ function PropertyCard({ property, onEdit, onDelete }: PropertyCardProps) {
 // ── Properties page ───────────────────────────────────────────────────────────
 export default function ManagerProperties() {
   const { profile } = useAuth()
-  const { properties, loading, add, update, remove } = useProperties(profile?.id)
+  const navigate = useNavigate()
+  const { properties, loading, add } = useProperties(profile?.id)
 
   const [addOpen, setAddOpen]       = useState(false)
-  const [editTarget, setEditTarget] = useState<Property | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const handleAdd = async (data: Omit<Property, 'id' | 'manager_id' | 'created_at'>) => {
+  const handleAdd = async (data: PropertyFormData) => {
     setSubmitting(true)
     try {
       await add(data)
@@ -165,31 +173,6 @@ export default function ManagerProperties() {
       toast.error(err instanceof Error ? err.message : 'Failed to add property')
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const handleEdit = async (data: Omit<Property, 'id' | 'manager_id' | 'created_at'>) => {
-    if (!editTarget) return
-    setSubmitting(true)
-    try {
-      await update(editTarget.id, data)
-      toast.success('Property updated')
-      setEditTarget(null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update property')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return
-    try {
-      await remove(deleteTarget.id)
-      toast.success('Property deleted')
-      setDeleteTarget(null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete property')
     }
   }
 
@@ -232,8 +215,7 @@ export default function ManagerProperties() {
             <PropertyCard
               key={p.id}
               property={p}
-              onEdit={setEditTarget}
-              onDelete={setDeleteTarget}
+              onOpen={(prop) => navigate(`/manager/properties/${prop.id}`)}
             />
           ))}
         </div>
@@ -241,31 +223,14 @@ export default function ManagerProperties() {
 
       {/* Add modal */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Property">
-        <PropertyForm onSubmit={handleAdd} onCancel={() => setAddOpen(false)} submitting={submitting} />
+        <PropertyForm
+          onSubmit={handleAdd}
+          onCancel={() => setAddOpen(false)}
+          submitting={submitting}
+          pathPrefixSeed={`new-${profile?.id ?? 'anon'}-${Date.now()}`}
+        />
       </Modal>
 
-      {/* Edit modal */}
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Property">
-        {editTarget && (
-          <PropertyForm
-            initial={{ name: editTarget.name, address: editTarget.address, city: editTarget.city, state: editTarget.state, zip: editTarget.zip }}
-            onSubmit={handleEdit}
-            onCancel={() => setEditTarget(null)}
-            submitting={submitting}
-          />
-        )}
-      </Modal>
-
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title="Delete Property"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This will also delete all associated units and data.`}
-        confirmLabel="Delete"
-        danger
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </div>
   )
 }

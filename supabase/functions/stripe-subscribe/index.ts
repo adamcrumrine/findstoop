@@ -1,9 +1,10 @@
-// Starts (or manages) a landlord's $3/unit subscription.
+// Starts (or manages) a landlord's $9/unit subscription.
 // - Verifies caller via Supabase JWT.
 // - Lazily creates a Stripe Customer the first time.
 // - If the manager has an active subscription → returns a billing-portal URL.
-// - Otherwise → returns a Stripe Checkout URL (subscription mode) to collect a
-//   payment method and start billing the current paid-unit count.
+// - Otherwise → creates a subscription with payment_behavior=default_incomplete
+//   and returns the latest invoice's PaymentIntent client_secret so the
+//   client can render its own (FindStoop-branded) PaymentElement.
 //
 // Payment methods enabled: card (incl. Apple Pay & Google Pay) + us_bank_account (ACH).
 
@@ -67,6 +68,14 @@ Deno.serve(async (req) => {
       return json({ error: 'Only landlords can subscribe' }, { status: 403 })
     }
 
+    // Complimentary account — never touches Stripe.
+    if (profile.subscription_complimentary === true) {
+      return json({
+        status: 'complimentary',
+        message: 'Your account is on a complimentary plan — no billing required.',
+      })
+    }
+
     // ── Count paid units (active leases - free quota) ───────────────────
     const { data: paidUnitsRpc } = await admin.rpc('count_manager_paid_units', {
       manager_uuid: user.id,
@@ -86,48 +95,112 @@ Deno.serve(async (req) => {
       await admin.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id)
     }
 
-    // ── Already subscribed → send to billing portal ─────────────────────
+    // ── Already have a subscription on file ─────────────────────────────
+    // Three possibilities:
+    //   • 'incomplete'         — the user started signup but never finished
+    //                            confirming the PaymentIntent. Resume the
+    //                            same PI so they don't end up with an
+    //                            orphaned subscription per attempt.
+    //   • 'incomplete_expired' — Stripe gave up after 23h. Stale row; drop
+    //                            the stripe_subscription_id and fall through
+    //                            to create a fresh subscription below.
+    //   • anything else        — they have a real subscription, open manage.
     if (profile.stripe_subscription_id) {
-      const portal = await stripe.billingPortal.sessions.create({
-        customer: customerId,
-        return_url: `${APP_URL}/manager/billing`,
-      })
-      return json({
-        status: 'manage',
-        portalUrl: portal.url,
-        paidUnits,
-        subscriptionStatus: profile.subscription_status ?? null,
-      })
+      let existing: Stripe.Subscription | null = null
+      try {
+        existing = await stripe.subscriptions.retrieve(profile.stripe_subscription_id, {
+          expand: ['latest_invoice.payment_intent'],
+        })
+      } catch { /* maybe deleted on Stripe; fall through to recreate */ }
+
+      if (existing && existing.status === 'incomplete') {
+        const latestInvoice = existing.latest_invoice as Stripe.Invoice | null
+        const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent | null
+        // If the PaymentIntent can still be confirmed, hand its client_secret
+        // back. Stripe rejects further confirms once it's succeeded/canceled.
+        const usableStatuses = new Set(['requires_payment_method', 'requires_confirmation', 'requires_action', 'processing'])
+        if (paymentIntent?.client_secret && usableStatuses.has(paymentIntent.status)) {
+          const item = existing.items.data[0]
+          return json({
+            status: 'setup',
+            clientSecret: paymentIntent.client_secret,
+            subscriptionId: existing.id,
+            paidUnits,
+            quantity: item?.quantity ?? Math.max(1, paidUnits),
+            plan,
+            appUrl: APP_URL,
+            resumed: true,
+          })
+        }
+        // PI is in a dead state but sub is still incomplete — clean up so we
+        // can issue a fresh one below.
+        try { await stripe.subscriptions.cancel(existing.id) } catch { /* noop */ }
+        await admin.from('profiles').update({
+          stripe_subscription_id: null,
+          stripe_subscription_item_id: null,
+          subscription_status: null,
+        }).eq('id', user.id)
+      } else if (existing && existing.status === 'incomplete_expired') {
+        // Stale local row pointing at a Stripe-cancelled sub; clear it and
+        // let the create path below run normally.
+        await admin.from('profiles').update({
+          stripe_subscription_id: null,
+          stripe_subscription_item_id: null,
+          subscription_status: null,
+        }).eq('id', user.id)
+      } else if (existing) {
+        return json({
+          status: 'manage',
+          paidUnits,
+          subscriptionStatus: existing.status,
+        })
+      }
     }
 
-    // ── No active leases yet → no subscription needed yet ───────────────
-    // With FREE_UNITS=0, a subscription is required once any unit goes
-    // active. Until then there's nothing to bill.
-    if (paidUnits <= 0) {
-      return json({
-        status: 'no_payment_needed',
-        paidUnits: 0,
-        message: `You'll be prompted to add a payment method once your first lease goes active.`,
-      })
-    }
-
-    // ── Create Checkout Session for new subscription ────────────────────
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
+    // ── Create incomplete subscription; client confirms with Elements ───
+    // Managers can subscribe proactively before their first lease activates.
+    // Minimum quantity is 1 — once they activate additional units,
+    // syncSubscriptionQuantity bumps it up.
+    const quantity = Math.max(1, paidUnits)
+    const subscription = await stripe.subscriptions.create({
       customer: customerId,
-      payment_method_types: ['card', 'us_bank_account'],
-      line_items: [{ price: chosenPriceId, quantity: paidUnits }],
-      allow_promotion_codes: true,
-      billing_address_collection: 'auto',
-      success_url: `${APP_URL}/manager/billing?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${APP_URL}/manager/billing?canceled=1`,
-      metadata: { findstoop_manager_id: user.id, platform: 'findstoop' },
-      subscription_data: {
-        metadata: { findstoop_manager_id: user.id, platform: 'findstoop' },
+      items: [{ price: chosenPriceId, quantity }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: {
+        save_default_payment_method: 'on_subscription',
+        payment_method_types: ['card', 'us_bank_account'],
       },
+      expand: ['latest_invoice.payment_intent'],
+      metadata: { findstoop_manager_id: user.id, platform: 'findstoop' },
     })
 
-    return json({ status: 'checkout', checkoutUrl: session.url, paidUnits })
+    // Mirror the subscription IDs locally right away so the webhook + UI
+    // know there's an in-flight subscription. Status will be 'incomplete'
+    // until the PaymentIntent is confirmed; the webhook flips it to 'active'.
+    const subscriptionItemId = subscription.items.data[0]?.id ?? null
+    await admin.from('profiles').update({
+      stripe_subscription_id: subscription.id,
+      stripe_subscription_item_id: subscriptionItemId,
+      subscription_status: subscription.status,
+      subscription_quantity: quantity,
+    }).eq('id', user.id)
+
+    const latestInvoice = subscription.latest_invoice as Stripe.Invoice | null
+    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent | null
+    const clientSecret = paymentIntent?.client_secret ?? null
+    if (!clientSecret) {
+      return json({ error: 'Stripe did not return a client_secret for the new subscription' }, { status: 500 })
+    }
+
+    return json({
+      status: 'setup',
+      clientSecret,
+      subscriptionId: subscription.id,
+      paidUnits,
+      quantity,
+      plan,
+      appUrl: APP_URL,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     return json({ error: msg }, { status: 400 })

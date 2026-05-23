@@ -1,18 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
-import { getProfileByEmail } from '@findstoop/shared/api/profiles'
 import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseStatus } from '@findstoop/shared/types/lease'
-import type { Property } from '@findstoop/shared/types/property'
-import type { Unit } from '@findstoop/shared/types/unit'
-import Modal from '../../components/shared/Modal'
-import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
-import { FileText, FileSignature } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { FileText, FileSignature, Send, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import LeaseWizard from '../../components/manager/LeaseWizard'
 
 function Skeleton() {
   return (
@@ -31,146 +28,26 @@ const statusColors: Record<LeaseStatus, string> = {
   terminated: 'bg-red-100 text-red-700',
 }
 
-// ── Lease form ────────────────────────────────────────────────────────────────
-interface LeaseFormData {
-  unit_id: string
-  tenant_email: string
-  start_date: string
-  end_date: string
-  rent_amount: string
-  security_deposit: string
-  pet_deposit: string
-  utility_notes: string
-  status: LeaseStatus
-}
-
-interface LeaseFormProps {
-  units: Unit[]
-  properties: Property[]
-  onSubmit: (data: LeaseFormData) => Promise<void>
-  onCancel: () => void
-  submitting: boolean
-}
-
-function LeaseForm({ units, properties, onSubmit, onCancel, submitting }: LeaseFormProps) {
-  const [form, setForm] = useState<LeaseFormData>({
-    unit_id: units[0]?.id ?? '',
-    tenant_email: '',
-    start_date: '',
-    end_date: '',
-    rent_amount: '',
-    security_deposit: '',
-    pet_deposit: '',
-    utility_notes: '',
-    status: 'pending',
-  })
-  const [errors, setErrors] = useState<Partial<Record<keyof LeaseFormData, string>>>({})
-
-  const propertyMap = Object.fromEntries(properties.map((p) => [p.id, p.name]))
-
-  const set = (field: keyof LeaseFormData) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-      setForm((f) => ({ ...f, [field]: e.target.value }))
-      setErrors((err) => ({ ...err, [field]: undefined }))
-    }
-
-  const validate = () => {
-    const e: Partial<Record<keyof LeaseFormData, string>> = {}
-    if (!form.unit_id)                          e.unit_id      = 'Select a unit'
-    if (!form.tenant_email.trim() || !/\S+@\S+\.\S+/.test(form.tenant_email))
-                                                e.tenant_email = 'Valid tenant email required'
-    if (!form.start_date)                       e.start_date   = 'Start date required'
-    if (!form.end_date)                         e.end_date     = 'End date required'
-    if (form.start_date && form.end_date && form.end_date <= form.start_date)
-                                                e.end_date     = 'End date must be after start date'
-    if (!form.rent_amount || Number(form.rent_amount) <= 0)
-                                                e.rent_amount  = 'Valid rent amount required'
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
-    await onSubmit(form)
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField label="Unit" required error={errors.unit_id}>
-        <select className={selectClass} value={form.unit_id} onChange={set('unit_id')}>
-          <option value="">Select a unit…</option>
-          {units.map((u) => (
-            <option key={u.id} value={u.id}>
-              {propertyMap[u.property_id] ?? ''} — Unit {u.unit_number}
-            </option>
-          ))}
-        </select>
-      </FormField>
-      <FormField label="Tenant Email" required error={errors.tenant_email}>
-        <input className={inputClass} type="email" value={form.tenant_email} onChange={set('tenant_email')} placeholder="tenant@example.com" />
-      </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Start Date" required error={errors.start_date}>
-          <input className={inputClass} type="date" value={form.start_date} onChange={set('start_date')} />
-        </FormField>
-        <FormField label="End Date" required error={errors.end_date}>
-          <input className={inputClass} type="date" value={form.end_date} onChange={set('end_date')} />
-        </FormField>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Monthly Rent ($)" required error={errors.rent_amount}>
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.rent_amount} onChange={set('rent_amount')} placeholder="1500" />
-        </FormField>
-        <FormField label="Status">
-          <select className={selectClass} value={form.status} onChange={set('status')}>
-            <option value="pending">Pending</option>
-            <option value="active">Active</option>
-            <option value="expired">Expired</option>
-            <option value="terminated">Terminated</option>
-          </select>
-        </FormField>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Security Deposit ($)">
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.security_deposit} onChange={set('security_deposit')} placeholder="0" />
-        </FormField>
-        <FormField label="Pet Deposit ($)">
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.pet_deposit} onChange={set('pet_deposit')} placeholder="0" />
-        </FormField>
-      </div>
-      <FormField label="Utility Notes">
-        <textarea
-          className={`${inputClass} resize-none`}
-          rows={2}
-          value={form.utility_notes}
-          onChange={set('utility_notes')}
-          placeholder="Water included, tenant pays electric…"
-        />
-      </FormField>
-      <div className="flex gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-          Cancel
-        </button>
-        <button type="submit" disabled={submitting} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors">
-          {submitting ? 'Creating…' : 'Create Lease'}
-        </button>
-      </div>
-    </form>
-  )
-}
-
 // ── Lease card ────────────────────────────────────────────────────────────────
 interface LeaseCardProps {
   lease: LeaseWithTenant
   unitNumber: string
   propertyName: string
+  signedRoles?: Set<string>
   onUpdateStatus: (id: string, status: LeaseStatus) => void
+  onSendForSignature: (lease: LeaseWithTenant) => Promise<void>
+  sendingId: string | null
 }
 
-function LeaseCard({ lease, unitNumber, propertyName, onUpdateStatus }: LeaseCardProps) {
+function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId }: LeaseCardProps) {
   const tenantName = lease.profile?.full_name ?? lease.profile?.email ?? 'Unknown tenant'
   const daysLeft = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const sending = sendingId === lease.id
+  const sentLabel = lease.sent_for_signature_at
+    ? `Sent ${new Date(lease.sent_for_signature_at).toLocaleDateString()}`
+    : null
+  const tenantSigned = !!signedRoles?.has('tenant')
+  const managerSigned = !!(signedRoles?.has('manager') || signedRoles?.has('admin'))
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -205,31 +82,54 @@ function LeaseCard({ lease, unitNumber, propertyName, onUpdateStatus }: LeaseCar
           <option value="terminated">Terminated</option>
         </select>
       </div>
-      {lease.utility_notes && (
-        <p className="mt-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">{lease.utility_notes}</p>
-      )}
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-mute inline-flex items-center gap-1.5">
-          {lease.signed_at ? (
+          {lease.signed_at || (tenantSigned && managerSigned) ? (
             <>
               <FileSignature className="w-3.5 h-3.5 text-green-600" strokeWidth={1.75} />
               Fully signed
             </>
+          ) : tenantSigned ? (
+            <>
+              <FileSignature className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
+              Tenant signed · awaiting your signature
+            </>
+          ) : sentLabel ? (
+            <>
+              <Send className="w-3.5 h-3.5 text-brand-600" strokeWidth={1.75} />
+              {sentLabel} · awaiting tenant signature
+            </>
           ) : (
             <>
               <FileSignature className="w-3.5 h-3.5" strokeWidth={1.75} />
-              Awaiting signatures
+              Draft — not yet sent
             </>
           )}
         </div>
-        {!lease.signed_at && (
-          <Link
-            to={`/manager/sign-lease/${lease.id}`}
-            className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
-          >
-            Sign now →
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {!lease.signed_at && lease.status === 'pending' && (
+            <button
+              type="button"
+              onClick={() => onSendForSignature(lease)}
+              disabled={sending}
+              className="text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+              title={sentLabel ? 'Re-send the signature email to the tenant' : 'Email the tenant a link to review and sign'}
+            >
+              {sending
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />
+                : <Send className="w-3.5 h-3.5" strokeWidth={1.75} />}
+              {sentLabel ? 'Re-send for signature' : 'Send for signature'}
+            </button>
+          )}
+          {!lease.signed_at && (
+            <Link
+              to={`/manager/review-lease/${lease.id}`}
+              className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+            >
+              Review →
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -242,59 +142,42 @@ export default function ManagerLeases() {
   const propertyIds = useMemo(() => properties.map((p) => p.id), [properties])
   const { units } = useUnits(propertyIds)
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
-  const { leases, loading, add, update } = useLeases(unitIds)
+  const { leases, loading, update, reload } = useLeases(unitIds)
 
   const [filterStatus, setFilterStatus] = useState<LeaseStatus | 'all'>('all')
-  const [addOpen, setAddOpen] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [sendingId, setSendingId] = useState<string | null>(null)
+  // Map of leaseId → roles that have signed. Lets us distinguish
+  // "awaiting tenant" from "awaiting your countersignature".
+  const [signedRoles, setSignedRoles] = useState<Record<string, Set<string>>>({})
+
+  const leaseIdsKey = leases.map((l) => l.id).sort().join(',')
+
+  useEffect(() => {
+    if (!leases.length) { setSignedRoles({}); return }
+    let cancelled = false
+    ;(async () => {
+      const ids = leases.map((l) => l.id)
+      const { data } = await supabase
+        .from('lease_signatures')
+        .select('lease_id, signer_role')
+        .in('lease_id', ids)
+      if (cancelled) return
+      const map: Record<string, Set<string>> = {}
+      for (const s of (data ?? []) as Array<{ lease_id: string; signer_role: string }>) {
+        if (!map[s.lease_id]) map[s.lease_id] = new Set()
+        map[s.lease_id].add(s.signer_role)
+      }
+      setSignedRoles(map)
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaseIdsKey])
 
   const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
   const propertyMap = useMemo(() => Object.fromEntries(properties.map((p) => [p.id, p])), [properties])
 
   const filtered = filterStatus === 'all' ? leases : leases.filter((l) => l.status === filterStatus)
-
-  const handleCreate = async (data: {
-    unit_id: string
-    tenant_email: string
-    start_date: string
-    end_date: string
-    rent_amount: string
-    security_deposit: string
-    pet_deposit: string
-    utility_notes: string
-    status: LeaseStatus
-  }) => {
-    setSubmitting(true)
-    try {
-      const tenantProfile = await getProfileByEmail(data.tenant_email)
-
-      if (!tenantProfile) {
-        toast.error('Tenant not found. Make sure the tenant has registered first.')
-        setSubmitting(false)
-        return
-      }
-
-      await add({
-        unit_id: data.unit_id,
-        tenant_id: tenantProfile.id,
-        start_date: data.start_date,
-        end_date: data.end_date,
-        rent_amount: parseFloat(data.rent_amount),
-        security_deposit: data.security_deposit ? parseFloat(data.security_deposit) : null,
-        pet_deposit: data.pet_deposit ? parseFloat(data.pet_deposit) : null,
-        utility_notes: data.utility_notes || null,
-        status: data.status,
-        signed_at: null,
-        document_url: null,
-      })
-      toast.success('Lease created')
-      setAddOpen(false)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create lease')
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   const handleStatusUpdate = async (id: string, status: LeaseStatus) => {
     try {
@@ -305,6 +188,22 @@ export default function ManagerLeases() {
     }
   }
 
+  const handleSendForSignature = async (lease: LeaseWithTenant) => {
+    setSendingId(lease.id)
+    const toastId = toast.loading('Sending lease to tenant…')
+    const { data, error } = await supabase.functions.invoke('notify-tenant-lease-ready', {
+      body: { leaseId: lease.id },
+    })
+    setSendingId(null)
+    if (error || data?.error) {
+      toast.error((error?.message ?? data?.error) || 'Could not send lease', { id: toastId })
+      return
+    }
+    const who = lease.profile?.full_name ?? lease.profile?.email ?? 'tenant'
+    toast.success(`Lease sent to ${who} for signature`, { id: toastId })
+    reload()
+  }
+
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center justify-between">
@@ -313,11 +212,11 @@ export default function ManagerLeases() {
           <p className="text-sm text-gray-500 mt-0.5">{filtered.length} lease{filtered.length !== 1 ? 's' : ''}</p>
         </div>
         <button
-          onClick={() => setAddOpen(true)}
+          onClick={() => setWizardOpen(true)}
           disabled={units.length === 0}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
+          className="inline-flex items-center gap-1.5 bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
         >
-          + New Lease
+          + Add
         </button>
       </div>
 
@@ -351,8 +250,8 @@ export default function ManagerLeases() {
             {leases.length === 0 ? 'Create your first lease to get started' : 'Try a different status filter'}
           </p>
           {leases.length === 0 && units.length > 0 && (
-            <button onClick={() => setAddOpen(true)} className="mt-4 bg-brand-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors">
-              Create Lease
+            <button onClick={() => setWizardOpen(true)} className="mt-4 bg-brand-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors">
+              + Add lease
             </button>
           )}
         </div>
@@ -367,22 +266,17 @@ export default function ManagerLeases() {
                 lease={lease}
                 unitNumber={unit?.unit_number ?? '—'}
                 propertyName={property?.name ?? '—'}
+                signedRoles={signedRoles[lease.id]}
                 onUpdateStatus={handleStatusUpdate}
+                onSendForSignature={handleSendForSignature}
+                sendingId={sendingId}
               />
             )
           })}
         </div>
       )}
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Create Lease">
-        <LeaseForm
-          units={units}
-          properties={properties}
-          onSubmit={handleCreate}
-          onCancel={() => setAddOpen(false)}
-          submitting={submitting}
-        />
-      </Modal>
+      <LeaseWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={() => reload()} />
     </div>
   )
 }

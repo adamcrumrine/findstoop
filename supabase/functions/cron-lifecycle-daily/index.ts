@@ -7,6 +7,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
+import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 
 const APP_URL          = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const CRON_SECRET      = Deno.env.get('CRON_SECRET') ?? ''
@@ -14,6 +15,7 @@ const RESEND_API_KEY   = Deno.env.get('RESEND_API_KEY') ?? ''
 const RESEND_FROM      = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop.com'
 
 const resend = new Resend(RESEND_API_KEY)
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', { apiVersion: '2023-10-16' })
 
 const admin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -428,7 +430,110 @@ Deno.serve(async (req) => {
     totals.push(...onboardingResults)
   }
 
-  return new Response(JSON.stringify({ ok: true, totals, ran_at: new Date().toISOString() }), {
+  // ── Autopay: off-session charge for any pending payment whose
+  //    scheduled_for (or due_date) is today, for tenants with autopay on
+  //    and a saved default payment method.
+  let autopayAttempted = 0
+  let autopayInitiated = 0
+  let autopaySkipped   = 0
+  let autopayFailed    = 0
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    // Find candidate payments. We pull the tenant profile inline so we can
+    // see autopay_enabled + the saved PM + Stripe customer in one go.
+    const { data: candidates } = await admin
+      .from('payments')
+      .select(`
+        id, amount, tenant_id, lease_id, scheduled_for, due_date, type, initiated_at,
+        tenant:profiles!payments_tenant_id_fkey(
+          autopay_enabled, payment_complimentary, stripe_customer_id, stripe_default_payment_method_id
+        )
+      `)
+      .eq('status', 'pending')
+      .eq('type', 'rent')
+      .is('initiated_at', null)
+      .or(`scheduled_for.eq.${today},and(scheduled_for.is.null,due_date.eq.${today})`)
+    autopayAttempted = candidates?.length ?? 0
+
+    for (const row of candidates ?? []) {
+      const tenant = Array.isArray((row as any).tenant) ? (row as any).tenant[0] : (row as any).tenant
+      if (!tenant?.autopay_enabled) { autopaySkipped++; continue }
+
+      // Complimentary tenant — mark completed without Stripe (matches the
+      // manual PayRent comp bypass).
+      if (tenant.payment_complimentary) {
+        await admin.from('payments').update({
+          status: 'completed',
+          paid_at: new Date().toISOString(),
+          initiated_at: new Date().toISOString(),
+          stripe_payment_id: 'comp-autopay',
+        }).eq('id', row.id)
+        autopayInitiated++
+        continue
+      }
+
+      if (!tenant.stripe_customer_id || !tenant.stripe_default_payment_method_id) {
+        autopaySkipped++
+        continue
+      }
+
+      try {
+        const intent = await stripe.paymentIntents.create({
+          amount: Math.round(Number(row.amount) * 100),
+          currency: 'usd',
+          customer: tenant.stripe_customer_id,
+          payment_method: tenant.stripe_default_payment_method_id,
+          off_session: true,
+          confirm: true,
+          metadata: {
+            findstoop_payment_id: row.id,
+            findstoop_lease_id: row.lease_id,
+            findstoop_tenant_id: row.tenant_id,
+            findstoop_autopay: 'true',
+          },
+        })
+        // ACH starts as 'processing'; card as 'succeeded'.
+        const next =
+          intent.status === 'succeeded' ? 'completed' :
+          intent.status === 'processing' ? 'processing' : 'pending'
+        await admin.from('payments').update({
+          status: next,
+          initiated_at: new Date().toISOString(),
+          paid_at: intent.status === 'succeeded' ? new Date().toISOString() : null,
+          stripe_payment_id: intent.id,
+        }).eq('id', row.id)
+        autopayInitiated++
+      } catch (err) {
+        // Most common: requires_action (3DS) — autopay can't proceed
+        // off-session. Mark failed so the tenant gets a "Requires payment
+        // setup" pill and a notification.
+        await admin.from('payments').update({
+          status: 'failed',
+          initiated_at: new Date().toISOString(),
+        }).eq('id', row.id)
+        autopayFailed++
+        // eslint-disable-next-line no-console
+        console.warn('autopay charge failed', row.id, err instanceof Error ? err.message : err)
+      }
+    }
+  } catch { /* tolerate single-day failures */ }
+
+  // ── Chat image purge: drop attachments older than 12 months ─────────────
+  // Messages themselves stay; we just NULL out image_url/image_path and stamp
+  // image_purged_at so the UI shows "Image expired (older than 12 months)".
+  let imagesPurged: number | null = null
+  try {
+    const { data } = await admin.rpc('purge_expired_chat_images')
+    imagesPurged = typeof data === 'number' ? data : Number(data ?? 0)
+  } catch { /* swallow — cron tolerates one-off failures */ }
+
+  return new Response(JSON.stringify({
+    ok: true,
+    totals,
+    imagesPurged,
+    autopay: { attempted: autopayAttempted, initiated: autopayInitiated, skipped: autopaySkipped, failed: autopayFailed },
+    ran_at: new Date().toISOString(),
+  }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })

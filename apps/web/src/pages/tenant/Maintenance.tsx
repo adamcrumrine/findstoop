@@ -4,6 +4,7 @@ import { useTenantMaintenance } from '@findstoop/shared/hooks/useMaintenance'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
+import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
 import { Wrench, Camera } from 'lucide-react'
@@ -152,10 +153,12 @@ export default function TenantMaintenance() {
       {loading ? (
         <Skeleton />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <Wrench className="w-10 h-10 mx-auto mb-2 text-mute-400" strokeWidth={1.5} />
-          <p className="text-sm">No maintenance requests</p>
-        </div>
+        <EmptyIllustration
+          name="maintenance"
+          Fallback={Wrench}
+          title="No maintenance requests yet"
+          subtitle="When something breaks or needs attention, file a request and your landlord will see it right away."
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map((req) => (

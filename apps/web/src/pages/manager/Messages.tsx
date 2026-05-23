@@ -1,20 +1,22 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
+import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { useConversations, useMessages } from '@findstoop/shared/hooks/useMessages'
+import { findOrCreateDirectConversation, createGroupConversation, uploadChatImage } from '@findstoop/shared/api/messages'
 import type { ConversationSummary } from '@findstoop/shared/api/messages'
-import { MessageSquare } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { MessageSquare, Users as UsersIcon, ImagePlus, Loader2, Plus, X, ArrowLeft, Check, Building2, ChevronRight } from 'lucide-react'
+import toast from 'react-hot-toast'
+import Avatar from '../../components/shared/Avatar'
 
-function Avatar({ name }: { name: string }) {
-  return (
-    <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold shrink-0">
-      {name[0]?.toUpperCase() ?? '?'}
-    </div>
-  )
-}
-
-function MessageBubble({ msg, isOwn }: { msg: { id: string; body: string; created_at: string }; isOwn: boolean }) {
+function MessageBubble({ msg, isOwn, senderName }: {
+  msg: { id: string; body: string; created_at: string; image_url?: string | null; image_purged_at?: string | null; sender_id: string }
+  isOwn: boolean
+  senderName: string | null
+}) {
   return (
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -24,7 +26,18 @@ function MessageBubble({ msg, isOwn }: { msg: { id: string; body: string; create
             : 'bg-gray-100 text-gray-800 rounded-bl-sm'
         }`}
       >
-        <p className="leading-relaxed">{msg.body}</p>
+        {!isOwn && senderName && (
+          <p className="text-[10px] font-semibold text-mute mb-0.5">{senderName}</p>
+        )}
+        {msg.image_url && !msg.image_purged_at && (
+          <a href={msg.image_url} target="_blank" rel="noreferrer" className="block mb-1.5">
+            <img src={msg.image_url} alt="" className="max-w-full max-h-72 rounded-lg" />
+          </a>
+        )}
+        {msg.image_purged_at && (
+          <p className="text-xs italic opacity-70 mb-1.5">Image expired (older than 12 months)</p>
+        )}
+        {msg.body && <p className="leading-relaxed whitespace-pre-line">{msg.body}</p>}
         <p className={`text-[10px] mt-1 ${isOwn ? 'text-brand-200' : 'text-gray-400'}`}>
           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
@@ -64,8 +77,8 @@ function ConversationList({
     return (
       <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-12">
         <MessageSquare className="w-10 h-10 mb-2 text-mute-400" strokeWidth={1.5} />
-        <p className="text-sm text-gray-500">No tenant conversations yet</p>
-        <p className="text-xs text-gray-400 mt-1">Conversations appear once tenants have active leases</p>
+        <p className="text-sm text-gray-500">No conversations yet</p>
+        <p className="text-xs text-gray-400 mt-1">Open any tenant card and tap the chat bubble to start one.</p>
       </div>
     )
   }
@@ -74,16 +87,25 @@ function ConversationList({
     <div className="overflow-y-auto flex-1">
       {conversations.map((c) => (
         <button
-          key={c.leaseId}
+          key={c.conversationId}
           onClick={() => onSelect(c)}
           className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left ${
-            selected?.leaseId === c.leaseId ? 'bg-brand-50' : ''
+            selected?.conversationId === c.conversationId ? 'bg-brand-50' : ''
           }`}
         >
-          <Avatar name={c.tenantName} />
+          {c.type === 'group' ? (
+            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 inline-flex items-center justify-center shrink-0">
+              <UsersIcon className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+          ) : (
+            <Avatar name={c.displayName} url={c.avatarUrl} size={40} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-semibold text-sm text-gray-900 truncate">{c.tenantName}</p>
+              <p className="font-semibold text-sm text-gray-900 truncate">
+                {c.displayName}
+                {c.type === 'group' && <span className="ml-1.5 text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">GROUP</span>}
+              </p>
               {c.lastMessageAt && (
                 <p className="text-[10px] text-gray-400 shrink-0">
                   {new Date(c.lastMessageAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
@@ -91,7 +113,7 @@ function ConversationList({
               )}
             </div>
             <div className="flex items-center justify-between gap-2 mt-0.5">
-              <p className="text-xs text-gray-500 truncate">{c.lastMessage ?? 'No messages yet'}</p>
+              <p className="text-xs text-gray-500 truncate">{c.lastMessage ?? c.subtitle ?? 'No messages yet'}</p>
               {c.unreadCount > 0 && (
                 <span className="bg-brand-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
                   {c.unreadCount > 9 ? '9+' : c.unreadCount}
@@ -114,13 +136,11 @@ function ChatThread({
   managerId: string
   onBack: () => void
 }) {
-  const { messages, loading, sending, send } = useMessages(
-    conversation.leaseId,
-    managerId,
-    conversation.tenantId
-  )
+  const { messages, loading, sending, send } = useMessages(conversation.conversationId, managerId)
   const [draft, setDraft] = useState('')
+  const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -133,12 +153,30 @@ function ChatThread({
     await send(body)
   }
 
+  const handleImage = async (file: File) => {
+    setUploading(true)
+    try {
+      const img = await uploadChatImage(conversation.conversationId, file)
+      await send(draft.trim(), img)
+      setDraft('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Image upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
   }
+
+  // For group chats, label each non-own bubble with the sender's display name.
+  // We don't have full profile rows here, but the participantIds let us at
+  // least know it's a group; the conversation summary subtitle has the names.
+  const isGroup = conversation.type === 'group'
 
   // Group messages by date
   const grouped: { date: string; msgs: typeof messages }[] = []
@@ -164,10 +202,16 @@ function ChatThread({
         >
           ←
         </button>
-        <Avatar name={conversation.tenantName} />
+        {isGroup ? (
+          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 inline-flex items-center justify-center">
+            <UsersIcon className="w-5 h-5" strokeWidth={1.75} />
+          </div>
+        ) : (
+          <Avatar name={conversation.displayName} url={conversation.avatarUrl} />
+        )}
         <div>
-          <p className="font-semibold text-gray-900 text-sm">{conversation.tenantName}</p>
-          <p className="text-xs text-gray-400">{conversation.tenantEmail}</p>
+          <p className="font-semibold text-gray-900 text-sm">{conversation.displayName}</p>
+          <p className="text-xs text-gray-400">{conversation.subtitle ?? ''}</p>
         </div>
       </div>
 
@@ -186,8 +230,7 @@ function ChatThread({
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-8 text-gray-400">
-              <p className="text-2xl mb-1">👋</p>
-              <p className="text-sm">Start a conversation with {conversation.tenantName}</p>
+              <p className="text-sm">Start a conversation with {conversation.displayName}</p>
             </div>
           )}
           {grouped.map(({ date, msgs }) => (
@@ -198,7 +241,12 @@ function ChatThread({
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
               {msgs.map((msg) => (
-                <MessageBubble key={msg.id} msg={msg} isOwn={msg.sender_id === managerId} />
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  isOwn={msg.sender_id === managerId}
+                  senderName={isGroup ? null : null}
+                />
               ))}
             </div>
           ))}
@@ -208,11 +256,27 @@ function ChatThread({
 
       {/* Input */}
       <div className="bg-white border-t border-gray-200 px-3 py-3 flex items-end gap-2 shrink-0">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); e.target.value = '' }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40"
+          title="Send image"
+        >
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
+        </button>
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Message ${conversation.tenantName}…`}
+          placeholder={`Message ${conversation.displayName}…`}
           rows={1}
           className="flex-1 px-3 py-2.5 border border-gray-300 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 max-h-28 overflow-y-auto"
           style={{ minHeight: '40px' }}
@@ -234,27 +298,161 @@ function ChatThread({
 export default function ManagerMessages() {
   const { user } = useAuth()
   const managerId = user?.id
+  const { conversations, loading, reload } = useConversations(managerId)
+
+  // For the "Start new conversation" picker — load the manager's leases.
   const { properties } = useProperties(managerId)
-  const propertyIds = properties.map((p) => p.id)
+  const propertyIds = useMemo(() => properties.map((p) => p.id), [properties])
   const { units } = useUnits(propertyIds)
-  const unitIds = units.map((u) => u.id)
-  const { conversations, loading } = useConversations(unitIds, managerId)
+  const unitIds = useMemo(() => units.map((u) => u.id), [units])
+  const { leases } = useLeases(unitIds)
+  const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
+  const propertyMap = useMemo(() => Object.fromEntries(properties.map((p) => [p.id, p])), [properties])
 
   const [selected, setSelected] = useState<ConversationSummary | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [creating, setCreating] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  // Picker is a two-step wizard: pick lease → multi-select tenants.
+  const [pickerLeaseId, setPickerLeaseId] = useState<string | null>(null)
+  const [pickerTenants, setPickerTenants] = useState<Array<{ id: string; full_name: string | null; email: string | null; avatar_url: string | null }>>([])
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set())
+  const [pickerTenantsLoading, setPickerTenantsLoading] = useState(false)
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0)
+
+  // Active + pending leases — expired/terminated leases aren't messaged.
+  const pickableLeases = useMemo(
+    () => leases.filter((l) => l.status === 'active' || l.status === 'pending'),
+    [leases],
+  )
+
+  // Step 2 of the picker — load every tenant on the selected lease.
+  useEffect(() => {
+    if (!pickerLeaseId) { setPickerTenants([]); setPickerSelected(new Set()); return }
+    let cancelled = false
+    setPickerTenantsLoading(true)
+    ;(async () => {
+      const [primaryRes, otherRes] = await Promise.all([
+        supabase.from('leases').select('tenant_id, profile:profiles!leases_tenant_id_fkey(id, full_name, email, avatar_url)').eq('id', pickerLeaseId).maybeSingle(),
+        supabase.from('lease_tenants').select('tenant_id, profile:profiles!lease_tenants_tenant_id_fkey(id, full_name, email, avatar_url)').eq('lease_id', pickerLeaseId),
+      ])
+      if (cancelled) return
+      const tenants: Array<{ id: string; full_name: string | null; email: string | null; avatar_url: string | null }> = []
+      const seen = new Set<string>()
+      const pushFrom = (raw: any) => {
+        const p = Array.isArray(raw) ? raw[0] : raw
+        if (p?.id && !seen.has(p.id)) {
+          seen.add(p.id)
+          tenants.push({ id: p.id, full_name: p.full_name ?? null, email: p.email ?? null, avatar_url: p.avatar_url ?? null })
+        }
+      }
+      pushFrom((primaryRes.data as any)?.profile)
+      for (const row of otherRes.data ?? []) pushFrom((row as any).profile)
+      setPickerTenants(tenants)
+      setPickerTenantsLoading(false)
+    })()
+    return () => { cancelled = true }
+  }, [pickerLeaseId])
+
+  const togglePickerTenant = (id: string) => {
+    setPickerSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const closePicker = () => {
+    setPickerOpen(false)
+    setPickerLeaseId(null)
+    setPickerSelected(new Set())
+  }
+
+  const startConversationFromPicker = async () => {
+    if (pickerSelected.size === 0 || !pickerLeaseId) return
+    setCreating(true)
+    try {
+      const ids = Array.from(pickerSelected)
+      let convId: string
+      if (ids.length === 1) {
+        const conv = await findOrCreateDirectConversation(ids[0])
+        convId = conv.id
+      } else {
+        const conv = await createGroupConversation(pickerLeaseId, ids)
+        convId = conv.id
+      }
+      await reload()
+      // Reach into the freshly-loaded list — useConversations updates state
+      // via the reload, but our `conversations` ref above may be stale.
+      // The conversations realtime subscription + reload will pick it up;
+      // fall back to a deep-link if not yet visible.
+      const match = conversations.find((c) => c.conversationId === convId)
+      if (match) setSelected(match)
+      closePicker()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not start conversation')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Deep-link: ?tenantId=... auto-selects (or creates) the 1:1 thread with
+  // that tenant. Used by the chat-bubble on tenant cards + the tenant detail
+  // page's "Message" button.
+  useEffect(() => {
+    const tenantId = searchParams.get('tenantId')
+    if (!tenantId || !managerId) return
+
+    // If conversations are still loading the existing-match check would
+    // spuriously miss, so wait until the first load resolves.
+    if (loading) return
+
+    const existing = conversations.find((c) => c.type === 'direct' && c.otherUserId === tenantId)
+    if (existing) {
+      if (!selected || selected.conversationId !== existing.conversationId) {
+        setSelected(existing)
+      }
+      setSearchParams({}, { replace: true })
+      return
+    }
+
+    // No existing thread — create one via the RPC (which double-checks they
+    // share a lease) and then reload the list and select.
+    if (creating) return
+    setCreating(true)
+    findOrCreateDirectConversation(tenantId)
+      .then(async () => {
+        await reload()
+        setSearchParams({}, { replace: true })
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Could not start conversation'))
+      .finally(() => setCreating(false))
+  }, [conversations, loading, managerId, searchParams, selected, creating, reload, setSearchParams])
 
   return (
     <div className="flex h-[calc(100vh-4rem)] md:h-[calc(100vh-0px)] -m-4 md:-m-6">
       {/* Sidebar — conversation list */}
       <div className={`w-full md:w-80 flex flex-col border-r border-gray-200 bg-white shrink-0 ${selected ? 'hidden md:flex' : 'flex'}`}>
         <div className="px-4 py-4 border-b border-gray-100 shrink-0">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h1 className="text-lg font-bold text-gray-900">Messages</h1>
-            {totalUnread > 0 && (
-              <span className="bg-brand-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {totalUnread} unread
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {totalUnread > 0 && (
+                <span className="bg-brand-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {totalUnread} unread
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                disabled={pickableLeases.length === 0}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold disabled:opacity-40"
+                title="Start new conversation"
+              >
+                <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                New
+              </button>
+            </div>
           </div>
         </div>
         <ConversationList
@@ -264,6 +462,139 @@ export default function ManagerMessages() {
           onSelect={setSelected}
         />
       </div>
+
+      {/* Start-new-conversation picker — two steps: lease, then tenants. */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[10vh] overflow-y-auto" onClick={closePicker}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style={{ minHeight: '420px', maxHeight: '80vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-2 min-w-0">
+                {pickerLeaseId && (
+                  <button
+                    type="button"
+                    onClick={() => { setPickerLeaseId(null); setPickerSelected(new Set()) }}
+                    className="w-8 h-8 rounded-full hover:bg-gray-100 inline-flex items-center justify-center text-mute"
+                  >
+                    <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                  </button>
+                )}
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-ink truncate">
+                    {pickerLeaseId ? 'Pick tenants' : 'Start a conversation'}
+                  </h3>
+                  <p className="text-xs text-mute mt-0.5">
+                    {pickerLeaseId
+                      ? '1 tenant → direct message · 2+ tenants → group chat'
+                      : 'Step 1: pick the unit / lease.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closePicker}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 inline-flex items-center justify-center text-mute shrink-0"
+              >
+                <X className="w-4 h-4" strokeWidth={1.75} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {!pickerLeaseId ? (
+                pickableLeases.length === 0 ? (
+                  <p className="px-5 py-10 text-center text-sm text-mute">
+                    No active or pending leases to message from yet.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {pickableLeases.map((l) => {
+                      const unit = unitMap[l.unit_id]
+                      const property = unit ? propertyMap[unit.property_id] : null
+                      return (
+                        <li key={l.id}>
+                          <button
+                            type="button"
+                            onClick={() => setPickerLeaseId(l.id)}
+                            className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-brand-50 transition-colors text-left group"
+                          >
+                            <div className="w-10 h-10 rounded-xl bg-brand-50 inline-flex items-center justify-center shrink-0 group-hover:bg-brand-100 transition-colors">
+                              <Building2 className="w-5 h-5 text-brand-600" strokeWidth={1.75} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-ink truncate">
+                                {property?.name ?? 'Property'} · Unit {unit?.unit_number ?? '—'}
+                              </p>
+                              <p className="text-xs text-mute mt-0.5 truncate">
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${l.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{l.status}</span>
+                                <span className="ml-1.5">primary: {l.profile?.full_name ?? l.profile?.email ?? 'tenant'}</span>
+                              </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-mute group-hover:text-ink shrink-0" strokeWidth={1.75} />
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              ) : (
+                pickerTenantsLoading ? (
+                  <div className="flex items-center justify-center py-10 text-mute">
+                    <Loader2 className="w-5 h-5 animate-spin" strokeWidth={1.75} />
+                  </div>
+                ) : pickerTenants.length === 0 ? (
+                  <p className="px-5 py-10 text-center text-sm text-mute">No tenants on this lease.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {pickerTenants.map((t) => {
+                      const checked = pickerSelected.has(t.id)
+                      return (
+                        <li key={t.id}>
+                          <button
+                            type="button"
+                            onClick={() => togglePickerTenant(t.id)}
+                            className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <Avatar url={t.avatar_url} name={t.full_name} email={t.email} size={36} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-ink truncate">
+                                {t.full_name ?? t.email ?? 'Tenant'}
+                              </p>
+                              <p className="text-xs text-mute truncate">{t.email}</p>
+                            </div>
+                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                              checked ? 'border-brand-500 bg-brand-500' : 'border-gray-300 bg-white'
+                            }`}>
+                              {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                            </div>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              )}
+            </div>
+
+            {pickerLeaseId && (
+              <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-mute">
+                  {pickerSelected.size === 0 && 'Select at least one tenant.'}
+                  {pickerSelected.size === 1 && 'Will open a 1:1 direct message.'}
+                  {pickerSelected.size > 1 && `Will create a group chat with ${pickerSelected.size} tenants + you.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={startConversationFromPicker}
+                  disabled={pickerSelected.size === 0 || creating}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold disabled:opacity-40"
+                >
+                  {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} /> : null}
+                  Start
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Thread panel */}
       <div className={`flex-1 flex flex-col ${selected ? 'flex' : 'hidden md:flex'}`}>

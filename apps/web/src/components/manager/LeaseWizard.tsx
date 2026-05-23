@@ -22,11 +22,17 @@ interface Props {
   onCreated: () => void
 }
 
+interface PickedTenant {
+  id: string
+  name: string
+  email: string
+}
+
 interface FormState {
   property_id: string
   unit_id: string
-  tenant_email: string
-  tenant_name: string
+  // First entry is the primary tenant; additional entries are co-tenants.
+  tenants: PickedTenant[]
   start_date: string
   end_date: string
   rent_amount: string
@@ -35,13 +41,15 @@ interface FormState {
   pets_allowed: boolean
   utility_notes: string
   payment_due_day: string
+  use_state_template: boolean
 }
 
 const emptyForm: FormState = {
-  property_id: '', unit_id: '', tenant_email: '', tenant_name: '',
+  property_id: '', unit_id: '', tenants: [],
   start_date: '', end_date: '',
   rent_amount: '', security_deposit: '', pet_deposit: '',
   pets_allowed: false, utility_notes: '', payment_due_day: '1',
+  use_state_template: false,
 }
 
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
@@ -55,6 +63,42 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
+  const [tenantLookupEmail, setTenantLookupEmail] = useState('')
+  const [lookingUpTenant, setLookingUpTenant] = useState(false)
+
+  const addTenantByEmail = async () => {
+    const email = tenantLookupEmail.trim().toLowerCase()
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      toast.error('Enter a valid email')
+      return
+    }
+    if (form.tenants.some((t) => t.email.toLowerCase() === email)) {
+      toast.error('That tenant is already added')
+      return
+    }
+    setLookingUpTenant(true)
+    try {
+      const tenantProfile = await getProfileByEmail(email)
+      if (!tenantProfile) {
+        toast.error("Tenant isn't in FindStoop yet — invite them from Tenants first.")
+        return
+      }
+      setForm((s) => ({
+        ...s,
+        tenants: [
+          ...s.tenants,
+          { id: tenantProfile.id, name: tenantProfile.full_name ?? email, email: tenantProfile.email ?? email },
+        ],
+      }))
+      setTenantLookupEmail('')
+    } finally {
+      setLookingUpTenant(false)
+    }
+  }
+
+  const removeTenant = (id: string) => {
+    setForm((s) => ({ ...s, tenants: s.tenants.filter((t) => t.id !== id) }))
+  }
 
   const property = properties.find((p) => p.id === form.property_id)
   const unit = units.find((u) => u.id === form.unit_id)
@@ -75,12 +119,16 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
   }
 
   const leaseText = useMemo(() => {
-    if (!property || !unit || step !== 3) return ''
+    if (!property || !unit || step !== 3 || !form.use_state_template) return ''
+    const primary = form.tenants[0]
     return generateLeaseText({
       landlord_name: profile?.full_name ?? 'Landlord',
-      landlord_address: profile?.company_name ?? property.name,
-      tenant_name: form.tenant_name || form.tenant_email,
-      tenant_email: form.tenant_email,
+      landlord_entity: profile?.company_name ?? profile?.full_name ?? 'Landlord',
+      landlord_phone: profile?.phone ?? null,
+      landlord_email: profile?.email ?? null,
+      tenant_name: primary?.name ?? primary?.email ?? '',
+      tenant_email: primary?.email ?? '',
+      tenants: form.tenants.map((t) => ({ name: t.name, email: t.email })),
       property_address: property.address,
       unit_label: unit.unit_number,
       city: property.city,
@@ -108,8 +156,7 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
   }
 
   const validateStep2 = (): string | null => {
-    if (!form.tenant_email.trim() || !/\S+@\S+\.\S+/.test(form.tenant_email)) return 'Valid tenant email required'
-    if (!form.tenant_name.trim()) return 'Tenant name required'
+    if (form.tenants.length === 0) return 'Add at least one tenant'
     if (!form.start_date) return 'Start date required'
     if (!form.end_date) return 'End date required'
     if (form.end_date <= form.start_date) return 'End date must be after start'
@@ -119,26 +166,31 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
 
   const handleSubmit = async () => {
     if (!property || !unit) return
+    if (form.tenants.length === 0) {
+      toast.error('Add at least one tenant')
+      return
+    }
     setSubmitting(true)
     try {
-      const tenantProfile = await getProfileByEmail(form.tenant_email)
-      if (!tenantProfile) {
-        toast.error('Tenant has not registered yet. Invite them first from Tenants.')
-        setSubmitting(false)
-        return
+      const primary = form.tenants[0]
+
+      // Optionally upload the state-specific template as the lease document.
+      let documentUrl: string | null = null
+      if (form.use_state_template && leaseText) {
+        const docPath = `lease-docs/${profile?.id}/${Date.now()}.txt`
+        const { error: upErr } = await supabase.storage.from('user-uploads').upload(docPath, new Blob([leaseText], { type: 'text/plain' }), {
+          contentType: 'text/plain', upsert: true,
+        })
+        if (upErr) throw upErr
+        const { data: pub } = supabase.storage.from('user-uploads').getPublicUrl(docPath)
+        documentUrl = pub.publicUrl
       }
 
-      // Upload document text to storage so we have a stable URL.
-      const docPath = `lease-docs/${profile?.id}/${Date.now()}.txt`
-      const { error: upErr } = await supabase.storage.from('user-uploads').upload(docPath, new Blob([leaseText], { type: 'text/plain' }), {
-        contentType: 'text/plain', upsert: true,
-      })
-      if (upErr) throw upErr
-      const { data: pub } = supabase.storage.from('user-uploads').getPublicUrl(docPath)
-
-      const { error: insErr } = await supabase.from('leases').insert({
+      // Create the lease row. tenant_id is the primary tenant (backward
+      // compat); additional co-tenants are inserted into lease_tenants.
+      const { data: leaseRow, error: insErr } = await supabase.from('leases').insert({
         unit_id: form.unit_id,
-        tenant_id: tenantProfile.id,
+        tenant_id: primary.id,
         start_date: form.start_date,
         end_date: form.end_date,
         rent_amount: Number(form.rent_amount),
@@ -147,12 +199,33 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
         utility_notes: form.utility_notes || null,
         status: 'pending',
         signed_at: null,
-        document_url: pub.publicUrl,
+        document_url: documentUrl,
         payment_due_day: Math.min(28, Math.max(1, Number(form.payment_due_day) || 1)),
-      })
-      if (insErr) throw insErr
+      }).select('id').single()
+      if (insErr || !leaseRow) throw insErr ?? new Error('Could not create lease')
 
-      toast.success('Lease created — ready to sign')
+      // Insert lease_tenants rows (primary already backfilled by the
+      // legacy tenant_id; explicitly upsert all rows so order + flag are
+      // correct, including the primary).
+      const rows = form.tenants.map((t, i) => ({
+        lease_id: leaseRow.id,
+        tenant_id: t.id,
+        is_primary: i === 0,
+        sort_order: i,
+      }))
+      const { error: ltErr } = await supabase.from('lease_tenants').upsert(rows, {
+        onConflict: 'lease_id,tenant_id',
+      })
+      if (ltErr) {
+        // Cross-property conflicts surface here as a CHECK violation from the
+        // validation trigger. Surface a friendly message.
+        if (/active or pending lease at a different property/i.test(ltErr.message)) {
+          throw new Error('One of the tenants is already on an active lease at a different property. Remove them from that lease first.')
+        }
+        throw ltErr
+      }
+
+      toast.success(`Lease created with ${form.tenants.length} tenant${form.tenants.length > 1 ? 's' : ''} — ready to sign`)
       onCreated()
       reset()
       onClose()
@@ -214,12 +287,54 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
 
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-mute">Lease terms. The tenant must already have a FindStoop account — invite them from Tenants if not.</p>
-              <Field label="Tenant full name">
-                <input className={inputCls} value={form.tenant_name} onChange={(e) => set('tenant_name', e.target.value)} placeholder="Jane Doe" />
-              </Field>
-              <Field label="Tenant email">
-                <input type="email" className={inputCls} value={form.tenant_email} onChange={(e) => set('tenant_email', e.target.value)} placeholder="jane@example.com" />
+              <p className="text-sm text-mute">Lease terms. All tenants must already be in FindStoop — invite them from Tenants first if not. Add each tenant by their email below.</p>
+
+              <Field label={`Tenants on this lease${form.tenants.length > 0 ? ` (${form.tenants.length})` : ''}`}>
+                <div className="space-y-2">
+                  {form.tenants.length === 0 && (
+                    <p className="text-xs text-mute italic">No tenants added yet.</p>
+                  )}
+                  {form.tenants.map((t, i) => (
+                    <div key={t.id} className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-ink truncate">
+                          {t.name}
+                          {i === 0 && <span className="ml-2 text-[10px] uppercase tracking-wider text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">Primary</span>}
+                        </p>
+                        <p className="text-xs text-mute truncate">{t.email}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeTenant(t.id)}
+                        className="text-xs text-red-600 hover:text-red-700 font-medium"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      className={`${inputCls} flex-1`}
+                      value={tenantLookupEmail}
+                      onChange={(e) => setTenantLookupEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTenantByEmail() } }}
+                      placeholder="jane@example.com"
+                      disabled={lookingUpTenant}
+                    />
+                    <button
+                      type="button"
+                      onClick={addTenantByEmail}
+                      disabled={lookingUpTenant || !tenantLookupEmail.trim()}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 border border-brand-300 hover:bg-brand-50 px-3 py-2 rounded-lg disabled:opacity-50"
+                    >
+                      {lookingUpTenant ? 'Looking up…' : 'Add tenant'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-mute italic">
+                    First tenant added becomes the primary signer. Tenants can't be on an active lease at a different property.
+                  </p>
+                </div>
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Start date">
@@ -252,19 +367,49 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
               <Field label="Utility notes (optional)">
                 <textarea rows={2} className={inputCls} value={form.utility_notes} onChange={(e) => set('utility_notes', e.target.value)} placeholder="Water included; tenant pays electric…" />
               </Field>
+
+              <div className="border-t border-gray-100 pt-4 mt-1">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.use_state_template}
+                    onChange={(e) => set('use_state_template', e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <div className="text-sm">
+                    <span className="font-medium text-ink">Auto-draft a state-specific lease document</span>
+                    <span className="block text-xs text-mute mt-0.5">
+                      Generates an original lease draft with {notes ? `${notes.name} ` : ''}state-specific notes (deposit cap, late-fee rules, required disclosures). Off by default — leave the document blank if you're using your own template.
+                    </span>
+                  </div>
+                </label>
+              </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-3">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={1.75} />
-                <span>
-                  This is original boilerplate. It is not a substitute for legal advice. Have it reviewed by a licensed attorney in the property's state before signing.
-                </span>
-              </div>
-              <p className="text-xs text-mute">Preview of the generated lease draft. The full text is stored as a document on the lease record.</p>
-              <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-ink whitespace-pre-wrap leading-relaxed max-h-[50vh] overflow-y-auto">{leaseText}</pre>
+              {form.use_state_template ? (
+                <>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={1.75} />
+                    <span>
+                      This is original boilerplate. It is not a substitute for legal advice. Have it reviewed by a licensed attorney in the property's state before signing.
+                    </span>
+                  </div>
+                  <p className="text-xs text-mute">Preview of the generated lease draft. The full text is stored as a document on the lease record.</p>
+                  <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-ink whitespace-pre-wrap leading-relaxed max-h-[50vh] overflow-y-auto">{leaseText}</pre>
+                </>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 text-sm text-mute">
+                  <p className="font-medium text-ink mb-1">No lease document will be auto-generated.</p>
+                  <p className="text-xs leading-relaxed">
+                    The lease record will be created without a document. You can attach your own
+                    PDF / Word file from the lease detail later, or come back and re-create with
+                    "Auto-draft a state-specific lease document" checked.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -6,7 +6,6 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnitsByProperty } from '@findstoop/shared/hooks/useUnits'
 import type { Property } from '@findstoop/shared/types/property'
 import Modal from '../../components/shared/Modal'
-import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import { Building2, ChevronRight } from 'lucide-react'
@@ -123,12 +122,10 @@ function UnitCountBadge({ propertyId }: { propertyId: string }) {
 // ── Property card ─────────────────────────────────────────────────────────────
 interface PropertyCardProps {
   property: Property
-  onEdit: (p: Property) => void
-  onDelete: (p: Property) => void
   onOpen: (p: Property) => void
 }
 
-function PropertyCard({ property, onEdit, onDelete, onOpen }: PropertyCardProps) {
+function PropertyCard({ property, onOpen }: PropertyCardProps) {
   return (
     <div
       className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition cursor-pointer group"
@@ -151,23 +148,7 @@ function PropertyCard({ property, onEdit, onDelete, onOpen }: PropertyCardProps)
             <UnitCountBadge propertyId={property.id} />
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <ChevronRight className="w-4 h-4 text-mute-400 group-hover:text-brand-600" strokeWidth={1.75} />
-          <div className="flex gap-2">
-            <button
-              onClick={() => onEdit(property)}
-              className="text-xs font-medium text-gray-500 hover:text-brand-600 px-2 py-1 border border-gray-200 rounded-lg hover:border-brand-300 transition-colors"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => onDelete(property)}
-              className="text-xs font-medium text-gray-500 hover:text-red-600 px-2 py-1 border border-gray-200 rounded-lg hover:border-red-200 transition-colors"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
+        <ChevronRight className="w-4 h-4 text-mute-400 group-hover:text-brand-600 shrink-0 self-center" strokeWidth={1.75} />
       </div>
     </div>
   )
@@ -177,11 +158,9 @@ function PropertyCard({ property, onEdit, onDelete, onOpen }: PropertyCardProps)
 export default function ManagerProperties() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const { properties, loading, add, update, remove } = useProperties(profile?.id)
+  const { properties, loading, add } = useProperties(profile?.id)
 
   const [addOpen, setAddOpen]       = useState(false)
-  const [editTarget, setEditTarget] = useState<Property | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const handleAdd = async (data: PropertyFormData) => {
@@ -194,31 +173,6 @@ export default function ManagerProperties() {
       toast.error(err instanceof Error ? err.message : 'Failed to add property')
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const handleEdit = async (data: PropertyFormData) => {
-    if (!editTarget) return
-    setSubmitting(true)
-    try {
-      await update(editTarget.id, data)
-      toast.success('Property updated')
-      setEditTarget(null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update property')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return
-    try {
-      await remove(deleteTarget.id)
-      toast.success('Property deleted')
-      setDeleteTarget(null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete property')
     }
   }
 
@@ -261,8 +215,6 @@ export default function ManagerProperties() {
             <PropertyCard
               key={p.id}
               property={p}
-              onEdit={setEditTarget}
-              onDelete={setDeleteTarget}
               onOpen={(prop) => navigate(`/manager/properties/${prop.id}`)}
             />
           ))}
@@ -279,36 +231,6 @@ export default function ManagerProperties() {
         />
       </Modal>
 
-      {/* Edit modal */}
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Property">
-        {editTarget && (
-          <PropertyForm
-            initial={{
-              name: editTarget.name,
-              address: editTarget.address,
-              city: editTarget.city,
-              state: editTarget.state,
-              zip: editTarget.zip,
-              thumbnail_url: editTarget.thumbnail_url ?? null,
-            }}
-            onSubmit={handleEdit}
-            onCancel={() => setEditTarget(null)}
-            submitting={submitting}
-            pathPrefixSeed={editTarget.id}
-          />
-        )}
-      </Modal>
-
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title="Delete Property"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This will also delete all associated units and data.`}
-        confirmLabel="Delete"
-        danger
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </div>
   )
 }

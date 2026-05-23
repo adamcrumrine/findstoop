@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { useTenantDocuments } from '@findstoop/shared/hooks/useDocuments'
 import type { Document, DocumentType } from '@findstoop/shared/types/document'
+import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import {
   ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder,
   type LucideIcon,
@@ -114,7 +116,24 @@ export default function TenantDocuments() {
   const loading = leaseLoading || docsLoading
   const [filterType, setFilterType] = useState<DocumentType | 'all'>('all')
 
+  // Stamp the "seen" marker on mount so the green cherry dot on the bottom
+  // nav clears once the tenant lands here. Realtime channel in
+  // useTenantBadges picks up the change.
+  useEffect(() => {
+    if (!tenantId) return
+    void supabase
+      .from('profiles')
+      .update({ documents_seen_at: new Date().toISOString() })
+      .eq('id', tenantId)
+  }, [tenantId])
+
   const handleDownload = async (doc: Document) => {
+    // Synthetic lease entry — the id is the sentinel 'lease-agreement', and
+    // we open the rendered PDF route (which has its own "Save as PDF" button).
+    if (doc.id === 'lease-agreement') {
+      window.open(`/lease-pdf/${doc.lease_id}`, '_blank', 'noopener,noreferrer')
+      return
+    }
     try {
       const url = await getDownloadUrl(doc)
       window.open(url, '_blank')
@@ -123,13 +142,31 @@ export default function TenantDocuments() {
     }
   }
 
+  // Synthetic "Lease Agreement" entry — rendered at the top of the list once
+  // the tenant has a signed lease. It points at the existing /lease-pdf/:id
+  // route which provides a printable / save-as-PDF view of the executed
+  // lease. We don't write a row to the documents table because the lease IS
+  // the canonical source of truth; this is just a surfaced shortcut.
+  const synthetic: Document[] = lease?.signed_at
+    ? [{
+        id: 'lease-agreement',
+        lease_id: lease.id,
+        uploaded_by: lease.tenant_id,
+        name: `Signed Lease Agreement`,
+        type: 'lease' as DocumentType,
+        storage_url: '',
+        created_at: lease.signed_at,
+      }]
+    : []
+  const allDocs = [...synthetic, ...documents]
+
   const filtered = filterType === 'all'
-    ? documents
-    : documents.filter((d) => d.type === filterType)
+    ? allDocs
+    : allDocs.filter((d) => d.type === filterType)
 
   // Group by type for summary
   const counts = (Object.keys(DOC_TYPE_LABEL) as DocumentType[]).reduce<Record<DocumentType, number>>(
-    (acc, t) => ({ ...acc, [t]: documents.filter((d) => d.type === t).length }),
+    (acc, t) => ({ ...acc, [t]: allDocs.filter((d) => d.type === t).length }),
     {} as Record<DocumentType, number>
   )
 
@@ -147,7 +184,7 @@ export default function TenantDocuments() {
       )}
 
       {/* Type summary pills */}
-      {documents.length > 0 && (
+      {allDocs.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => setFilterType('all')}
@@ -155,7 +192,7 @@ export default function TenantDocuments() {
               filterType === 'all' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            All ({documents.length})
+            All ({allDocs.length})
           </button>
           {(Object.keys(DOC_TYPE_LABEL) as DocumentType[])
             .filter((t) => counts[t] > 0)
@@ -180,11 +217,12 @@ export default function TenantDocuments() {
       {loading ? (
         <Skeleton />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-14 text-gray-400">
-          <Folder className="w-12 h-12 mx-auto mb-2 text-mute-400" strokeWidth={1.5} />
-          <p className="text-sm">No documents yet</p>
-          <p className="text-xs mt-1">Your property manager will upload documents here</p>
-        </div>
+        <EmptyIllustration
+          name="leases"
+          Fallback={Folder}
+          title="No documents yet"
+          subtitle="Your signed lease will appear here once both parties have signed. Your landlord can also upload addenda, notices, and inspections."
+        />
       ) : (
         <div className="space-y-2">
           {filtered.map((doc) => (

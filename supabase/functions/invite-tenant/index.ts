@@ -60,6 +60,26 @@ Deno.serve(async (req) => {
     const cleanEmail = email.toLowerCase().trim()
     const applyLink = applyUnitId ? `${APP_URL}/apply/${applyUnitId}` : null
 
+    // ── Detect an already-registered tenant ───────────────────────────
+    // If this email is already in profiles, the manager probably wants
+    // to add them to a lease, not re-invite. Bail with a friendly 200
+    // result rather than an error from generateLink ("user already
+    // registered"), which is confusing UX.
+    const { data: existingProfile } = await admin
+      .from('profiles')
+      .select('id, full_name, role')
+      .ilike('email', cleanEmail)
+      .maybeSingle()
+
+    if (existingProfile) {
+      return json({
+        alreadyExists: true,
+        tenantId: existingProfile.id,
+        name: existingProfile.full_name ?? cleanEmail,
+        role: existingProfile.role,
+      })
+    }
+
     // ── Generate the invite link ──────────────────────────────────────
     // type 'invite' creates the auth user (if not yet) and returns a magic
     // action link that signs them in + lets them set a password.
@@ -72,6 +92,13 @@ Deno.serve(async (req) => {
       },
     })
     if (linkErr || !linkData?.properties?.action_link) {
+      // Belt-and-suspenders: if the profile lookup missed (e.g. orphaned
+      // auth.users row without a profile), surface a clean already-exists
+      // result rather than a raw Supabase error.
+      const msg = linkErr?.message?.toLowerCase() ?? ''
+      if (msg.includes('already') && msg.includes('registered')) {
+        return json({ alreadyExists: true, name: cleanEmail })
+      }
       return json({ error: linkErr?.message ?? 'Could not generate invite link' }, { status: 400 })
     }
 
@@ -118,7 +145,7 @@ Deno.serve(async (req) => {
       return json({ error: `Email failed to send: ${emailErr.message}` }, { status: 500 })
     }
 
-    return json({ ok: true, messageId: emailData?.id, email: cleanEmail })
+    return json({ ok: true, alreadyExists: false, messageId: emailData?.id, email: cleanEmail })
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

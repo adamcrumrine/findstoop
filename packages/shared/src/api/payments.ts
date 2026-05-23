@@ -1,12 +1,32 @@
 import { supabase } from '../lib/supabase'
 import type { Payment } from '../types/payment'
 
-export async function getTenantPayments(tenantId: string, limit = 3): Promise<Payment[]> {
+// Tenant payment history — only payments that have actually been attempted
+// (completed or failed). Pending/upcoming rows are surfaced separately via
+// getNextDuePayment / getTenantUpcomingPayments. Sorted most-recent-first.
+export async function getTenantPayments(tenantId: string, limit = 5): Promise<Payment[]> {
   const { data, error } = await supabase
     .from('payments')
     .select('*')
     .eq('tenant_id', tenantId)
+    .in('status', ['completed', 'failed'])
+    .order('paid_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+// Upcoming pending payments (today or later), soonest first.
+export async function getTenantUpcomingPayments(tenantId: string, limit = 5): Promise<Payment[]> {
+  const today = new Date().toISOString().split('T')[0]
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .gte('due_date', today)
+    .order('due_date', { ascending: true })
     .limit(limit)
   if (error) throw new Error(error.message)
   return data ?? []

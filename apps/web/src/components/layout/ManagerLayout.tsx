@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import {
   LayoutGrid, Building2, Megaphone, ClipboardList, ShieldCheck,
   Users, FileText, CreditCard, Wrench, MessageSquare, Folder, BarChart3,
   Receipt, Settings as SettingsIcon, MoreHorizontal, type LucideIcon,
 } from 'lucide-react'
+import Avatar from '../shared/Avatar'
 
 interface NavItem {
   to: string
@@ -32,6 +33,48 @@ const navItems: NavItem[] = [
   { to: '/manager/settings',     label: 'Settings',     Icon: SettingsIcon,   group: 'account' },
 ]
 
+// One ambient illustration per route — same treatment as the tenant side.
+// Large, washed-out, fixed below the header, nudged off-center so it peeks
+// behind/around the content column. Hidden under md (no room to fade).
+// Every illustration is used at most once across the manager side. Routes
+// that don't pair cleanly with a unique illustration (units / documents /
+// settings) just render plain — better than recycling artwork. Dynamic
+// routes (properties/:id, tenants/:id, review-lease) fall back via bgFor()
+// to share the look of their list page (those list pages get the dedicated
+// illustration, the detail pages get none of their own).
+// opacity is optional — defaults to 0.10. Routes with a tighter content
+// column (messages: chat bubbles span most of the page) need a fainter
+// wash so the artwork doesn't compete with the live content.
+interface PageBg { name: string; xPct: number; topRem: number; opacity?: number }
+const PAGE_BG: Record<string, PageBg> = {
+  '/manager/dashboard':    { name: 'Houses-bro',              xPct: 22, topRem: -8 },
+  '/manager/properties':   { name: 'City skyline-bro',        xPct: 22, topRem: -5 },
+  '/manager/units':        { name: 'Navigation-amico',        xPct: 22, topRem: -8 },
+  '/manager/listings':     { name: 'House searching-bro',     xPct: 22, topRem: -8 },
+  '/manager/applications': { name: 'Accept terms-bro',        xPct: 22, topRem: -8 },
+  '/manager/screening':    { name: 'About us page-bro',       xPct: 22, topRem: -8 },
+  '/manager/tenants':      { name: 'Moving-bro',              xPct: 22, topRem: -8 },
+  '/manager/leases':       { name: 'Signing a contract-bro',  xPct: 22, topRem: -8 },
+  '/manager/payments':     { name: 'Payment Information-bro', xPct: 22, topRem: -8 },
+  '/manager/maintenance':  { name: 'Maintenance-bro',         xPct: 22, topRem: -8 },
+  '/manager/messages':     { name: 'Texting-bro',             xPct: 38, topRem: -6, opacity: 0.04 },
+  '/manager/documents':    { name: 'Agreement-bro',           xPct: 22, topRem: -8 },
+  '/manager/reports':      { name: 'Accountant-bro',          xPct: 22, topRem: -8 },
+  '/manager/billing':      { name: 'Pricing plans-bro',       xPct: 22, topRem: -8 },
+  '/manager/settings':     { name: 'Features Overview-bro',   xPct: 22, topRem: -8 },
+}
+
+function bgFor(pathname: string): PageBg | null {
+  if (PAGE_BG[pathname]) return PAGE_BG[pathname]
+  // Dynamic routes — reuse the parent list's illustration (the only
+  // sanctioned image-reuse on the manager side, since the detail pages
+  // share the same theme as their parent list).
+  if (pathname.startsWith('/manager/properties/')) return PAGE_BG['/manager/properties']
+  if (pathname.startsWith('/manager/tenants/'))    return PAGE_BG['/manager/tenants']
+  if (pathname.startsWith('/manager/review-lease'))return PAGE_BG['/manager/leases']
+  return null
+}
+
 // Mobile bottom nav: 4 most-used items
 const primaryNav = [
   navItems.find((n) => n.to === '/manager/dashboard')!,
@@ -41,24 +84,12 @@ const primaryNav = [
 ]
 const moreNav = navItems.filter((n) => !primaryNav.includes(n))
 
-function Avatar({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-  return (
-    <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
-      {initials || '?'}
-    </div>
-  )
-}
-
 export default function ManagerLayout() {
   const { signOut, profile } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
+  const pageBg = bgFor(location.pathname)
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Manager'
 
@@ -112,7 +143,7 @@ export default function ManagerLayout() {
         {/* User footer */}
         <div className="p-3 border-t border-gray-100">
           <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-            <Avatar name={displayName} />
+            <Avatar url={profile?.company_logo_url ?? profile?.avatar_url} name={profile?.company_name ?? profile?.full_name} email={profile?.email} size={32} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-ink truncate">{displayName}</p>
               <button
@@ -135,13 +166,35 @@ export default function ManagerLayout() {
             <img src="/findstoop-logo.png" alt="FindStoop" className="h-10 w-auto" />
           </Link>
           <div className="flex items-center gap-3">
-            <Avatar name={displayName} />
+            <Avatar url={profile?.company_logo_url ?? profile?.avatar_url} name={profile?.company_name ?? profile?.full_name} email={profile?.email} size={32} />
           </div>
         </header>
 
         {/* Page */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
-          <Outlet />
+        <main className="relative flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 lg:pr-24 xl:pr-40">
+          {/* Ambient background illustration — shifted to the RIGHT of the
+              centered content column because the left side is occupied by
+              the sidebar. xPct values come from PAGE_BG. */}
+          {pageBg && (
+            <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 hidden md:block z-0" style={{ top: `calc(4.5rem + ${pageBg.topRem}rem)` }}>
+              <img
+                src={`/illustrations/${pageBg.name}.png`}
+                alt=""
+                loading="lazy"
+                className="w-[110%] max-w-[1100px]"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: `calc(50% + ${pageBg.xPct}vw)`,
+                  transform: 'translateX(-50%)',
+                  opacity: pageBg.opacity ?? 0.10,
+                }}
+              />
+            </div>
+          )}
+          <div className="relative z-10">
+            <Outlet />
+          </div>
         </main>
 
         {/* ── Bottom nav — mobile ──────────────────────────────────────── */}

@@ -5,13 +5,18 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
+import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
+import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import type { Payment, PaymentType, PaymentStatus } from '@findstoop/shared/types/payment'
 import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
-import { CreditCard } from 'lucide-react'
+import { CreditCard, CalendarClock, RefreshCw } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+
+
 
 function Skeleton() {
   return (
@@ -20,13 +25,6 @@ function Skeleton() {
       <div className="h-4 bg-gray-200 rounded w-1/3" />
     </div>
   )
-}
-
-const statusColors: Record<PaymentStatus, string> = {
-  pending:    'bg-yellow-100 text-yellow-700',
-  processing: 'bg-amber-100 text-amber-800',
-  completed:  'bg-green-100 text-green-700',
-  failed:     'bg-red-100 text-red-700',
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────
@@ -169,31 +167,50 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
 interface PaymentRowProps {
   payment: Payment
   tenantName: string
+  // Tenant has auto-pay turned on. Shown as a small recurring-arrow icon
+  // on Upcoming / Scheduled rows so the manager can tell at a glance that
+  // a future charge is set up to run automatically.
+  tenantAutopay: boolean
   onMarkPaid: (id: string) => void
   onApplyCredit: (payment: Payment) => void
 }
 
-function PaymentRow({ payment, tenantName, onMarkPaid, onApplyCredit }: PaymentRowProps) {
+function PaymentRow({ payment, tenantName, tenantAutopay, onMarkPaid, onApplyCredit }: PaymentRowProps) {
+  const status = rowStatus(payment)
+  // Mark Paid + Credit available on any pending row — managers regularly
+  // collect off-platform (cash, check, Venmo) and need to flip future months,
+  // and they may want to credit a future month for in-kind work (mulch, etc.).
   const isCreditable = payment.status === 'pending' && (payment.type === 'rent' || payment.type === 'utility' || payment.type === 'fee' || payment.type === 'fine' || payment.type === 'other')
+  const showMarkPaid = payment.status === 'pending'
+  // Status badges — monochrome icons next to the pill.
+  //   • CalendarClock → tenant has explicitly scheduled this exact payment
+  //   • RefreshCw    → tenant has autopay enabled (will recur automatically)
+  const isScheduled = !!(payment as Payment & { scheduled_for?: string | null }).scheduled_for
+  const showScheduledIcon = isScheduled
+  const showRecurringIcon = tenantAutopay && payment.status === 'pending'
+  const anchor = paymentAnchor(payment)
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[payment.status]}`}>
-            {payment.status}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
+            {status.label}
           </span>
+          {showScheduledIcon && (
+            <CalendarClock className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.75} aria-label="Scheduled by tenant" />
+          )}
+          {showRecurringIcon && (
+            <RefreshCw className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.75} aria-label="Tenant auto-pay" />
+          )}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">{tenantName} · {new Date(payment.created_at).toLocaleDateString()}</p>
-        {payment.due_date && (
-          <p className="text-xs text-gray-400">Due: {new Date(payment.due_date).toLocaleDateString()}</p>
-        )}
+        <p className="text-xs text-gray-400 mt-0.5">{tenantName} · {new Date(anchor).toLocaleDateString()}</p>
         {payment.memo && (
           <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <p className="text-sm font-semibold text-gray-900">${Number(payment.amount).toLocaleString()}</p>
+        <p className="text-sm font-semibold text-gray-900">{formatUsdCents(Number(payment.amount))}</p>
         {isCreditable && (
           <button
             onClick={() => onApplyCredit(payment)}
@@ -202,7 +219,7 @@ function PaymentRow({ payment, tenantName, onMarkPaid, onApplyCredit }: PaymentR
             Credit
           </button>
         )}
-        {payment.status === 'pending' && (
+        {showMarkPaid && (
           <button
             onClick={() => onMarkPaid(payment.id)}
             className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
@@ -224,28 +241,84 @@ export default function ManagerPayments() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
-  const { payments, loading, add, markPaid, totalCollected, totalOutstanding, reload } = usePayments(leaseIds)
+  const { payments, loading, add, markPaid, reload } = usePayments(leaseIds)
 
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | 'all'>('all')
   const [filterType, setFilterType] = useState<PaymentType | 'all'>('all')
+  const [filterPropertyId, setFilterPropertyId] = useState<string | 'all'>('all')
+  const [filterLeaseStatus, setFilterLeaseStatus] = useState<'all' | 'active' | 'pending' | 'expired' | 'terminated'>('all')
   const [addOpen, setAddOpen] = useState(false)
   const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null)
   const [creditTarget, setCreditTarget] = useState<Payment | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // tenant_id → autopay_enabled. Populated once when leases load.
+  const [tenantAutopay, setTenantAutopay] = useState<Record<string, boolean>>({})
+  const tenantIds = useMemo(
+    () => Array.from(new Set(leases.map((l) => l.tenant_id).filter(Boolean))),
+    [leases]
+  )
+  const tenantIdsKey = tenantIds.join(',')
+  useMemo(() => {
+    if (tenantIds.length === 0) { setTenantAutopay({}); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, autopay_enabled')
+        .in('id', tenantIds)
+      if (cancelled) return
+      const map: Record<string, boolean> = {}
+      for (const row of (data as Array<{ id: string; autopay_enabled: boolean | null }> | null) ?? []) {
+        map[row.id] = !!row.autopay_enabled
+      }
+      setTenantAutopay(map)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantIdsKey])
 
   const leaseMap = useMemo(
     () => Object.fromEntries(leases.map((l) => [l.id, l])),
     [leases]
+  )
+  const unitToProperty = useMemo(
+    () => Object.fromEntries(units.map((u) => [u.id, u.property_id])),
+    [units]
   )
 
   const filtered = useMemo(() =>
     payments.filter((p) => {
       if (filterStatus !== 'all' && p.status !== filterStatus) return false
       if (filterType !== 'all' && p.type !== filterType) return false
+      const lease = leaseMap[p.lease_id]
+      if (filterLeaseStatus !== 'all' && lease?.status !== filterLeaseStatus) return false
+      if (filterPropertyId !== 'all') {
+        const propId = lease ? unitToProperty[lease.unit_id] : undefined
+        if (propId !== filterPropertyId) return false
+      }
       return true
     }),
-    [payments, filterStatus, filterType]
+    [payments, filterStatus, filterType, filterLeaseStatus, filterPropertyId, leaseMap, unitToProperty]
   )
+
+  // Summary tiles: scope to the current calendar month + the active filter
+  // set so the numbers reflect what's actually visible below.
+  const monthlyTotals = useMemo(() => {
+    const today = new Date()
+    const start = new Date(today.getFullYear(), today.getMonth(), 1)
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+    let collected = 0
+    let outstanding = 0
+    for (const p of filtered) {
+      const ref = (p as Payment & { scheduled_for?: string | null }).scheduled_for
+        ?? p.paid_at ?? p.due_date ?? p.created_at
+      const d = new Date(ref)
+      if (d < start || d >= end) continue
+      if (p.status === 'completed') collected += Number(p.amount)
+      else if (p.status === 'pending' && !(p as Payment & { scheduled_for?: string | null }).scheduled_for) outstanding += Number(p.amount)
+    }
+    return { collected, outstanding }
+  }, [filtered])
 
   const handleAdd = async (data: AddPaymentFormData) => {
     setSubmitting(true)
@@ -292,7 +365,9 @@ export default function ManagerPayments() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{payments.length} total payment{payments.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Rent, utilities, fees, fines, and tenant credits — {filtered.length} of {payments.length} shown.
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -312,16 +387,27 @@ export default function ManagerPayments() {
         </div>
       </div>
 
-      {/* Summary cards */}
+      {/* Donut on the left, Collected + Outstanding tiles stacked on the
+          right. Both the donut and the tiles run against the same `filtered`
+          set, so changing the filter selects below updates everything in
+          place. */}
       {!loading && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-            <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Collected</p>
-            <p className="text-2xl font-bold text-green-700 mt-1">${totalCollected.toLocaleString()}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="lg:col-span-2">
+            <MonthlyDonut payments={filtered} loading={loading} />
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-            <p className="text-xs font-medium text-yellow-600 uppercase tracking-wide">Outstanding</p>
-            <p className="text-2xl font-bold text-yellow-700 mt-1">${totalOutstanding.toLocaleString()}</p>
+          <div className="grid gap-3">
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Collected · this month</p>
+              <p className="text-2xl font-bold text-brand-700 mt-1">{formatUsd(monthlyTotals.collected)}</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Outstanding · this month</p>
+              <p className={`text-2xl font-bold mt-1 ${monthlyTotals.outstanding > 0 ? 'text-red-700' : 'text-gray-800'}`}>
+                {formatUsd(monthlyTotals.outstanding)}
+              </p>
+              <p className="text-[11px] text-mute mt-0.5">Not scheduled or paid yet</p>
+            </div>
           </div>
         </div>
       )}
@@ -330,13 +416,35 @@ export default function ManagerPayments() {
       {!loading && payments.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           <select
+            value={filterPropertyId}
+            onChange={(e) => setFilterPropertyId(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">All Properties</option>
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <select
+            value={filterLeaseStatus}
+            onChange={(e) => setFilterLeaseStatus(e.target.value as 'all' | 'active' | 'pending' | 'expired' | 'terminated')}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">All Lease Statuses</option>
+            <option value="active">Active lease</option>
+            <option value="pending">Pending lease</option>
+            <option value="expired">Expired lease</option>
+            <option value="terminated">Terminated lease</option>
+          </select>
+          <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as PaymentStatus | 'all')}
             className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
+            <option value="all">All Payment Statuses</option>
+            <option value="pending">Upcoming / Scheduled</option>
+            <option value="processing">Processing</option>
+            <option value="completed">Paid</option>
             <option value="failed">Failed</option>
           </select>
           <select
@@ -346,11 +454,14 @@ export default function ManagerPayments() {
           >
             <option value="all">All Types</option>
             <option value="rent">Rent</option>
+            <option value="fee">Fee</option>
+            <option value="fine">Fine</option>
             <option value="late_fee">Late Fee</option>
+            <option value="utility">Utility</option>
             <option value="pet_fee">Pet Fee</option>
             <option value="pet_deposit">Pet Deposit</option>
-            <option value="utility">Utility</option>
-            <option value="other">Other</option>
+            <option value="credit">Credit</option>
+            <option value="other">Other / Misc</option>
           </select>
         </div>
       )}
@@ -373,6 +484,7 @@ export default function ManagerPayments() {
               key={p.id}
               payment={p}
               tenantName={leaseMap[p.lease_id]?.profile?.full_name ?? leaseMap[p.lease_id]?.profile?.email ?? '—'}
+              tenantAutopay={!!tenantAutopay[p.tenant_id]}
               onMarkPaid={(id) => setMarkPaidTarget(payments.find((pay) => pay.id === id) ?? null)}
               onApplyCredit={(payment) => setCreditTarget(payment)}
             />

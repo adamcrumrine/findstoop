@@ -3,6 +3,7 @@ import {
   ClipboardList, CreditCard, FileSignature, Wrench, MessageSquare,
   ShieldCheck, ArrowRight, type LucideIcon,
 } from 'lucide-react'
+import { useSeo } from '../../lib/useSeo'
 
 interface Perk {
   Icon: LucideIcon
@@ -44,6 +45,11 @@ const perks: Perk[] = [
 ]
 
 export default function Tenants() {
+  useSeo({
+    title: 'For renters',
+    description: 'One rental application across every FindStoop listing, a portable screening report, e-sign leases from your phone, and online rent payments with a free ACH option.',
+    path: '/tenants',
+  })
   return (
     <>
       {/* Hero */}

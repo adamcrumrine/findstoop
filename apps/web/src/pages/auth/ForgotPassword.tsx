@@ -28,8 +28,10 @@ export default function ForgotPassword() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        {/* Logo */}
-        <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
+        {/* Logo — click returns to the marketing landing page */}
+        <Link to="/" aria-label="FindStoop home" className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto" />
+        </Link>
 
         {sent ? (
           <>

@@ -1,0 +1,34 @@
+# https://findstoop.com — robots.txt
+# Crawlable: public marketing pages.
+# Blocked: authenticated app surfaces, per-applicant flows, and PDFs.
+
+User-agent: *
+Allow: /
+Allow: /tenants
+Allow: /education
+Allow: /pricing
+Allow: /features
+Allow: /how-it-works
+Allow: /screening-terms
+Allow: /privacy
+Allow: /terms
+Allow: /fair-housing
+Allow: /accessibility
+
+# Auth + applicant flows — no SEO value, and /apply leaks unit detail.
+Disallow: /login
+Disallow: /login/renter
+Disallow: /register
+Disallow: /register/renter
+Disallow: /forgot-password
+Disallow: /verify
+Disallow: /apply/
+
+# Authenticated app — full block.
+Disallow: /manager/
+Disallow: /tenant/
+Disallow: /admin/
+Disallow: /lease-pdf/
+
+# Sitemap pointer (Google, Bing, Yandex all read this).
+Sitemap: https://findstoop.com/sitemap.xml

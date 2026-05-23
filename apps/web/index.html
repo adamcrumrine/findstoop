@@ -2,23 +2,115 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#00A896" />
-    <meta name="description" content="Property management made simple" />
+
+    <!-- ── Primary metadata ───────────────────────────────────────────────── -->
+    <title>FindStoop — Property management built for landlords with a handful of units</title>
+    <meta name="description" content="Run your rentals like a pro without becoming one. FindStoop combines listings, verified pre-qualification, e-sign leases, rent collection, and maintenance in one tool — $9 per unit per month." />
+    <meta name="author" content="FindStoop" />
+    <meta name="application-name" content="FindStoop" />
+    <meta name="keywords" content="property management software, landlord software, tenant screening, rent collection, lease management, rental application, small landlord tools" />
+    <link rel="canonical" href="https://findstoop.com/" />
+
+    <!-- ── Crawlers ──────────────────────────────────────────────────────── -->
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+
+    <!-- ── Open Graph (Facebook, LinkedIn, Slack, iMessage, etc.) ─────────── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FindStoop" />
+    <meta property="og:title" content="FindStoop — Property management built for landlords with a handful of units" />
+    <meta property="og:description" content="Listings, verified pre-qualification, e-sign leases, and rent collection — built for landlords with a handful of properties, not a hundred. $9 per unit per month." />
+    <meta property="og:url" content="https://findstoop.com/" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://findstoop.com/findstoop-logo.png" />
+    <meta property="og:image:alt" content="FindStoop logo" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- ── Twitter / X ──────────────────────────────────────────────────── -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FindStoop — Property management for small landlords" />
+    <meta name="twitter:description" content="Listings, verified pre-qualification, e-sign leases, and rent collection in one tool. $9 per unit per month." />
+    <meta name="twitter:image" content="https://findstoop.com/findstoop-logo.png" />
+    <meta name="twitter:image:alt" content="FindStoop logo" />
+
+    <!-- ── Mobile / iOS standalone ──────────────────────────────────────── -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="FindStoop" />
+
+    <!-- ── Icons ──────────────────────────────────────────────────────── -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- ── Performance ───────────────────────────────────────────────── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://wdfptcosxlbbymkmpgzn.supabase.co" />
+    <link rel="dns-prefetch" href="https://api.stripe.com" />
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Great+Vibes&family=Sacramento&family=Caveat:wght@600&display=swap" rel="stylesheet" />
-    <title>FindStoop</title>
+
+    <!-- ── Structured data ──────────────────────────────────────────── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://findstoop.com/#org",
+          "name": "FindStoop",
+          "url": "https://findstoop.com/",
+          "logo": "https://findstoop.com/findstoop-logo.png",
+          "description": "Property management software built for landlords with a handful of units.",
+          "email": "support@findstoop.com"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://findstoop.com/#website",
+          "url": "https://findstoop.com/",
+          "name": "FindStoop",
+          "publisher": { "@id": "https://findstoop.com/#org" },
+          "inLanguage": "en-US"
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "FindStoop",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "url": "https://findstoop.com/",
+          "description": "All-in-one property management software for small landlords: listings, screening, e-sign leases, rent collection, maintenance.",
+          "offers": {
+            "@type": "Offer",
+            "price": "9",
+            "priceCurrency": "USD",
+            "priceSpecification": {
+              "@type": "UnitPriceSpecification",
+              "price": "9",
+              "priceCurrency": "USD",
+              "unitText": "per unit per month",
+              "referenceQuantity": {
+                "@type": "QuantitativeValue",
+                "value": "1",
+                "unitText": "unit"
+              }
+            }
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>FindStoop requires JavaScript. Please enable JavaScript or use a modern browser to continue.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

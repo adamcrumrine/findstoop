@@ -3,6 +3,7 @@ import {
   Building2, Megaphone, ShieldCheck, FileSignature, CreditCard,
   ArrowRight, type LucideIcon,
 } from 'lucide-react'
+import { useSeo } from '../../lib/useSeo'
 
 interface Step {
   number: string
@@ -71,6 +72,11 @@ const steps: Step[] = [
 ]
 
 export default function HowItWorks() {
+  useSeo({
+    title: 'How it works',
+    description: 'Set up an account, list a vacancy, screen applicants, e-sign the lease, and start collecting rent — the five steps from sign-up to first paycheck on FindStoop.',
+    path: '/how-it-works',
+  })
   return (
     <>
       {/* Hero */}

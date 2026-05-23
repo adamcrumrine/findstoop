@@ -1,7 +1,11 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { FileSignature, ChevronRight, CreditCard } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
+import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
+import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
@@ -12,61 +16,51 @@ function Skeleton({ className }: { className?: string }) {
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
+// Neutral white cards by default. The optional `accent` lets us put a brand
+// dot on the label or color the value text for emphasis without painting the
+// whole container green.
 interface StatCardProps {
   label: string
   value: string | number
   sub?: string
-  color: 'gray' | 'green' | 'yellow' | 'red' | 'blue'
+  accent?: 'brand' | 'red' | 'amber' | 'none'
   loading: boolean
 }
 
-const colorMap = {
-  gray:   'bg-gray-50 border-gray-200',
-  green:  'bg-green-50 border-green-200',
-  yellow: 'bg-yellow-50 border-yellow-200',
-  red:    'bg-red-50 border-red-200',
-  blue:   'bg-blue-50 border-blue-200',
-}
-const valueColorMap = {
-  gray:   'text-gray-800',
-  green:  'text-green-700',
-  yellow: 'text-yellow-700',
-  red:    'text-red-700',
-  blue:   'text-blue-700',
-}
-
-function StatCard({ label, value, sub, color, loading }: StatCardProps) {
+function StatCard({ label, value, sub, accent = 'none', loading }: StatCardProps) {
+  const valueCls =
+    accent === 'brand' ? 'text-brand-700' :
+    accent === 'red'   ? 'text-red-700' :
+    accent === 'amber' ? 'text-amber-700' : 'text-gray-800'
   return (
-    <div className={`rounded-xl border p-4 ${colorMap[color]}`}>
+    <div className="rounded-xl border border-gray-200 bg-white p-4">
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
       {loading ? (
         <Skeleton className="h-8 w-24 mt-2" />
       ) : (
-        <p className={`text-2xl font-bold mt-1 ${valueColorMap[color]}`}>{value}</p>
+        <p className={`text-2xl font-bold mt-1 ${valueCls}`}>{value}</p>
       )}
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
   )
 }
 
+
 // ── Payment row ───────────────────────────────────────────────────────────────
 function PaymentRow({ payment }: { payment: Payment }) {
-  const statusColor =
-    payment.status === 'completed' ? 'bg-green-100 text-green-700' :
-    payment.status === 'failed'    ? 'bg-red-100 text-red-700' :
-    'bg-yellow-100 text-yellow-700'
-
+  const status = rowStatus(payment)
+  const anchor = paymentAnchor(payment)
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
       <div>
-        <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace('_', ' ')}</p>
-        <p className="text-xs text-gray-400">{new Date(payment.created_at).toLocaleDateString()}</p>
+        <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
+        <p className="text-xs text-gray-400">{new Date(anchor).toLocaleDateString()}</p>
       </div>
       <div className="flex items-center gap-3">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor}`}>
-          {payment.status}
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
+          {status.label}
         </span>
-        <span className="text-sm font-semibold text-gray-800">${Number(payment.amount).toFixed(2)}</span>
+        <span className="text-sm font-semibold text-gray-800">{formatUsdCents(Number(payment.amount))}</span>
       </div>
     </div>
   )
@@ -151,10 +145,38 @@ function Section({ title, children, loading, empty, emptyText }: {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { profile } = useAuth()
-  const { stats, recentPayments, openMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, loading, error } =
+  const { stats, recentPayments, allPayments, openMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, loading, error } =
     useManagerDashboard(profile?.id)
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
+
+  // Time-of-day greeting in the user's local timezone.
+  const hour = new Date().getHours()
+  const greeting =
+    hour < 5  ? 'Up late' :
+    hour < 12 ? 'Good morning' :
+    hour < 17 ? 'Good afternoon' :
+    hour < 22 ? 'Good evening' : 'Good night'
+
+  // Outstanding for the current month = pending payments that aren't paid
+  // and haven't been scheduled (the tenant hasn't picked a pay-on date yet).
+  // Same rail the donut uses — "Upcoming" + "Past due" buckets — but
+  // restricted to the live calendar month.
+  const outstandingThisMonth = useMemo(() => {
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    return allPayments
+      .filter((p) => {
+        if (p.status !== 'pending') return false
+        const sched = (p as Payment & { scheduled_for?: string | null }).scheduled_for
+        if (sched) return false
+        const ref = p.due_date ?? p.created_at
+        const d = new Date(ref)
+        return d >= start && d < end
+      })
+      .reduce((sum, p) => sum + Number(p.amount), 0)
+  }, [allPayments])
 
   if (error) {
     return (
@@ -169,7 +191,7 @@ export default function ManagerDashboard() {
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Greeting */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {firstName}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{greeting}, {firstName}</h1>
         <p className="text-gray-500 text-sm mt-1">Here&apos;s what&apos;s happening with your properties.</p>
       </div>
 
@@ -244,15 +266,16 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <StatCard label="Total Units"       value={stats.totalUnits}       color="gray"   loading={loading} />
-        <StatCard label="Occupied"          value={stats.occupiedUnits}    color="green"  loading={loading}
-          sub={stats.totalUnits ? `${Math.round(stats.occupiedUnits / stats.totalUnits * 100)}% occupancy` : undefined} />
-        <StatCard label="Vacant"            value={stats.vacantUnits}      color={stats.vacantUnits > 0 ? 'yellow' : 'green'} loading={loading} />
-        <StatCard label="Rent Collected"    value={`$${stats.rentCollectedThisMonth.toLocaleString()}`} color="green"  loading={loading} sub="this month" />
-        <StatCard label="Outstanding"       value={`$${stats.outstandingPayments.toLocaleString()}`}    color={stats.outstandingPayments > 0 ? 'red' : 'green'} loading={loading} />
-        <StatCard label="Open Maintenance"  value={stats.openMaintenanceRequests} color={stats.openMaintenanceRequests > 0 ? 'yellow' : 'green'} loading={loading} />
+      {/* Top row — donut on the left, 2×2 quadrant of stats on the right. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <MonthlyDonut payments={allPayments} loading={loading} />
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="Rent Collected" value={formatUsd(stats.rentCollectedThisMonth)} loading={loading} accent="brand" sub="this month" />
+          <StatCard label="Total Units"    value={stats.totalUnits} loading={loading} />
+          <StatCard label="Outstanding"    value={formatUsd(outstandingThisMonth)} loading={loading} accent={outstandingThisMonth > 0 ? 'red' : 'none'} sub="not scheduled or paid · this month" />
+          <StatCard label="Occupied"       value={stats.occupiedUnits} loading={loading} accent="brand"
+            sub={stats.totalUnits ? `${Math.round(stats.occupiedUnits / stats.totalUnits * 100)}% occupancy` : undefined} />
+        </div>
       </div>
 
       {/* Sections */}
@@ -272,3 +295,4 @@ export default function ManagerDashboard() {
     </div>
   )
 }
+

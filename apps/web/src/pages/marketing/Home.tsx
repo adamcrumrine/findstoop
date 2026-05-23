@@ -6,10 +6,16 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import Illustration from '../../components/marketing/Illustration'
+import { useSeo } from '../../lib/useSeo'
 
 type Status = 'live' | 'beta' | 'soon'
 
 export default function Home() {
+  useSeo({
+    title: 'Property management for landlords with a handful of units',
+    description: 'List vacancies, screen applicants, sign leases, and accept rent online — built for landlords who own a handful of properties, not a hundred. $9 per unit per month.',
+    path: '/',
+  })
   const [email, setEmail] = useState('')
   const navigate = useNavigate()
 

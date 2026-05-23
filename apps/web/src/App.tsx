@@ -12,6 +12,7 @@ const MarketingPricing     = lazy(() => import('./pages/marketing/Pricing'))
 const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))
 const MarketingTenants     = lazy(() => import('./pages/marketing/Tenants'))
 const MarketingEducation   = lazy(() => import('./pages/marketing/Education'))
+const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
 
 // Auth
 const Login          = lazy(() => import('./pages/auth/Login'))
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
             <Route path="/how-it-works" element={<MarketingHowItWorks />} />
+            <Route path="/apply/:unitId" element={<MarketingApply />} />
           </Route>
 
           {/* Auth */}

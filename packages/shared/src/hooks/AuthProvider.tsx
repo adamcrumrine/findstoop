@@ -58,43 +58,63 @@ function useAuthState(): AuthState {
 
   useEffect(() => {
     mounted.current = true
+    // Track last-handled user id to avoid double-fetching the profile when
+    // both getSession and the INITIAL_SESSION auth event resolve.
+    let lastHandledUserId: string | null = null
 
+    const handleSession = async (session: Session | null, source: 'init' | 'event') => {
+      if (!mounted.current) return
+      const sessionUserId = session?.user?.id ?? null
+      setUser(session?.user ?? null)
+
+      if (!sessionUserId) {
+        lastHandledUserId = null
+        setProfile(null)
+        if (source === 'init' && mounted.current) setLoading(false)
+        return
+      }
+
+      if (lastHandledUserId === sessionUserId) {
+        // Already loaded this user's profile; no need to refetch.
+        if (source === 'init' && mounted.current) setLoading(false)
+        return
+      }
+      lastHandledUserId = sessionUserId
+
+      try {
+        if (session!.user.app_metadata?.provider === 'google') {
+          const meta = (session!.user.user_metadata ?? {}) as Record<string, string>
+          const reconciled = await ensureProfile(session!.user.id, session!.user.email ?? '', meta)
+          if (mounted.current) setProfile(reconciled)
+        } else {
+          const p = await fetchProfile(session!.user.id)
+          if (mounted.current) setProfile(p)
+        }
+      } catch {
+        // Profile fetch failure should not block the app.
+      } finally {
+        if (source === 'init' && mounted.current) setLoading(false)
+      }
+    }
+
+    // Initial session — runs in our own context, not under the GoTrue lock,
+    // so awaiting Supabase queries here is safe.
     ;(async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        if (!mounted.current) return
-        setUser(session?.user ?? null)
-        if (session?.user) {
-          try {
-            const p = await fetchProfile(session.user.id)
-            if (mounted.current) setProfile(p)
-          } catch {
-            // Profile fetch failure should not block the app — user is still
-            // authenticated; downstream code can handle a null profile.
-          }
-        }
+        await handleSession(session, 'init')
       } catch {
-        // If session retrieval fails, treat as logged out rather than spin forever.
-      } finally {
         if (mounted.current) setLoading(false)
       }
     })()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
-      if (!mounted.current) return
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        if (session.user.app_metadata?.provider === 'google') {
-          const meta = (session.user.user_metadata ?? {}) as Record<string, string>
-          const reconciled = await ensureProfile(session.user.id, session.user.email ?? '', meta)
-          if (mounted.current) setProfile(reconciled)
-        } else {
-          const p = await fetchProfile(session.user.id)
-          if (mounted.current) setProfile(p)
-        }
-      } else {
-        setProfile(null)
-      }
+    // Auth state change — IMPORTANT: do NOT await Supabase queries directly
+    // inside this callback. GoTrue holds a Web Lock while emitting events,
+    // and any awaited supabase call from here can deadlock against it for
+    // up to the lock timeout (~6s). Defer to a microtask so the lock is
+    // released before we run queries.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      queueMicrotask(() => { void handleSession(session, 'event') })
     })
 
     return () => {

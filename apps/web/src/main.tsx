@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { Toaster } from 'react-hot-toast'
 import { registerSW } from 'virtual:pwa-register'
-import { AuthProvider } from '@findstoop/shared/hooks/useAuth'
+import { AuthProvider } from '@findstoop/shared/hooks/AuthProvider'
 import App from './App.tsx'
 import './index.css'
 

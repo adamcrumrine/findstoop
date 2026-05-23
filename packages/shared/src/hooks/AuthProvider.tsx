@@ -1,29 +1,8 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Profile, UserRole } from '../types/profile'
 import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
-
-interface AuthState {
-  user: User | null
-  profile: Profile | null
-  role: UserRole | null
-  loading: boolean
-  signIn: (email: string, password: string) => Promise<Profile>
-  signUp: (email: string, password: string, role: UserRole, fullName: string) => Promise<void>
-  signInWithGoogle: (role: UserRole) => Promise<void>
-  signOut: () => Promise<void>
-  sendPasswordReset: (email: string) => Promise<void>
-  // MFA — TOTP (Supabase native)
-  getTotpChallenge: () => Promise<{ factorId: string; challengeId: string }>
-  verifyTotp: (factorId: string, challengeId: string, code: string) => Promise<void>
-  // MFA — SMS / voice (Twilio edge functions)
-  sendSmsCode: (channel: 'sms' | 'call') => Promise<void>
-  verifySmsCode: (code: string) => Promise<void>
-  // MFA — backup codes
-  verifyBackupCode: (code: string) => Promise<{ remaining: number }>
-}
-
-const AuthContext = createContext<AuthState | null>(null)
+import { AuthContext, type AuthState } from './authContext'
 
 // ── Internal: the real auth state, instantiated ONCE inside <AuthProvider> ───
 function useAuthState(): AuthState {
@@ -227,8 +206,6 @@ function useAuthState(): AuthState {
   }
 
   // ── Idle auto-logout (30 minutes) ────────────────────────────────────────
-  // Sign the user out after IDLE_MS of no interaction. Pointer / key / touch
-  // events reset the timer. Disabled when no user is signed in.
   useEffect(() => {
     if (!user) return
     const IDLE_MS = 30 * 60 * 1000
@@ -237,7 +214,6 @@ function useAuthState(): AuthState {
     const reset = () => {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
-        // Best-effort sign-out; onAuthStateChange will null out state.
         supabase.auth.signOut().catch(() => {})
       }, IDLE_MS)
     }
@@ -276,13 +252,4 @@ function useAuthState(): AuthState {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useAuthState()
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-// ── Public hook — reads from context (no per-call effect/listener) ───────────
-export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth must be used inside <AuthProvider>. Wrap your app root with it.')
-  }
-  return ctx
 }

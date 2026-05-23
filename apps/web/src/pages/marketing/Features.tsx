@@ -3,6 +3,7 @@ import {
   Megaphone, ClipboardList, ShieldCheck, FileSignature, CreditCard, Wrench,
   MessageSquare, Folder, BarChart3, ArrowRight, type LucideIcon,
 } from 'lucide-react'
+import { useSeo } from '../../lib/useSeo'
 
 interface Feature {
   Icon: LucideIcon
@@ -69,6 +70,11 @@ const features: Feature[] = [
 ]
 
 export default function Features() {
+  useSeo({
+    title: 'Features',
+    description: 'Listings, standardized applications, applicant-pays screening, e-sign leases, online rent, maintenance tracking, messaging, documents, and reporting — every tool a small landlord actually uses.',
+    path: '/features',
+  })
   return (
     <>
       {/* Hero */}

@@ -17,6 +17,7 @@ export interface Profile {
   subscription_complimentary?: boolean
   payment_complimentary?: boolean
   payment_method_setup_at?: string | null
+  autopay_enabled?: boolean
   // Tenant-bio fields — tenant self-fills from Settings; manager sees on tenant detail.
   date_of_birth?: string | null
   employer?: string | null

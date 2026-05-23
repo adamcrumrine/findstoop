@@ -5,8 +5,10 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import {
-  Building2, ClipboardList, Briefcase, Users, CheckCircle2, Loader2, ArrowRight,
+  Building2, ClipboardList, Briefcase, Users, Loader2, ArrowRight,
 } from 'lucide-react'
+import ScreeningFlow from '../../components/apply/ScreeningFlow'
+import { useSeo } from '../../lib/useSeo'
 
 interface UnitCtx {
   unit_id: string
@@ -20,6 +22,10 @@ interface UnitCtx {
   property_state: string
   property_zip: string
   unit_status: string
+  require_selfie_screening: boolean
+  require_credit_check: boolean
+  require_criminal_check: boolean
+  require_eviction_check: boolean
 }
 
 interface FormState {
@@ -58,11 +64,19 @@ const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm
 
 export default function Apply() {
   const { unitId } = useParams<{ unitId: string }>()
+  // Apply pages should NOT be indexed — they're per-unit links shared by
+  // landlords, not public landing pages, and they leak unit detail.
+  useSeo({
+    title: 'Apply',
+    description: 'Apply for a rental on FindStoop. One application, instant submission, decision back from the landlord within days.',
+    path: `/apply/${unitId ?? ''}`,
+    noindex: true,
+  })
   const [unit, setUnit] = useState<UnitCtx | null>(null)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [submittedAppId, setSubmittedAppId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -88,7 +102,7 @@ export default function Apply() {
     if (!unitId) return
     setSubmitting(true)
     setError(null)
-    const { error: insertError } = await supabase.from('applications').insert({
+    const { data: inserted, error: insertError } = await supabase.from('applications').insert({
       unit_id: unitId,
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -111,13 +125,13 @@ export default function Apply() {
       household_size: form.household_size ? Number(form.household_size) : null,
       has_pets: form.has_pets,
       pets_description: form.has_pets ? form.pets_description.trim() || null : null,
-    })
+    }).select('id').single()
     setSubmitting(false)
-    if (insertError) {
-      setError(insertError.message)
+    if (insertError || !inserted) {
+      setError(insertError?.message ?? 'Could not submit application')
       return
     }
-    setSubmitted(true)
+    setSubmittedAppId(inserted.id as string)
   }
 
   if (loading) {
@@ -142,16 +156,22 @@ export default function Apply() {
     )
   }
 
-  if (submitted) {
+  if (submittedAppId) {
     return (
-      <div className="max-w-2xl mx-auto py-16 px-5 text-center">
-        <CheckCircle2 className="w-14 h-14 mx-auto mb-4 text-green-600" strokeWidth={1.5} />
-        <h1 className="text-2xl font-bold text-ink">Application submitted</h1>
-        <p className="text-mute mt-2 max-w-md mx-auto">
-          The landlord will review your application and reach out via the email you
-          provided. Most decisions land within 1-3 business days.
-        </p>
-        <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to FindStoop</Link>
+      <div className="max-w-3xl mx-auto py-10 px-5">
+        <ScreeningFlow
+          applicationId={submittedAppId}
+          applicantName={`${form.first_name} ${form.last_name}`.trim()}
+          applicantEmail={form.email.trim().toLowerCase()}
+          requirements={{
+            // v1: pre-qual + selfie are live (own Claude pipeline). Credit /
+            // criminal / eviction remain off until vendor onboarding completes.
+            selfie:   !!unit?.require_selfie_screening,
+            credit:   false,
+            criminal: false,
+            eviction: false,
+          }}
+        />
       </div>
     )
   }

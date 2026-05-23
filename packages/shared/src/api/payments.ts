@@ -45,12 +45,19 @@ export async function getNextDuePayment(tenantId: string): Promise<Payment | nul
   return data
 }
 
+// Manager-side "Recent Payments" widget — only actually-attempted payments
+// (completed / processing / failed). Pending and upcoming rows belong in
+// the donut + the tenant's pay-rent page, not here. Sorted most-recent-first
+// by when the money actually moved (paid_at), falling back to initiated_at.
 export async function getRecentPayments(leaseIds: string[], limit = 5): Promise<Payment[]> {
   if (leaseIds.length === 0) return []
   const { data, error } = await supabase
     .from('payments')
     .select('*')
     .in('lease_id', leaseIds)
+    .in('status', ['completed', 'processing', 'failed'])
+    .order('paid_at', { ascending: false, nullsFirst: false })
+    .order('initiated_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(limit)
   if (error) throw new Error(error.message)

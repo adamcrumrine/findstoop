@@ -13,7 +13,7 @@ export async function getProperties(managerId: string): Promise<Property[]> {
 
 export async function createProperty(
   managerId: string,
-  data: Omit<Property, 'id' | 'manager_id' | 'created_at'>
+  data: Omit<Property, 'id' | 'manager_id' | 'created_at' | 'require_selfie_screening' | 'require_credit_check' | 'require_criminal_check' | 'require_eviction_check'>
 ): Promise<Property> {
   const { data: result, error } = await supabase
     .from('properties')

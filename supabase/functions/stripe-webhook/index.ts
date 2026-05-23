@@ -168,6 +168,16 @@ Deno.serve(async (req) => {
       // row, otherwise by stripe_payment_id when the client inserted it.
       case 'payment_intent.succeeded': {
         const pi = event.data.object as Stripe.PaymentIntent
+        // Branch: tenant screening payment → flip the screening_order to
+        // 'collecting' so the applicant can start uploading documents.
+        if (pi.metadata?.purpose === 'screening') {
+          await admin.from('screening_orders').update({
+            payment_status: 'paid',
+            state: 'collecting',
+            paid_at: new Date().toISOString(),
+          }).eq('stripe_payment_intent_id', pi.id)
+          break
+        }
         const update = { status: 'completed', paid_at: new Date().toISOString(), stripe_payment_id: pi.id }
         if (pi.metadata?.findstoop_payment_id) {
           await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
@@ -195,6 +205,12 @@ Deno.serve(async (req) => {
       }
       case 'payment_intent.payment_failed': {
         const pi = event.data.object as Stripe.PaymentIntent
+        if (pi.metadata?.purpose === 'screening') {
+          await admin.from('screening_orders').update({
+            payment_status: 'failed',
+          }).eq('stripe_payment_intent_id', pi.id)
+          break
+        }
         const update = { status: 'failed', stripe_payment_id: pi.id }
         if (pi.metadata?.findstoop_payment_id) {
           await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)

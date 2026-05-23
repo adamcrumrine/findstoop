@@ -8,12 +8,15 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useUnitsByProperty } from '@findstoop/shared/hooks/useUnits'
 import { useLeases, useTenants } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
+import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
+  ShieldCheck, IdCard,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
@@ -166,7 +169,7 @@ export default function ManagerPropertyDetail() {
       </div>
 
       {/* Tab content */}
-      {tab === 'overview' && <OverviewTab property={property} units={units} leases={leases} />}
+      {tab === 'overview' && <OverviewTab property={property} units={units} leases={leases} onPropertyUpdate={setProperty} />}
       {tab === 'units' && <UnitsTab units={units} property={property} />}
       {tab === 'leases' && <LeasesTab leases={leases} units={units} property={property} />}
       {tab === 'tenants' && <TenantsTab tenants={tenants} getActiveLease={getActiveLease} units={units} />}
@@ -215,7 +218,12 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
-function OverviewTab({ property, units, leases }: { property: Property; units: Unit[]; leases: ReturnType<typeof useLeases>['leases'] }) {
+function OverviewTab({ property, units, leases, onPropertyUpdate }: {
+  property: Property
+  units: Unit[]
+  leases: ReturnType<typeof useLeases>['leases']
+  onPropertyUpdate: (p: Property) => void
+}) {
   const vacantUnits = units.filter((u) => u.status === 'vacant')
   const expiringSoon = leases.filter((l) => {
     if (l.status !== 'active') return false
@@ -274,7 +282,95 @@ function OverviewTab({ property, units, leases }: { property: Property; units: U
           </Link>
         </div>
       </Card>
+
+      <div className="sm:col-span-2">
+        <ScreeningPrefsCard property={property} onUpdate={onPropertyUpdate} />
+      </div>
     </div>
+  )
+}
+
+// ── Screening preferences card (Overview tab) ────────────────────────────
+// v1: pre-qual (base $5) + selfie ID match (+$2) are live — both run on our
+// own Claude vision pipeline, no external vendor needed. Credit / criminal /
+// eviction stay "Coming Soon" until vendor onboarding completes.
+function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpdate: (p: Property) => void }) {
+  const setSelfie = async (value: boolean) => {
+    const prior = property.require_selfie_screening
+    onUpdate({ ...property, require_selfie_screening: value })
+    const { error } = await supabase.from('properties').update({ require_selfie_screening: value }).eq('id', property.id)
+    if (error) {
+      onUpdate({ ...property, require_selfie_screening: prior })
+      toast.error(error.message)
+    }
+  }
+
+  const selfieOn = property.require_selfie_screening
+  const total = 5 + (selfieOn ? 2 : 0)
+
+  const comingSoon = [
+    { label: 'Credit report',       price: 15, sub: 'Credit history + score from a regulated consumer reporting agency.', Icon: CreditCard },
+    { label: 'Criminal background', price: 25, sub: 'National criminal + sex offender + global watchlist.', Icon: ShieldCheck },
+    { label: 'Eviction history',    price: 10, sub: 'Eviction court records nationwide.', Icon: AlertCircle },
+  ]
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Screening required for applicants</h2>
+        <span className="text-xs text-mute">Applicant pays <strong className="text-ink">${total}</strong></span>
+      </div>
+      <p className="text-xs text-mute mb-4">
+        Every applicant completes <strong className="text-ink">verified pre-qualification</strong> — income (paystub OCR), identity (driver's license OCR), and an AI rentability score — for $5. Add the selfie ID match below for stronger fraud protection.
+      </p>
+
+      {/* Live: selfie toggle */}
+      <button
+        type="button"
+        onClick={() => setSelfie(!selfieOn)}
+        className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors mb-2 ${
+          selfieOn ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 bg-white hover:border-gray-300'
+        }`}
+      >
+        <div className={`shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center ${selfieOn ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-mute'}`}>
+          <IdCard className="w-4 h-4" strokeWidth={1.75} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-ink">Selfie ID match</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+$2</span>
+          </div>
+          <p className="text-xs text-mute mt-0.5 leading-relaxed">
+            Applicant snaps a selfie; we match it to their license photo. Catches identity fraud cleanly.
+          </p>
+        </div>
+        <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${selfieOn ? 'bg-brand-500' : 'bg-gray-300'}`}>
+          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${selfieOn ? 'left-[18px]' : 'left-0.5'}`} />
+        </div>
+      </button>
+
+      {/* Coming soon: credit / criminal / eviction */}
+      <div className="space-y-2">
+        {comingSoon.map(({ label, price, sub, Icon }) => (
+          <div
+            key={label}
+            className="w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 text-left opacity-75"
+          >
+            <div className="shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center bg-gray-100 text-mute">
+              <Icon className="w-4 h-4" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-ink">{label}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+${price}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Coming soon</span>
+              </div>
+              <p className="text-xs text-mute mt-0.5 leading-relaxed">{sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -556,8 +652,15 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   const unitMap = Object.fromEntries(units.map((u) => [u.id, u]))
   const leaseMap = Object.fromEntries(leases.map((l) => [l.id, l]))
 
-  const upcoming = payments.filter((p) => p.status === 'pending').sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''))
-  const completed = payments.filter((p) => p.status === 'completed').slice(0, 5)
+  // Same buckets the Payments page + Dashboard use. Sorted by paymentAnchor()
+  // ascending for upcoming (next due first) and descending for completed.
+  const upcoming = payments
+    .filter((p) => p.status === 'pending')
+    .sort((a, b) => paymentAnchor(a).localeCompare(paymentAnchor(b)))
+  const completed = payments
+    .filter((p) => p.status === 'completed' || p.status === 'processing' || p.status === 'failed')
+    .sort((a, b) => paymentAnchor(b).localeCompare(paymentAnchor(a)))
+    .slice(0, 5)
 
   return (
     <div className="space-y-6">
@@ -621,7 +724,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
         )}
       </section>
 
-      {/* Upcoming */}
+      {/* Upcoming — same row layout the Payments page uses */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Upcoming payments</h2>
         {loading ? (
@@ -633,17 +736,23 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
             {upcoming.slice(0, 10).map((p) => {
               const l = leaseMap[p.lease_id]
               const unit = l ? unitMap[l.unit_id] : undefined
+              const status = rowStatus(p)
               return (
-                <div key={p.id} className="flex items-center justify-between text-sm">
+                <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
                   <div className="min-w-0 flex-1">
-                    <p className="text-ink truncate">{l?.profile?.full_name ?? l?.profile?.email ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
-                    <p className="text-xs text-mute">Due {p.due_date ? new Date(p.due_date).toLocaleDateString() : '—'} · {p.type}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-ink truncate">{l?.profile?.full_name ?? l?.profile?.email ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
+                        {status.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {new Date(paymentAnchor(p)).toLocaleDateString()}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold text-ink">${Number(p.amount).toLocaleString()}</p>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    <p className="font-semibold text-ink">{formatUsdCents(Number(p.amount))}</p>
                     <button
                       onClick={() => markPaid(p.id).then(() => toast.success('Marked paid')).catch((e) => toast.error(e.message))}
-                      className="text-xs text-brand-700 font-medium hover:underline"
+                      className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
                     >
                       Mark paid
                     </button>
@@ -655,26 +764,27 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
         )}
       </section>
 
-      {/* Recent paid */}
+      {/* Recently moved (completed / processing / failed) */}
       {completed.length > 0 && (
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Recently paid</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Recent activity</h2>
           <div className="space-y-2 text-sm">
             {completed.map((p) => {
               const l = leaseMap[p.lease_id]
               const unit = l ? unitMap[l.unit_id] : undefined
+              const status = rowStatus(p)
               return (
-                <div key={p.id} className="flex items-center justify-between">
+                <div key={p.id} className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-ink truncate">{l?.profile?.full_name ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
-                    <p className="text-xs text-mute">Paid {p.paid_at ? new Date(p.paid_at).toLocaleDateString() : '—'}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-ink truncate">{l?.profile?.full_name ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
+                        {status.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {new Date(paymentAnchor(p)).toLocaleDateString()}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold text-ink">${Number(p.amount).toLocaleString()}</p>
-                    <span className="text-xs text-green-700 inline-flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" strokeWidth={2} /> {p.type}
-                    </span>
-                  </div>
+                  <p className="font-semibold text-ink shrink-0">{formatUsdCents(Number(p.amount))}</p>
                 </div>
               )
             })}

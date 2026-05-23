@@ -23,6 +23,9 @@ export interface DashboardStats {
 export interface DashboardData {
   stats: DashboardStats
   recentPayments: Payment[]
+  /** Every payment across the manager's leases — used by the monthly
+   *  donut chart so it can recompute per month without re-fetching. */
+  allPayments: Payment[]
   openMaintenance: MaintenanceRequest[]
   upcomingRenewals: Lease[]
   /** Leases the tenant has e-signed but the manager hasn't — waiting on the
@@ -127,12 +130,16 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
         if (hasExecutedLease) {
           const { data: subData } = await supabase
             .from('profiles')
-            .select('stripe_subscription_id, subscription_status')
+            .select('stripe_subscription_id, subscription_status, subscription_complimentary')
             .eq('id', managerId)
             .single()
-          const sub = subData as { stripe_subscription_id?: string | null; subscription_status?: string | null } | null
-          const subscriptionActive = !!sub?.stripe_subscription_id &&
+          const sub = subData as { stripe_subscription_id?: string | null; subscription_status?: string | null; subscription_complimentary?: boolean } | null
+          // Complimentary managers (dogfood / partner comps) bypass the
+          // paywall — they shouldn't see the "set up billing" prompt.
+          const subscriptionActive = !!sub?.subscription_complimentary || (
+            !!sub?.stripe_subscription_id &&
             (sub?.subscription_status === 'active' || sub?.subscription_status === 'trialing')
+          )
           if (!cancelled) setNeedsBillingSetup(!subscriptionActive)
         } else {
           if (!cancelled) setNeedsBillingSetup(false)
@@ -167,6 +174,7 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
   return {
     stats,
     recentPayments,
+    allPayments,
     openMaintenance: openMaintenance.slice(0, 5),
     upcomingRenewals,
     awaitingManagerSignature,

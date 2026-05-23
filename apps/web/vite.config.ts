@@ -8,17 +8,19 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png'],
+      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'robots.txt', 'sitemap.xml'],
       manifest: {
-        name: 'FindStoop',
+        name: 'FindStoop — Property Management',
         short_name: 'FindStoop',
-        description: 'Property management made simple',
+        description: 'Property management software built for landlords with a handful of units. Listings, screening, e-sign leases, online rent, maintenance.',
         theme_color: '#00A896',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        lang: 'en-US',
+        categories: ['business', 'productivity', 'finance'],
         icons: [
           { src: '/icons/icon-72x72.png',   sizes: '72x72',   type: 'image/png' },
           { src: '/icons/icon-96x96.png',   sizes: '96x96',   type: 'image/png' },
@@ -64,7 +66,7 @@ export default defineConfig({
         // so React Router handles the URL. /offline.html is kept as a
         // static asset but only shown by the React app when offline.
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /\/offline\.html$/],
+        navigateFallbackDenylist: [/^\/api\//, /\/offline\.html$/, /\/robots\.txt$/, /\/sitemap\.xml$/],
       },
       devOptions: {
         enabled: false, // disable SW in dev to avoid caching issues

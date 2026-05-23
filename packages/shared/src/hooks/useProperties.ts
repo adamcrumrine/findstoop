@@ -23,7 +23,7 @@ export function useProperties(managerId: string | undefined) {
 
   useEffect(() => { load() }, [load])
 
-  const add = async (data: Omit<Property, 'id' | 'manager_id' | 'created_at'>) => {
+  const add = async (data: Omit<Property, 'id' | 'manager_id' | 'created_at' | 'require_selfie_screening' | 'require_credit_check' | 'require_criminal_check' | 'require_eviction_check'>) => {
     if (!managerId) return
     const property = await createProperty(managerId, data)
     setProperties((prev) => [property, ...prev])

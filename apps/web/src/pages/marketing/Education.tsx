@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { BookOpen, ArrowRight, Sparkles, ClipboardList, ShieldCheck, FileSignature, BarChart3 } from 'lucide-react'
+import { useSeo } from '../../lib/useSeo'
 
 const upcomingTopics = [
   { Icon: ClipboardList, title: 'Writing a rental listing that fills in days, not months' },
@@ -9,6 +10,11 @@ const upcomingTopics = [
 ]
 
 export default function Education() {
+  useSeo({
+    title: 'Education — landlord school without the school part',
+    description: 'Practical, jargon-free guides for landlords who own one rental, ten rentals, or are thinking about buying their first one. The field manual we wish we had when we started.',
+    path: '/education',
+  })
   return (
     <>
       {/* Hero */}

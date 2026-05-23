@@ -46,12 +46,12 @@ export default function TenantLayout() {
 
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10 shrink-0">
-        <div className="flex flex-col">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-7 w-auto" />
+        <Link to="/" aria-label="FindStoop home" className="flex flex-col">
+          <img src="/findstoop-logo.png" alt="FindStoop" className="h-10 w-auto" />
           <p className="text-[10px] text-mute font-medium uppercase tracking-wide mt-0.5">
             Tenant Portal
           </p>
-        </div>
+        </Link>
         <div className="flex items-center gap-3">
           <Link
             to="/tenant/settings"

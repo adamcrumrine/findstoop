@@ -8,8 +8,9 @@ import {
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 
-const FREE_UNITS = 2
-const PER_UNIT = 3
+// Single-tier pricing: $9 per active unit per month, billed from unit 1.
+// (Annual prepay variant: $90/unit/year — non-refundable.)
+const PER_UNIT = 9
 
 interface BillingState {
   activeUnits: number
@@ -42,7 +43,7 @@ async function fetchBillingState(managerId: string): Promise<BillingState> {
   const interval = intervalRaw === 'month' || intervalRaw === 'year' ? intervalRaw : null
   return {
     activeUnits: active,
-    paidUnits: Math.max(0, active - FREE_UNITS),
+    paidUnits: active,  // every active unit is billable at $9/mo — no free quota
     status: profileRes.data?.subscription_status ?? null,
     quantity: profileRes.data?.subscription_quantity ?? 0,
     currentPeriodEnd: profileRes.data?.subscription_current_period_end ?? null,
@@ -163,7 +164,7 @@ export default function Billing() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Billing</h1>
         <p className="text-sm text-mute mt-1">
-          Your first {FREE_UNITS} active units are free. Past that, ${PER_UNIT} per active unit per month.
+          ${PER_UNIT} per active unit per month. Or save 16.7% with annual prepay (${PER_UNIT * 10}/unit/year, non-refundable).
         </p>
       </header>
 
@@ -179,10 +180,9 @@ export default function Billing() {
       {/* Math card */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">This month's bill</h2>
-        <div className="grid sm:grid-cols-4 gap-4">
+        <div className="grid sm:grid-cols-3 gap-4">
           <Stat label="Active units" value={String(state.activeUnits)} />
-          <Stat label="Free quota" value={`−${FREE_UNITS}`} muted />
-          <Stat label="Paid units" value={String(state.paidUnits)} accent />
+          <Stat label="Per unit" value={`$${PER_UNIT}`} muted />
           <Stat label="Per month" value={`$${monthlyCost}`} accent />
         </div>
 
@@ -211,6 +211,21 @@ export default function Billing() {
         )}
       </section>
 
+      {/* Annual prepay nudge — only when subscribed monthly */}
+      {state.stripeSubscriptionId && state.interval === 'month' && state.paidUnits > 0 && (
+        <section className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 flex items-start gap-3">
+          <Sparkles className="w-5 h-5 text-brand-700 mt-0.5 shrink-0" strokeWidth={1.75} />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-brand-900">
+              Save 16.7% with annual prepay
+            </p>
+            <p className="text-brand-800 mt-0.5">
+              You'd pay <strong>${(state.paidUnits * 90).toLocaleString()}/yr</strong> for {state.paidUnits} unit{state.paidUnits === 1 ? '' : 's'} instead of <strong>${(monthlyCost * 12).toLocaleString()}/yr</strong> on monthly — a one-time charge, non-refundable. Switch in the billing portal.
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Billing cycle toggle — only when not yet subscribed and there are paid units to charge */}
       {!state.stripeSubscriptionId && state.paidUnits > 0 && (
         <section className="mb-4">
@@ -232,7 +247,7 @@ export default function Billing() {
                 selectedPlan === 'annual' ? 'bg-brand-500 text-white' : 'text-ink hover:bg-gray-50'
               }`}
             >
-              Annual · $30/unit/yr <span className="text-xs opacity-80">(save 16.7%)</span>
+              Annual · $90/unit/yr <span className="text-xs opacity-80">(save 16.7%)</span>
             </button>
           </div>
           {selectedPlan === 'annual' && (
@@ -276,10 +291,10 @@ export default function Billing() {
             </p>
             <p className="text-xs text-mute mt-1">
               {state.paidUnits === 0
-                ? `Your ${state.activeUnits} active unit${state.activeUnits === 1 ? '' : 's'} fit${state.activeUnits === 1 ? 's' : ''} in the free quota.`
+                ? `You'll be prompted once your first lease goes active.`
                 : selectedPlan === 'annual'
-                  ? `One-time charge of $${state.paidUnits * 30} for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'} for the year.`
-                  : `Add a payment method to bill $${monthlyCost}/mo for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'}.`}
+                  ? `One-time charge of $${state.paidUnits * 90} for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'} for the year.`
+                  : `Add a payment method to bill $${monthlyCost}/mo for ${state.paidUnits} active unit${state.paidUnits === 1 ? '' : 's'}.`}
             </p>
           </button>
         )}
@@ -304,7 +319,7 @@ export default function Billing() {
           <CreditCard className="w-5 h-5 text-brand-600 mt-0.5" strokeWidth={1.75} />
           <div className="flex-1">
             <p className="font-semibold text-ink">
-              FindStoop Growth — {state.interval === 'year' ? 'annual prepay' : 'monthly'}
+              FindStoop — {state.interval === 'year' ? 'annual prepay' : 'monthly'}
               {state.interval === 'year' && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full align-middle">
                   Non-refundable
@@ -313,9 +328,9 @@ export default function Billing() {
             </p>
             <p className="text-sm text-mute mt-1">
               {state.interval === 'year'
-                ? `$30 per active unit per year, billed up front. Starting with unit #${FREE_UNITS + 1}.`
-                : `$${PER_UNIT} per active unit per month, starting with unit #${FREE_UNITS + 1}.`}
-              {' '}Includes every platform feature, ACH and card billing for your tenants, lease e-sign, maintenance tracking, and more.
+                ? `$${PER_UNIT * 10} per active unit per year, billed up front from unit 1.`
+                : `$${PER_UNIT} per active unit per month, billed from unit 1.`}
+              {' '}Includes every platform feature, ACH and card billing for your tenants, free ACH for your tenants, lease e-sign, maintenance tracking, and more.
             </p>
             <ul className="mt-3 text-xs text-mute space-y-1">
               {state.interval === 'year' ? (
@@ -328,7 +343,7 @@ export default function Billing() {
                 <>
                   <li>· Cancel any time; monthly subscriptions stop at the end of the current billing period</li>
                   <li>· Add or remove units freely — we prorate the difference</li>
-                  <li>· Annual prepay available at $30/unit/year (16.7% off the monthly rate) — non-refundable</li>
+                  <li>· Annual prepay available at ${PER_UNIT * 10}/unit/year (16.7% off the monthly rate) — non-refundable</li>
                 </>
               )}
             </ul>

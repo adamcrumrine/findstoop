@@ -138,6 +138,31 @@ Deno.serve(async (req) => {
         }
         break
       }
+      case 'account.updated': {
+        // Landlord's Connect Express account status changed (typically
+        // during/after KYC). Sync charges/payouts flags + onboarded_at.
+        const account = event.data.object as Stripe.Account
+        const charges = account.charges_enabled === true
+        const payouts = account.payouts_enabled === true
+        const onboardedAt = (charges && payouts) ? new Date().toISOString() : null
+
+        // Find which landlord this account belongs to (by account id) and update.
+        const { data: row } = await admin
+          .from('profiles')
+          .select('id, stripe_connect_onboarded_at')
+          .eq('stripe_connect_account_id', account.id)
+          .maybeSingle()
+        if (row) {
+          // Only set onboarded_at the first time both flags flip true; preserve it once set.
+          const finalOnboardedAt = row.stripe_connect_onboarded_at ?? onboardedAt
+          await admin.from('profiles').update({
+            stripe_connect_charges_enabled: charges,
+            stripe_connect_payouts_enabled: payouts,
+            stripe_connect_onboarded_at: finalOnboardedAt,
+          }).eq('stripe_connect_account_id', account.id)
+        }
+        break
+      }
       default:
         // No-op for events we don't care about. The audit row is enough.
         break

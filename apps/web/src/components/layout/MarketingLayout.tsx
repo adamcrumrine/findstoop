@@ -29,9 +29,9 @@ export default function MarketingLayout() {
     <div className="min-h-screen flex flex-col bg-white">
       {/* ── Header ────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-5 lg:px-8 h-24 flex items-center justify-between">
           <Link to="/" className="flex items-center" aria-label="FindStoop home">
-            <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
+            <img src="/findstoop-logo.png" alt="FindStoop" className="h-14 w-auto" />
           </Link>
 
           {/* Desktop nav */}

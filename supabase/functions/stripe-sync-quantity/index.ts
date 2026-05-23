@@ -14,7 +14,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
 })
-const FREE_UNITS = parseInt(Deno.env.get('FINDSTOOP_FREE_UNITS') ?? '2', 10)
+const FREE_UNITS = parseInt(Deno.env.get('FINDSTOOP_FREE_UNITS') ?? '0', 10)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

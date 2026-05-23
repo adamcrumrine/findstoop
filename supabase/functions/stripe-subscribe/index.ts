@@ -13,9 +13,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
 })
-const PRICE_MONTHLY = Deno.env.get('STRIPE_PRICE_GROWTH_MONTHLY') ?? ''
-const PRICE_YEARLY  = Deno.env.get('STRIPE_PRICE_GROWTH_YEARLY')  ?? ''
-const FREE_UNITS    = parseInt(Deno.env.get('FINDSTOOP_FREE_UNITS') ?? '2', 10)
+// Single-tier pricing: $9/unit/mo, $90/unit/yr. No free units, no tiers.
+const PRICE_MONTHLY = Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY') ?? ''
+const PRICE_YEARLY  = Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY')  ?? ''
+const FREE_UNITS    = parseInt(Deno.env.get('FINDSTOOP_FREE_UNITS') ?? '0', 10)
 const APP_URL       = Deno.env.get('APP_URL') ?? 'http://localhost:5173'
 
 const corsHeaders = {
@@ -99,12 +100,14 @@ Deno.serve(async (req) => {
       })
     }
 
-    // ── Still in free tier → no payment method needed yet ───────────────
+    // ── No active leases yet → no subscription needed yet ───────────────
+    // With FREE_UNITS=0, a subscription is required once any unit goes
+    // active. Until then there's nothing to bill.
     if (paidUnits <= 0) {
       return json({
         status: 'no_payment_needed',
         paidUnits: 0,
-        message: `Your first ${FREE_UNITS} active units are free. You'll be prompted to add a payment method when you exceed that.`,
+        message: `You'll be prompted to add a payment method once your first lease goes active.`,
       })
     }
 

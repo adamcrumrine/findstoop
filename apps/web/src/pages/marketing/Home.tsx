@@ -30,7 +30,7 @@ export default function Home() {
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
                 <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-                Your first 2 units are free, forever.
+                $9 per unit per month. Every feature included.
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-ink leading-[1.05] tracking-tight">
                 Run your rentals like a pro — without <span className="text-brand-500">becoming one.</span>
@@ -86,7 +86,7 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
             <Stat number="3 min" label="to set up your first property" />
             <Stat number="60%" label="faster rent collection vs. checks" />
-            <Stat number="2 units" label="free, every month" />
+            <Stat number="$9" label="per unit / month, every feature included" />
             <Stat number="50-state" label="lease templates included" />
           </div>
         </div>
@@ -167,59 +167,38 @@ export default function Home() {
         illustrationName="messages"
       />
 
-      {/* ── Pricing comparison ───────────────────────────────────────── */}
+      {/* ── Pricing — single tier ────────────────────────────────────── */}
       <section id="pricing-snapshot" className="py-20 md:py-24 bg-gradient-to-b from-white to-brand-50/40">
-        <div className="max-w-5xl mx-auto px-5 lg:px-8">
+        <div className="max-w-3xl mx-auto px-5 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-ink tracking-tight">
-              One platform. Every tool. No chaos.
+              One plan. Every feature. No upsell ladder.
             </h2>
             <p className="mt-4 text-lg text-mute">
-              Start free on your first two units. Add more when you're ready —
-              one flat per-unit rate that includes every feature.
+              $9 per active unit per month. Every feature included, ACH free for your
+              tenants. Pay monthly or save 16.7% with annual prepay.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <PlanCard
-              name="Starter"
-              price="$0"
-              priceSub="/forever"
-              tagline="Up to 2 active units. Every feature, on."
-              cta="Get started"
-              ctaHref="/register"
-              features={[
-                'Branded listing page with a shareable URL',
-                'Online rental applications & screening reports',
-                'State-specific lease templates with e-sign',
-                'Online rent collection (ACH free)',
-                'Maintenance request tracking with photos',
-                '24/7 tenant portal access',
-                'Income & expense tracking',
-                'In-app tenant messaging',
-              ]}
-              accent="brand"
-            />
-            <PlanCard
-              name="Growth"
-              price="$3"
-              priceSub="/ unit / mo"
-              tagline="Past your first 2 units. Up to 50 units."
-              cta="Try Growth"
-              ctaHref="/register"
-              features={[
-                'Everything in Starter',
-                'Annual prepay option: $30/unit/year ($2.50/mo) — non-refundable',
-                'Listing syndication to major rental sites',
-                'Custom questions on rental applications',
-                'Editable lease templates you can clone and reuse',
-                'Next-day rent deposits (vs. 3-day default)',
-                'Bulk operations and CSV import',
-                'Priority human support with 2× faster response',
-              ]}
-              accent="dark"
-            />
-          </div>
+          <PlanCard
+            name="FindStoop"
+            price="$9"
+            priceSub="/ unit / month"
+            tagline="Or $90/unit/year with annual prepay (non-refundable). Every feature included."
+            cta="Get started"
+            ctaHref="/register"
+            features={[
+              'Online rent collection — ACH free for your tenants',
+              'State-specific lease templates with e-sign',
+              'Tenant screening review and decisions',
+              'Maintenance tracking with photos',
+              '24/7 tenant portal access',
+              'Income & expense tracking with CSV export',
+              'In-app messaging per lease',
+              'Priority human support',
+            ]}
+            accent="brand"
+          />
 
           <p className="text-center text-sm text-mute mt-8">
             See <Link to="/pricing" className="text-brand-600 font-medium hover:underline">the full pricing page</Link> for billing examples and FAQ.
@@ -242,7 +221,7 @@ export default function Home() {
               to="/register"
               className="inline-flex items-center justify-center gap-2 bg-white text-brand-700 hover:bg-brand-50 font-medium px-6 py-3 rounded-lg transition-colors"
             >
-              Get started — free
+              Get started
               <ArrowRight className="w-4 h-4" strokeWidth={2} />
             </Link>
             <Link

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import {
   Mail, Bell, AlertTriangle, Loader2, CheckCircle2, DollarSign, Calendar,
+  Landmark, ExternalLink,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -13,6 +15,13 @@ interface LandlordSettings {
   late_fee_grace_days: number
   late_fee_type: 'flat' | 'percent'
   late_fee_percent: number
+}
+
+interface ConnectState {
+  hasAccount: boolean
+  chargesEnabled: boolean
+  payoutsEnabled: boolean
+  onboardedAt: string | null
 }
 
 const defaults: LandlordSettings = {
@@ -26,10 +35,15 @@ const defaults: LandlordSettings = {
 
 export default function ManagerSettings() {
   const { profile } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [settings, setSettings] = useState<LandlordSettings>(defaults)
   const [loading, setLoading] = useState(true)
   const [savingNotif, setSavingNotif] = useState(false)
   const [savingFees, setSavingFees] = useState(false)
+  const [connect, setConnect] = useState<ConnectState>({
+    hasAccount: false, chargesEnabled: false, payoutsEnabled: false, onboardedAt: null,
+  })
+  const [connecting, setConnecting] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -37,7 +51,7 @@ export default function ManagerSettings() {
     ;(async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('notification_email_enabled, late_fee_enabled, late_fee_amount, late_fee_grace_days, late_fee_type, late_fee_percent')
+        .select('notification_email_enabled, late_fee_enabled, late_fee_amount, late_fee_grace_days, late_fee_type, late_fee_percent, stripe_connect_account_id, stripe_connect_charges_enabled, stripe_connect_payouts_enabled, stripe_connect_onboarded_at')
         .eq('id', profile.id)
         .single()
       if (cancelled) return
@@ -50,11 +64,46 @@ export default function ManagerSettings() {
           late_fee_type: (data.late_fee_type ?? 'flat') as 'flat' | 'percent',
           late_fee_percent: Number(data.late_fee_percent ?? 5),
         })
+        setConnect({
+          hasAccount: !!data.stripe_connect_account_id,
+          chargesEnabled: data.stripe_connect_charges_enabled === true,
+          payoutsEnabled: data.stripe_connect_payouts_enabled === true,
+          onboardedAt: data.stripe_connect_onboarded_at ?? null,
+        })
       }
       setLoading(false)
     })()
     return () => { cancelled = true }
-  }, [profile?.id])
+  }, [profile?.id, searchParams.get('connect')])
+
+  // Return-from-onboarding feedback
+  useEffect(() => {
+    const flag = searchParams.get('connect')
+    if (flag === 'done') {
+      toast.success("You're back from Stripe — we'll confirm setup as soon as Stripe verifies you.")
+      setSearchParams({}, { replace: true })
+    } else if (flag === 'refresh') {
+      toast('Onboarding link expired — click "Continue setup" to get a fresh one.', { icon: 'ℹ️' })
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConnect = async () => {
+    setConnecting(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-connect-link', { body: {} })
+      if (error) throw error
+      if (data?.onboardingUrl) {
+        window.location.href = data.onboardingUrl
+        return
+      }
+      toast.error(data?.error ?? 'Could not start Stripe onboarding.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Connect link failed')
+    } finally {
+      setConnecting(false)
+    }
+  }
 
   const updateNotif = async (next: boolean) => {
     if (!profile?.id) return
@@ -147,6 +196,69 @@ export default function ManagerSettings() {
             />
           </button>
         </div>
+      </section>
+
+      {/* Stripe Connect — direct rent deposits */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Landmark className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Direct rent deposits</h2>
+        </div>
+        <p className="text-sm text-mute mb-5">
+          Connect your bank through Stripe to receive rent payments directly to your account.
+          Until you do, rent flows through FindStoop and we issue a payout — Connect is faster,
+          shorter to settle, and lets you see deposits in your Stripe dashboard.
+        </p>
+
+        {connect.chargesEnabled && connect.payoutsEnabled ? (
+          <div className="rounded-xl bg-green-50 border border-green-200 p-4 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-700 mt-0.5 shrink-0" strokeWidth={1.75} />
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-green-900">Bank connected · rent is deposited directly</p>
+              <p className="text-green-800 mt-0.5 text-xs">
+                Connected {connect.onboardedAt ? new Date(connect.onboardedAt).toLocaleDateString() : 'recently'}. New rent payments flow straight to your bank.
+              </p>
+            </div>
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              className="text-xs font-medium text-green-900 underline hover:no-underline disabled:opacity-50"
+            >
+              Update
+            </button>
+          </div>
+        ) : connect.hasAccount ? (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-700 mt-0.5 shrink-0" strokeWidth={1.75} />
+            <div className="flex-1 text-sm">
+              <p className="font-semibold text-amber-900">Onboarding incomplete</p>
+              <p className="text-amber-800 mt-0.5 text-xs">
+                Your Stripe account exists but isn't yet ready to receive funds. Finish KYC to enable direct deposits.
+              </p>
+            </div>
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg disabled:opacity-50"
+            >
+              {connecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
+              Continue setup
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleConnect}
+            disabled={connecting}
+            className="w-full inline-flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-medium px-5 py-3 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" strokeWidth={1.75} />}
+            Connect bank account via Stripe
+          </button>
+        )}
+
+        <p className="mt-3 text-xs text-mute leading-relaxed">
+          Stripe handles the KYC (driver's license + bank routing) — usually 2-3 minutes. Your information stays with Stripe; FindStoop only sees whether the account is active.
+        </p>
       </section>
 
       {/* Late-fee rules */}

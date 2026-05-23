@@ -7,7 +7,10 @@ import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { getTenantPayments } from '@findstoop/shared/api/payments'
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Landmark, CreditCard as CardIcon } from 'lucide-react'
+
+type PayMethod = 'us_bank_account' | 'card'
+const CARD_SURCHARGE_PCT = 3.5
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '')
 
@@ -17,14 +20,17 @@ function Skeleton({ className }: { className?: string }) {
 
 // ── Checkout form (inside Elements) ──────────────────────────────────────────
 interface CheckoutFormProps {
-  amount: number
+  rentAmount: number   // base rent — what gets recorded in payments table
+  chargeAmount: number // what Stripe is actually charging (rent + surcharge if card)
+  surcharge: number    // surcharge component (0 for ACH)
+  method: PayMethod
   leaseId: string
   tenantId: string
   onSuccess: () => void
   onCancel: () => void
 }
 
-function CheckoutForm({ amount, leaseId, tenantId, onSuccess, onCancel }: CheckoutFormProps) {
+function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, leaseId, tenantId, onSuccess, onCancel }: CheckoutFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const [processing, setProcessing] = useState(false)
@@ -48,11 +54,12 @@ function CheckoutForm({ amount, leaseId, tenantId, onSuccess, onCancel }: Checko
     }
 
     if (paymentIntent?.status === 'succeeded') {
-      // Record payment in DB
+      // Record payment in DB — amount stored is base rent, not the total
+      // charged (surcharge is captured in Stripe metadata only)
       await supabase.from('payments').insert({
         lease_id: leaseId,
         tenant_id: tenantId,
-        amount,
+        amount: rentAmount,
         type: 'rent',
         status: 'completed',
         stripe_payment_id: paymentIntent.id,
@@ -66,6 +73,19 @@ function CheckoutForm({ amount, leaseId, tenantId, onSuccess, onCancel }: Checko
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {surcharge > 0 && (
+        <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2.5 text-xs text-gray-700">
+          <div className="flex justify-between"><span>Rent</span><span>${rentAmount.toFixed(2)}</span></div>
+          <div className="flex justify-between mt-0.5"><span>Card processing fee (3.5%)</span><span>${surcharge.toFixed(2)}</span></div>
+          <div className="flex justify-between mt-1 pt-1 border-t border-gray-200 font-semibold text-gray-900"><span>Total charge</span><span>${chargeAmount.toFixed(2)}</span></div>
+        </div>
+      )}
+      {method === 'us_bank_account' && (
+        <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2.5 text-xs text-green-800">
+          <div className="flex justify-between font-medium"><span>Rent (free ACH)</span><span>${rentAmount.toFixed(2)}</span></div>
+          <p className="mt-0.5 text-green-700">Your landlord covers the bank transfer fee.</p>
+        </div>
+      )}
       <PaymentElement />
       {errorMsg && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errorMsg}</p>}
       <div className="flex gap-3 pt-2">
@@ -77,7 +97,7 @@ function CheckoutForm({ amount, leaseId, tenantId, onSuccess, onCancel }: Checko
           disabled={processing || !stripe}
           className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 transition-colors"
         >
-          {processing ? 'Processing…' : `Pay $${amount.toFixed(2)}`}
+          {processing ? 'Processing…' : `Pay $${chargeAmount.toFixed(2)}`}
         </button>
       </div>
     </form>
@@ -117,6 +137,7 @@ export default function TenantPayRent() {
   const [paid, setPaid] = useState(false)
   const [history, setHistory] = useState<Payment[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
+  const [method, setMethod] = useState<PayMethod>('us_bank_account')
 
   const stripeConfigured = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
 
@@ -128,15 +149,20 @@ export default function TenantPayRent() {
     }).catch(() => setHistoryLoading(false))
   }, [profile?.id, paid])
 
+  const rentAmount = Number(nextPayment?.amount ?? 0)
+  const surcharge = method === 'card' ? +(rentAmount * (CARD_SURCHARGE_PCT / 100)).toFixed(2) : 0
+  const totalToCharge = +(rentAmount + surcharge).toFixed(2)
+
   const handleStartPayment = async () => {
     if (!lease || !nextPayment) return
     setPaying(true)
     try {
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: {
-          amount: Number(nextPayment.amount),
+          amount: rentAmount,
           leaseId: lease.id,
           tenantId: profile?.id,
+          paymentMethod: method,
         },
       })
       if (error) throw new Error(error.message)
@@ -186,7 +212,10 @@ export default function TenantPayRent() {
           </p>
           <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
             <CheckoutForm
-              amount={Number(nextPayment?.amount ?? 0)}
+              rentAmount={rentAmount}
+              chargeAmount={totalToCharge}
+              surcharge={surcharge}
+              method={method}
               leaseId={lease?.id ?? ''}
               tenantId={profile?.id ?? ''}
               onSuccess={handleSuccess}
@@ -216,13 +245,45 @@ export default function TenantPayRent() {
                 Stripe not configured — add <code className="font-mono">VITE_STRIPE_PUBLISHABLE_KEY</code> to enable online payments. Your manager can record cash/check payments manually.
               </div>
             ) : (
-              <button
-                onClick={handleStartPayment}
-                disabled={paying}
-                className="mt-4 w-full py-3 bg-white text-gray-800 rounded-xl font-semibold text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              >
-                {paying ? 'Loading…' : 'Pay Now'}
-              </button>
+              <div className="mt-4 space-y-2.5">
+                {/* Payment method selector */}
+                <div className="bg-white/15 rounded-xl p-2 grid grid-cols-2 gap-2 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setMethod('us_bank_account')}
+                    className={`flex items-center gap-2 justify-center px-3 py-2.5 rounded-lg transition-colors ${
+                      method === 'us_bank_account' ? 'bg-white text-gray-900 font-semibold' : 'text-white/90 hover:bg-white/10'
+                    }`}
+                  >
+                    <Landmark className="w-4 h-4" strokeWidth={1.75} />
+                    Bank · Free
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMethod('card')}
+                    className={`flex items-center gap-2 justify-center px-3 py-2.5 rounded-lg transition-colors ${
+                      method === 'card' ? 'bg-white text-gray-900 font-semibold' : 'text-white/90 hover:bg-white/10'
+                    }`}
+                  >
+                    <CardIcon className="w-4 h-4" strokeWidth={1.75} />
+                    Card · +3.5%
+                  </button>
+                </div>
+                {method === 'card' && (
+                  <p className="text-xs text-white/80 text-center">
+                    Card payments include a $
+                    {(rentAmount * CARD_SURCHARGE_PCT / 100).toFixed(2)} processing fee. Total: $
+                    {totalToCharge.toFixed(2)}.
+                  </p>
+                )}
+                <button
+                  onClick={handleStartPayment}
+                  disabled={paying}
+                  className="w-full py-3 bg-white text-gray-800 rounded-xl font-semibold text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {paying ? 'Loading…' : `Pay $${totalToCharge.toFixed(2)} ${method === 'card' ? 'by card' : 'by bank'}`}
+                </button>
+              </div>
             )
           )}
           {!nextPayment && (

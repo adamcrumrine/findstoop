@@ -81,7 +81,7 @@ export default function Features() {
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
                 FindStoop bundles the workflow you've been duct-taping together.
-                Every feature is on at every tier — including your first two units, which are free.
+                Every feature is on at one flat price — $9 per active unit per month. No tier ladder.
               </p>
             </div>
             <div>

@@ -14,6 +14,11 @@ const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))
 const MarketingTenants     = lazy(() => import('./pages/marketing/Tenants'))
 const MarketingEducation   = lazy(() => import('./pages/marketing/Education'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
+const ScreeningTerms       = lazy(() => import('./pages/marketing/ScreeningTerms'))
+const Privacy              = lazy(() => import('./pages/marketing/Privacy'))
+const Terms                = lazy(() => import('./pages/marketing/Terms'))
+const FairHousing          = lazy(() => import('./pages/marketing/FairHousing'))
+const Accessibility        = lazy(() => import('./pages/marketing/Accessibility'))
 
 // Auth
 const Login          = lazy(() => import('./pages/auth/Login'))
@@ -41,6 +46,7 @@ const ManagerLeases       = lazy(() => import('./pages/manager/Leases'))
 const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
 const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
 const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
+const AdminFeedback       = lazy(() => import('./pages/admin/Feedback'))
 const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
@@ -78,6 +84,11 @@ export default function App() {
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
             <Route path="/how-it-works" element={<MarketingHowItWorks />} />
+            <Route path="/screening-terms" element={<ScreeningTerms />} />
+            <Route path="/privacy"      element={<Privacy />} />
+            <Route path="/terms"        element={<Terms />} />
+            <Route path="/fair-housing" element={<FairHousing />} />
+            <Route path="/accessibility" element={<Accessibility />} />
           </Route>
 
           {/* Public rental application — bare layout, no marketing nav, no auth redirect */}
@@ -103,6 +114,11 @@ export default function App() {
               can be opened cleanly in a new tab for printing. */}
           <Route path="/lease-pdf/:id"   element={<ManagerLeasePdf />} />
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
+          <Route path="/admin/feedback" element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminFeedback />
+            </ProtectedRoute>
+          } />
 
           <Route path="/manager" element={
             <ProtectedRoute requiredRole="manager">

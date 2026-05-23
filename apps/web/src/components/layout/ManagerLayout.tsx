@@ -7,6 +7,8 @@ import {
   Receipt, Settings as SettingsIcon, MoreHorizontal, type LucideIcon,
 } from 'lucide-react'
 import Avatar from '../shared/Avatar'
+import FeedbackModal from '../manager/FeedbackModal'
+import { MessageCircleQuestion } from 'lucide-react'
 
 interface NavItem {
   to: string
@@ -89,6 +91,7 @@ export default function ManagerLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const pageBg = bgFor(location.pathname)
 
   const displayName = profile?.full_name ?? profile?.email ?? 'Manager'
@@ -140,8 +143,16 @@ export default function ManagerLayout() {
           })}
         </nav>
 
-        {/* User footer */}
-        <div className="p-3 border-t border-gray-100">
+        {/* User footer + Send feedback */}
+        <div className="p-3 border-t border-gray-100 space-y-1">
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            className="w-full inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-mute hover:text-ink hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            <MessageCircleQuestion className="w-4 h-4" strokeWidth={1.75} />
+            Send feedback
+          </button>
           <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50 transition-colors">
             <Avatar url={profile?.company_logo_url ?? profile?.avatar_url} name={profile?.company_name ?? profile?.full_name} email={profile?.email} size={32} />
             <div className="flex-1 min-w-0">
@@ -263,6 +274,8 @@ export default function ManagerLayout() {
           )}
         </nav>
       </div>
+
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   )
 }

@@ -116,13 +116,18 @@ export default function MarketingLayout() {
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <footer className="bg-ink text-white mt-16">
-        <div className="max-w-6xl mx-auto px-5 lg:px-8 py-12 grid grid-cols-2 md:grid-cols-4 gap-8 text-sm">
+        <div className="max-w-6xl mx-auto px-5 lg:px-8 py-12 grid grid-cols-2 md:grid-cols-5 gap-8 text-sm">
           <div className="col-span-2">
             <img src="/findstoop-logo.png" alt="FindStoop" className="h-7 w-auto brightness-0 invert mb-3" />
             <p className="text-white/60 max-w-xs">
               The all-in-one rental platform for landlords who'd rather collect rent
               than chase it.
             </p>
+            {/* Equal Housing Opportunity */}
+            <div className="mt-5 inline-flex items-center gap-2 text-xs text-white/70 border border-white/15 rounded px-2 py-1.5">
+              <span aria-hidden className="inline-flex w-5 h-5 items-center justify-center rounded border border-white/40 text-[10px] font-bold">EHO</span>
+              <span>Equal Housing Opportunity</span>
+            </div>
           </div>
           <div>
             <p className="font-semibold mb-3 text-white">Product</p>
@@ -130,23 +135,34 @@ export default function MarketingLayout() {
               <li><Link to="/" className="hover:text-white transition-colors">For landlords</Link></li>
               <li><Link to="/tenants" className="hover:text-white transition-colors">For tenants</Link></li>
               <li><Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>
+              <li><Link to="/features" className="hover:text-white transition-colors">Features</Link></li>
+              <li><Link to="/how-it-works" className="hover:text-white transition-colors">How it works</Link></li>
               <li><Link to="/education" className="hover:text-white transition-colors">Education</Link></li>
             </ul>
           </div>
           <div>
-            <p className="font-semibold mb-3 text-white">Get started</p>
+            <p className="font-semibold mb-3 text-white">Account</p>
             <ul className="space-y-2 text-white/70">
               <li><Link to="/register" className="hover:text-white transition-colors">Landlord sign up</Link></li>
               <li><Link to="/register/renter" className="hover:text-white transition-colors">Renter sign up</Link></li>
               <li><Link to="/login" className="hover:text-white transition-colors">Log in</Link></li>
             </ul>
           </div>
+          <div>
+            <p className="font-semibold mb-3 text-white">Legal</p>
+            <ul className="space-y-2 text-white/70">
+              <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/screening-terms" className="hover:text-white transition-colors">Screening Terms</Link></li>
+              <li><Link to="/fair-housing" className="hover:text-white transition-colors">Fair Housing</Link></li>
+              <li><Link to="/accessibility" className="hover:text-white transition-colors">Accessibility</Link></li>
+            </ul>
+          </div>
         </div>
         <div className="border-t border-white/10">
           <div className="max-w-6xl mx-auto px-5 lg:px-8 py-5 text-xs text-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p>© {new Date().getFullYear()} FindStoop. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Hawk Pig LLC, d/b/a FindStoop. All rights reserved.</p>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
-              <p>Made for landlords with better things to do.</p>
               <p className="text-white/40">
                 <a
                   href="https://storyset.com/home"
@@ -154,7 +170,7 @@ export default function MarketingLayout() {
                   rel="noopener noreferrer"
                   className="underline hover:text-white/70"
                 >
-                  Home illustrations by Storyset
+                  Illustrations by Storyset
                 </a>
               </p>
             </div>

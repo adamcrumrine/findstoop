@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
+import { useGeoState } from '../../lib/useGeoState'
+import { isBlockedState, blockedStateName, BLOCKED_STATES_DISPLAY } from '../../lib/blockedStates'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -25,6 +27,7 @@ export default function Register({ role }: Props) {
   const { signUp, signInWithGoogle, user, profile, loading: authLoading } = useAuth()
   const [searchParams] = useSearchParams()
   const prefilledEmail = searchParams.get('email') ?? ''
+  const geo = useGeoState()
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState(prefilledEmail)
@@ -37,6 +40,13 @@ export default function Register({ role }: Props) {
   // Already logged in → redirect
   if (!authLoading && user && profile) {
     return <Navigate to={profile.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard'} replace />
+  }
+
+  // Best-effort geo block — show a friendly "not yet available" page if the
+  // visitor's IP-detected state is currently paused. VPNs can bypass; the
+  // server-side property-creation block is the real safety net.
+  if (geo.detected && geo.country === 'US' && isBlockedState(geo.state)) {
+    return <GeoBlockedPage state={geo.state ?? ''} />
   }
 
   const isRenter = role === 'tenant'
@@ -76,7 +86,9 @@ export default function Register({ role }: Props) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8 text-center">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mx-auto mb-6" />
+          <Link to="/" aria-label="FindStoop home" className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
+            <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto" />
+          </Link>
           <h1 className="text-xl font-medium text-ink">Check your email</h1>
           <p className="text-sm text-mute mt-2 mb-6">
             We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
@@ -96,8 +108,10 @@ export default function Register({ role }: Props) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        {/* Logo */}
-        <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
+        {/* Logo — click returns to the marketing landing page */}
+        <Link to="/" aria-label="FindStoop home" className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto" />
+        </Link>
 
         {/* Heading */}
         <h1 className="text-xl font-medium text-ink">Create an account</h1>
@@ -196,6 +210,34 @@ export default function Register({ role }: Props) {
           <GoogleIcon />
           Continue with Google
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Shown when the visitor's IP geolocates to a currently-paused state.
+// They can still browse marketing pages — just not sign up.
+function GeoBlockedPage({ state }: { state: string }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[480px] p-8">
+        <Link to="/" aria-label="FindStoop home" className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
+          <img src="/findstoop-logo.png" alt="FindStoop" className="h-16 w-auto" />
+        </Link>
+        <h1 className="text-xl font-semibold text-ink text-center">FindStoop isn't open in {blockedStateName(state)} yet</h1>
+        <p className="text-sm text-mute mt-3 leading-relaxed text-center">
+          We're rolling out state by state and completing the compliance work each one requires.
+          Right now we're paused for new signups in {BLOCKED_STATES_DISPLAY}. Everything else on
+          FindStoop — pricing, features, education — stays open to you while we get there.
+        </p>
+        <p className="text-xs text-mute mt-5 text-center">
+          Think this is a mistake? (VPN, work network, etc.) Email{' '}
+          <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>{' '}
+          and we'll sort it out.
+        </p>
+        <div className="mt-6 flex justify-center">
+          <Link to="/" className="text-sm font-medium text-brand-600 hover:underline">← Back to FindStoop</Link>
+        </div>
       </div>
     </div>
   )

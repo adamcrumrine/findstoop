@@ -43,7 +43,9 @@ export default function VerifyBackup() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
+          <Link to="/" aria-label="FindStoop home" className="block mb-6 hover:opacity-80 transition-opacity">
+            <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto" />
+          </Link>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             <p className="font-medium mb-1">Backup code used</p>
             <p>
@@ -61,7 +63,9 @@ export default function VerifyBackup() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto mb-6" />
+        <Link to="/" aria-label="FindStoop home" className="block mb-6 hover:opacity-80 transition-opacity">
+            <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto" />
+          </Link>
 
         <h1 className="text-xl font-medium text-ink">Enter a backup code</h1>
         <p className="text-sm text-mute mt-1 mb-6">Each backup code can only be used once.</p>

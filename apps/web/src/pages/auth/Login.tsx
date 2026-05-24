@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { supabase } from '../../lib/supabase'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -31,7 +32,19 @@ export default function Login({ role }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  // Sticky transition flag — once sign-in succeeds or the Google OAuth redirect
+  // kicks off, we keep the branded loader on screen until navigation tears the
+  // component down. Prevents the brief "auth form flashes back" between
+  // setLoading(false) and the actual route change.
+  const [transitioning, setTransitioning] = useState(false)
   const [wrongRoleError, setWrongRoleError] = useState<{ actual: 'manager' | 'tenant' } | null>(null)
+
+  // OAuth-return seam: user is signed in (auth listener fired) but the profile
+  // fetch may still be in flight. Render the branded loader rather than
+  // letting the form render briefly before the Navigate.
+  if (user && !profile) {
+    return <LoadingSpinner message="Signing you in…" />
+  }
 
   // Already logged in → MFA gate first, then dashboard (admin uses manager surface).
   // This path also catches OAuth returns; without the mfa check, Google would
@@ -52,6 +65,13 @@ export default function Login({ role }: Props) {
       )
     }
     return <Navigate to={defaultPathForRole(profile.role)} replace />
+  }
+
+  // Sticky transition: once a sign-in succeeded we leave the loader up until
+  // the navigate() above takes effect. setLoading(false) below only fires on
+  // FAILURE, so the success path can't flash the form.
+  if (transitioning) {
+    return <LoadingSpinner message="Signing you in…" />
   }
 
   const isRenter = role === 'tenant'
@@ -86,8 +106,14 @@ export default function Login({ role }: Props) {
         void supabase.functions.invoke('auth-guard', {
           body: { action: 'report', email, success: false, reason: 'wrong_role' },
         })
+        setLoading(false)
         return
       }
+      // From here on we are navigating away. Flip the sticky transitioning
+      // flag so the next render shows the branded loader, and intentionally
+      // skip setLoading(false) — the component will unmount when navigate()
+      // takes effect, and any in-between re-render must show the loader.
+      setTransitioning(true)
       trackAuth('sign_in')
       // Report success + fingerprint device + send new-device alert (async, non-blocking)
       void supabase.functions.invoke('auth-guard', {
@@ -111,16 +137,22 @@ export default function Login({ role }: Props) {
         body: { action: 'report', email, success: false, reason: 'invalid_credentials' },
       })
       toast.error(err instanceof Error ? err.message : 'Invalid credentials')
-    } finally {
       setLoading(false)
     }
   }
 
   const handleGoogle = async () => {
+    // Show the loader the instant they click — the OAuth redirect can take a
+    // beat to start, and we don't want them staring at the form during it.
+    setTransitioning(true)
     try {
       await signInWithGoogle(role)
+      // signInWithGoogle triggers a full-page redirect to Google. If we
+      // reach here without a redirect (shouldn't), we still want the loader
+      // visible since profile/user state is about to update.
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Google sign-in failed')
+      setTransitioning(false)
     }
   }
 

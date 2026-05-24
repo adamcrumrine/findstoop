@@ -45,11 +45,11 @@ const features: Feature[] = [
     bullets: ['Applicant uploads their own federally-free report', 'AI authenticity score 0–100 vs. other docs', 'Selfie ID match bundled at no extra cost'],
   },
   {
-    Icon: ShieldCheck,
-    status: 'soon',
-    title: 'Full bureau-pulled reports — credit, criminal, eviction',
-    body: 'Bureau-pulled credit, criminal background, and eviction history as opt-in add-ons the manager configures per property. Coming as soon as our consumer-reporting-agency partnerships finalize.',
-    bullets: ['Bureau-issued credit + score', 'National criminal + watchlist', 'Eviction court records nationwide'],
+    Icon: CreditCard,
+    status: 'live',
+    title: 'Rent collection that runs itself',
+    body: 'Tenants pay by ACH (free) or card. Reminders go out automatically. Late fees apply on schedule. Stripe Connect routes funds direct to the landlord\'s bank — we never touch the money.',
+    bullets: ['Auto-reminders before due date', 'Late-fee rules you configure once', 'Stripe Connect — funds straight to your bank'],
   },
   {
     Icon: FileSignature,
@@ -57,13 +57,6 @@ const features: Feature[] = [
     title: 'E-sign leases on any device',
     body: 'Pick a state-specific template, fill in the unit and rent, and send. Both parties sign on phone or laptop. We keep an audit trail with timestamps and IP.',
     bullets: ['50-state lease templates with state-specific clauses', 'Mobile-friendly signing experience', 'Immutable audit log per signature'],
-  },
-  {
-    Icon: CreditCard,
-    status: 'live',
-    title: 'Rent collection that runs itself',
-    body: 'Tenants pay by ACH (free) or card. Reminders go out automatically. Late fees apply on schedule. Stripe Connect routes funds direct to the landlord\'s bank — we never touch the money.',
-    bullets: ['Auto-reminders before due date', 'Late-fee rules you configure once', 'Stripe Connect — funds straight to your bank'],
   },
   {
     Icon: Wrench,
@@ -92,6 +85,14 @@ const features: Feature[] = [
     title: 'Reports that make tax season tolerable',
     body: 'Rent collected, expenses logged, occupancy, late-pay rate. Export to CSV when your accountant asks.',
     bullets: ['Income and expense by property', 'Schedule E–friendly exports', 'Occupancy and collection-rate trends'],
+  },
+  // ── Coming soon (always last) ───────────────────────────────────────────
+  {
+    Icon: ShieldCheck,
+    status: 'soon',
+    title: 'Full bureau-pulled reports — credit, criminal, eviction',
+    body: 'Bureau-pulled credit, criminal background, and eviction history as opt-in add-ons the manager configures per property. Coming as soon as our consumer-reporting-agency partnerships finalize.',
+    bullets: ['Bureau-issued credit + score', 'National criminal + watchlist', 'Eviction court records nationwide'],
   },
 ]
 

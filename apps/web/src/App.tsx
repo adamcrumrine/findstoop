@@ -15,6 +15,7 @@ const MarketingFeatures    = lazy(() => import('./pages/marketing/Features'))
 const MarketingPricing     = lazy(() => import('./pages/marketing/Pricing'))
 const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))
 const MarketingTenants     = lazy(() => import('./pages/marketing/Tenants'))
+const MarketingTenability  = lazy(() => import('./pages/marketing/Tenability'))
 const MarketingEducation   = lazy(() => import('./pages/marketing/Education'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
 const ScreeningTerms       = lazy(() => import('./pages/marketing/ScreeningTerms'))
@@ -110,6 +111,7 @@ export default function App() {
             <Route path="/education"    element={<MarketingEducation />} />
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
+            <Route path="/tenability"   element={<MarketingTenability />} />
             <Route path="/how-it-works" element={<MarketingHowItWorks />} />
             <Route path="/screening-terms" element={<ScreeningTerms />} />
             <Route path="/privacy"      element={<Privacy />} />

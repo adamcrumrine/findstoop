@@ -1,0 +1,51 @@
+# Security + privacy headers for static-host platforms that read public/_headers
+# (Cloudflare Pages, Netlify). If hosting on Vercel, the equivalent config
+# lives in apps/web/vercel.json — keep both in sync.
+
+/*
+  # ── Force HTTPS for the next 2 years; opt the apex into HSTS preload list
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+  # ── Prevent MIME-type sniffing (script tag pretending to be image, etc.)
+  X-Content-Type-Options: nosniff
+
+  # ── Belt-and-braces clickjacking defense (CSP frame-ancestors is the real one)
+  X-Frame-Options: DENY
+
+  # ── Don't leak which page the user came from to third-party requests
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # ── Lock down browser features. Camera/payment allowed on same-origin only;
+  #    geolocation + microphone disabled entirely (we don't use them).
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(self), interest-cohort=()
+
+  # ── Cross-origin isolation defaults — safe baseline; loosen only when needed.
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-site
+
+  # ── Content Security Policy — the big XSS mitigation.
+  # Allow-listed:
+  #   • self                                — our own scripts/styles
+  #   • https://js.stripe.com               — Stripe Elements iframe
+  #   • https://*.supabase.co               — our DB + edge functions
+  #   • https://api.stripe.com              — Stripe REST
+  #   • https://fonts.googleapis.com / gstatic.com — Google Fonts
+  #   • https://ipapi.co                    — IP geo-block lookup
+  #   • https://api.pwnedpasswords.com      — HIBP password check
+  # 'unsafe-inline' on style-src is required by Tailwind's runtime utilities.
+  # We deliberately do NOT include 'unsafe-inline' on script-src.
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://*.supabase.co https://api.stripe.com https://ipapi.co https://api.pwnedpasswords.com; frame-src https://js.stripe.com https://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+
+# Static assets — long cache, immutable
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/icons/*
+  Cache-Control: public, max-age=604800
+
+# robots / sitemap — short cache so updates propagate
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600

@@ -12,6 +12,9 @@
 
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { logApiCall, stripeFee, timed } from '../_shared/logging.ts'
+import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
+import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -34,21 +37,26 @@ const ADDON_PRICING = {
 
 type AddonKey = keyof typeof ADDON_PRICING
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-function json(body: unknown, init: ResponseInit = {}) {
+function json(req: Request, body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     ...init,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   })
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method === 'OPTIONS') return corsPreflight(req)
+
+  // Rate limit: 10 requests / minute / IP. Stops budget-burning abuse.
+  const ip = clientIp(req)
+  const allowed = await checkRateLimit({
+    key: `start-screening:${ip}`,
+    windowSeconds: 60,
+    maxCount: 10,
+  })
+  if (!allowed) {
+    return json(req, { error: 'Too many requests — slow down and try again in a minute.' }, { status: 429 })
+  }
 
   try {
     const { applicationId, addons } = await req.json() as {
@@ -56,13 +64,13 @@ Deno.serve(async (req) => {
       addons?: Partial<Record<AddonKey, boolean>>
     }
     if (!applicationId) {
-      return json({ error: 'applicationId required' }, { status: 400 })
+      return json(req, { error: 'applicationId required' }, { status: 400 })
     }
     // v1: pre-qual + selfie ID match are live (both run on our own Claude
     // vision pipeline). Credit / criminal / eviction remain "Coming Soon"
     // until vendor onboarding completes.
     if (addons?.credit_check || addons?.criminal_check || addons?.eviction_check) {
-      return json({ error: 'Credit, criminal, and eviction screening are coming soon — not yet available' }, { status: 400 })
+      return json(req, { error: 'Credit, criminal, and eviction screening are coming soon — not yet available' }, { status: 400 })
     }
     const wantsSelfie   = !!addons?.selfie_match
     const wantsCriminal = false
@@ -79,7 +87,7 @@ Deno.serve(async (req) => {
       .select('id, email, first_name, last_name, applicant_profile_id, unit_id')
       .eq('id', applicationId)
       .single()
-    if (appErr || !app) return json({ error: 'Application not found' }, { status: 404 })
+    if (appErr || !app) return json(req, { error: 'Application not found' }, { status: 404 })
 
     const zero = { amount_cents: 0, margin_cents: 0 }
     const base = BASE_PRICING.prequal
@@ -118,7 +126,7 @@ Deno.serve(async (req) => {
     if (existing?.stripe_payment_intent_id && existing.payment_status === 'pending') {
       pi = await stripe.paymentIntents.retrieve(existing.stripe_payment_intent_id)
     } else {
-      pi = await stripe.paymentIntents.create({
+      const { result: created, latency_ms: piLatency } = await timed(() => stripe.paymentIntents.create({
         amount: amount_cents,
         currency: 'usd',
         payment_method_types: ['card'],
@@ -131,6 +139,15 @@ Deno.serve(async (req) => {
           purpose: 'screening',
           addons: addonLabels.join(','),
         },
+      }))
+      pi = created
+      // Record the Stripe fee as the platform cost on this charge so the
+      // admin System page can true-up our net margin per applicant.
+      await logApiCall({
+        function_name: 'start-screening', vendor: 'stripe',
+        latency_ms: piLatency, reference_id: pi.id,
+        cost_cents: stripeFee(amount_cents),
+        metadata: { amount_cents, intent: 'payment_intent.create' },
       })
 
       const addonFields = {
@@ -166,7 +183,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({
+    return json(req, {
       orderId,
       clientSecret: pi.client_secret,
       paymentIntentId: pi.id,
@@ -179,6 +196,8 @@ Deno.serve(async (req) => {
       },
     })
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 400 })
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logApiCall({ function_name: 'start-screening', status_code: 500, error_message: msg })
+    return json(req, { error: msg }, { status: 400 })
   }
 })

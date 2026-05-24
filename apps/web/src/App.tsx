@@ -1,10 +1,12 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import ManagerLayout from './components/layout/ManagerLayout'
 import TenantLayout from './components/layout/TenantLayout'
 import MarketingLayout from './components/layout/MarketingLayout'
 import ApplyLayout from './components/layout/ApplyLayout'
+import AdminLayout from './components/layout/AdminLayout'
+import { trackPageView } from './lib/analytics'
 
 // Public marketing
 const MarketingHome        = lazy(() => import('./pages/marketing/Home'))
@@ -47,6 +49,15 @@ const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
 const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
 const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
 const AdminFeedback       = lazy(() => import('./pages/admin/Feedback'))
+const AdminDashboard      = lazy(() => import('./pages/admin/Dashboard'))
+const AdminActivity       = lazy(() => import('./pages/admin/Activity'))
+const AdminUsers          = lazy(() => import('./pages/admin/Users'))
+const AdminRevenue        = lazy(() => import('./pages/admin/Revenue'))
+const AdminScreening      = lazy(() => import('./pages/admin/Screening'))
+const AdminSystem         = lazy(() => import('./pages/admin/System'))
+const AdminSubscriptions  = lazy(() => import('./pages/admin/Subscriptions'))
+const AdminFunnel         = lazy(() => import('./pages/admin/Funnel'))
+const AdminMfaSetup       = lazy(() => import('./pages/admin/MfaSetup'))
 const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
@@ -71,9 +82,20 @@ function PageLoader() {
   )
 }
 
+// Fires a page-view event on every route change. Mounted inside the
+// BrowserRouter so useLocation works.
+function RouteTracker() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    trackPageView(pathname)
+  }, [pathname])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteTracker />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public marketing */}
@@ -114,11 +136,32 @@ export default function App() {
               can be opened cleanly in a new tab for printing. */}
           <Route path="/lease-pdf/:id"   element={<ManagerLeasePdf />} />
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
-          <Route path="/admin/feedback" element={
+          {/* Admin MFA setup — outside AdminLayout so it renders full-screen.
+              ProtectedRoute(admin) still requires the admin role to be here,
+              but its MFA-required redirect explicitly exempts this path. */}
+          <Route path="/admin/mfa-setup" element={
             <ProtectedRoute requiredRole="admin">
-              <AdminFeedback />
+              <AdminMfaSetup />
             </ProtectedRoute>
           } />
+
+          {/* Admin — separate layout (dark sidebar, dense). admin role required. */}
+          <Route path="/admin" element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard"      element={<AdminDashboard />} />
+            <Route path="activity"       element={<AdminActivity />} />
+            <Route path="users"          element={<AdminUsers />} />
+            <Route path="subscriptions"  element={<AdminSubscriptions />} />
+            <Route path="revenue"        element={<AdminRevenue />} />
+            <Route path="funnel"         element={<AdminFunnel />} />
+            <Route path="screening"      element={<AdminScreening />} />
+            <Route path="system"         element={<AdminSystem />} />
+            <Route path="feedback"       element={<AdminFeedback />} />
+          </Route>
 
           <Route path="/manager" element={
             <ProtectedRoute requiredRole="manager">

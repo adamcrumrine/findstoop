@@ -4,6 +4,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { UserRole } from '@findstoop/shared/types/profile'
 import OtpInput from '../../components/auth/OtpInput'
 import { ShieldCheck } from 'lucide-react'
+import { defaultPathForRole } from '../../lib/roleRouting'
 
 const LOCKOUT_KEY  = 'mfa_lockout_until'
 const MAX_ATTEMPTS = 5
@@ -78,7 +79,7 @@ export default function VerifyTotp() {
     try {
       if (!totp) throw new Error('Challenge not ready, please wait.')
       await verifyTotp(totp.factorId, totp.challengeId, code)
-      navigate(state.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard', { replace: true })
+      navigate(defaultPathForRole(state.role), { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed'
       const next = attempts + 1

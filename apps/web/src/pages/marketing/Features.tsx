@@ -1,78 +1,103 @@
 import { Link } from 'react-router-dom'
 import {
-  Megaphone, ClipboardList, ShieldCheck, FileSignature, CreditCard, Wrench,
-  MessageSquare, Folder, BarChart3, ArrowRight, type LucideIcon,
+  ClipboardList, ShieldCheck, Sparkles, FileSignature, CreditCard, Wrench,
+  MessageSquare, Folder, BarChart3, ArrowRight, IdCard, type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+
+type Status = 'live' | 'beta' | 'soon'
 
 interface Feature {
   Icon: LucideIcon
   title: string
   body: string
   bullets: string[]
+  status: Status
 }
 
 const features: Feature[] = [
   {
-    Icon: Megaphone,
-    title: 'Listings that go where renters look',
-    body: 'Publish a single listing and it shows up across the rental sites prospective tenants actually visit. Update the asking rent or photos in one place, everywhere.',
-    bullets: ['Syndication to top rental marketplaces', 'Branded listing page with your own URL', 'Track views and inquiries per unit'],
+    Icon: Sparkles,
+    status: 'live',
+    title: 'AI rentability score on every applicant',
+    body: 'For $5, we read the applicant\'s paystubs, driver\'s license, and application — then produce a single 0–100 score the manager sees alongside the income-to-rent ratio. The model is configured to ignore protected-class signals under the Fair Housing Act.',
+    bullets: ['0–100 score + plain-English summary', 'Income-to-rent ratio calculated from real paystubs', 'Tamper detection on uploaded documents'],
   },
   {
     Icon: ClipboardList,
-    title: 'One standardized application',
-    body: 'Every applicant fills out the same form, so you can actually compare candidates side by side instead of squinting at a dozen email attachments.',
-    bullets: ['Income, employment, and rental history captured', 'Co-applicant and roommate flows', 'Side-by-side comparison view'],
+    status: 'live',
+    title: 'Verified income — without the Truework wait',
+    body: 'Applicants upload two paystubs (or 1099 / bank statements / tax return for non-W-2 paths). Our AI extracts the employer, pay frequency, gross, YTD gross, and cross-checks the math. Results in seconds, not the 3–7 days Truework takes to call an HR department.',
+    bullets: ['Paystub OCR + YTD math reconciliation', 'Five income paths: W-2, 1099, self-employed, fixed income, new hire', 'Last-4 SSN only — never full SSN'],
+  },
+  {
+    Icon: IdCard,
+    status: 'live',
+    title: 'Identity verification via driver\'s license',
+    body: 'Front and back of the license, plus an optional selfie ID match (+$2). The AI extracts the DL fields, cross-checks against the application, flags expired licenses or tampering, and — if the selfie add-on is on — compares the selfie to the license photo.',
+    bullets: ['Front + back DL with PDF417 barcode validation', 'Cross-check name + DOB against the application', 'Optional selfie face match for a tighter ID lock'],
   },
   {
     Icon: ShieldCheck,
-    title: 'Screening that applicants pay for',
-    body: 'Credit, background, and eviction reports come back in minutes. The applicant pays, so you can evaluate as many candidates as you want at no cost.',
-    bullets: ['TransUnion credit + background', 'Nationwide eviction history', 'Portable: applicants can reuse with other landlords'],
+    status: 'soon',
+    title: 'Full screening reports — credit, criminal, eviction',
+    body: 'Credit (TransUnion), criminal background (Checkr / Vergent), and eviction history (LexisNexis) as opt-in add-ons the manager configures per property. Coming as soon as our consumer-reporting-agency partnerships finalize.',
+    bullets: ['Credit + score (TransUnion)', 'National criminal + sex offender + watchlist', 'Eviction court records nationwide'],
   },
   {
     Icon: FileSignature,
+    status: 'live',
     title: 'E-sign leases on any device',
     body: 'Pick a state-specific template, fill in the unit and rent, and send. Both parties sign on phone or laptop. We keep an audit trail with timestamps and IP.',
-    bullets: ['50-state lease templates that update with the law', 'Mobile-friendly signing experience', 'Immutable audit log per signature'],
+    bullets: ['50-state lease templates with state-specific clauses', 'Mobile-friendly signing experience', 'Immutable audit log per signature'],
   },
   {
     Icon: CreditCard,
+    status: 'live',
     title: 'Rent collection that runs itself',
-    body: 'Tenants pay by ACH (free) or card. Reminders go out automatically. Late fees apply on schedule. You get a receipt, they get a receipt, the books balance themselves.',
-    bullets: ['Auto-reminders 3 days before due date', 'Late-fee rules you configure once', 'Recurring rent + one-off charges'],
+    body: 'Tenants pay by ACH (free) or card. Reminders go out automatically. Late fees apply on schedule. Stripe Connect routes funds direct to the landlord\'s bank — we never touch the money.',
+    bullets: ['Auto-reminders before due date', 'Late-fee rules you configure once', 'Stripe Connect — funds straight to your bank'],
   },
   {
     Icon: Wrench,
+    status: 'live',
     title: 'Maintenance, triaged',
-    body: 'Tenants submit requests with photos and priority. You assign to a vendor, track cost against the property, and resolve — all without leaving FindStoop.',
-    bullets: ['Photo upload from tenant phones', 'Vendor assignment and cost tracking', 'Priority routing (emergency, high, medium, low)'],
+    body: 'Tenants submit requests with photos and priority. You triage in the dashboard and resolve — all without leaving FindStoop.',
+    bullets: ['Photo upload from tenant phones', 'Priority routing (emergency, high, medium, low)', 'Status updates visible to the tenant'],
   },
   {
     Icon: MessageSquare,
+    status: 'live',
     title: 'Built-in messaging',
     body: 'A real conversation thread per tenant, scoped to their active lease. No more digging through email to find the last thing they asked.',
-    bullets: ['Per-lease conversation history', 'Unread badges across devices', 'Optional broadcast to all current tenants'],
+    bullets: ['Per-lease conversation history', 'Unread badges across devices', 'Searchable, with timestamps'],
   },
   {
     Icon: Folder,
+    status: 'live',
     title: 'Documents in one place',
     body: 'Leases, addendums, inspections, notices — categorized, searchable, accessible to the right people only.',
     bullets: ['Per-lease document binders', 'Tenant access to their own files', 'Encrypted storage with signed URLs'],
   },
   {
     Icon: BarChart3,
+    status: 'beta',
     title: 'Reports that make tax season tolerable',
     body: 'Rent collected, expenses logged, occupancy, late-pay rate. Export to CSV when your accountant asks.',
-    bullets: ['Income and expense by property', 'Schedule E–friendly exports', 'Occupancy and collection-rate trend lines'],
+    bullets: ['Income and expense by property', 'Schedule E–friendly exports', 'Occupancy and collection-rate trends'],
   },
 ]
+
+const STATUS_CFG: Record<Status, { label: string; cls: string }> = {
+  live: { label: 'Live', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  beta: { label: 'Beta', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  soon: { label: 'Coming soon', cls: 'bg-slate-50 text-slate-600 border-slate-200' },
+}
 
 export default function Features() {
   useSeo({
     title: 'Features',
-    description: 'Listings, standardized applications, applicant-pays screening, e-sign leases, online rent, maintenance tracking, messaging, documents, and reporting — every tool a small landlord actually uses.',
+    description: 'Verified pre-qualification with AI rentability scoring, e-sign leases, online rent collection, maintenance tracking, in-app messaging, and Schedule-E-friendly reports — every tool a small landlord actually uses.',
     path: '/features',
   })
   return (
@@ -86,8 +111,10 @@ export default function Features() {
                 Every tool a small landlord actually uses.
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                FindStoop bundles the workflow you've been duct-taping together.
-                Every feature is on at one flat price — $9 per active unit per month. No tier ladder.
+                FindStoop bundles the workflow you've been duct-taping together —
+                with a verified-pre-qualification product no one else in the small-landlord
+                space offers at $5. Every feature is on at one flat price for the landlord —
+                $9 per active unit per month. No tier ladder.
               </p>
             </div>
             <div>
@@ -133,11 +160,17 @@ export default function Features() {
   )
 }
 
-function FeatureCard({ Icon, title, body, bullets }: Feature) {
+function FeatureCard({ Icon, title, body, bullets, status }: Feature) {
+  const badge = STATUS_CFG[status]
   return (
     <article className="bg-white rounded-2xl border border-gray-100 p-6 hover:border-brand-200 hover:shadow-md transition-all">
-      <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center mb-4">
-        <Icon className="w-5 h-5 text-brand-600" strokeWidth={1.75} />
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-brand-600" strokeWidth={1.75} />
+        </div>
+        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badge.cls}`}>
+          {badge.label}
+        </span>
       </div>
       <h3 className="text-lg font-semibold text-ink">{title}</h3>
       <p className="mt-2 text-sm text-mute leading-relaxed">{body}</p>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
 import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, LogOut, type LucideIcon } from 'lucide-react'
@@ -42,7 +42,6 @@ const PAGE_BG: Record<string, PageBg> = {
 
 export default function TenantLayout() {
   const { signOut, profile } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
   const badges = useTenantBadges(profile?.id)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -59,7 +58,8 @@ export default function TenantLayout() {
   const handleSignOut = async () => {
     setMenuOpen(false)
     await signOut()
-    navigate('/login')
+    // Hard-redirect — avoids stale-state race in AuthProvider.
+    window.location.href = '/login/renter'
   }
 
   // Click-outside to close the avatar menu.

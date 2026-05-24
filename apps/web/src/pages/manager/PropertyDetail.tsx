@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
+import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import Avatar from '../../components/shared/Avatar'
@@ -866,6 +867,9 @@ function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () =
 
 
 // ── Property edit form (rendered inside Modal in the header) ─────────────────
+// Auto-save edit form. Each text field saves on blur if it changed.
+// Thumbnail saves immediately when the upload completes. No save button —
+// "Done" just closes the modal (changes are already persisted).
 function PropertyEditForm({
   property,
   onSaved,
@@ -875,84 +879,213 @@ function PropertyEditForm({
   onSaved: (next: Property) => void
   onCancel: () => void
 }) {
-  const [form, setForm] = useState({
+  type Field = 'name' | 'address' | 'city' | 'state' | 'zip'
+  type FormShape = Record<Field, string> & { thumbnail_url: string | null }
+
+  const [form, setForm] = useState<FormShape>({
     name: property.name,
     address: property.address,
     city: property.city,
     state: property.state,
     zip: property.zip,
-    thumbnail_url: property.thumbnail_url ?? null as string | null,
+    thumbnail_url: property.thumbnail_url ?? null,
   })
-  const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
+  // Last-saved value per field — we only fire an update when the blurred
+  // value differs from what's already in the DB (avoids spurious writes
+  // every time the user tabs through a field they didn't touch).
+  const [savedValues, setSavedValues] = useState<Record<Field, string>>({
+    name: property.name,
+    address: property.address,
+    city: property.city,
+    state: property.state,
+    zip: property.zip,
+  })
+  const [savingField, setSavingField] = useState<Field | 'thumbnail' | null>(null)
+  const [justSaved, setJustSaved] = useState<Field | 'thumbnail' | null>(null)
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: Field) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [k]: e.target.value }))
+    setErrors((err) => ({ ...err, [k]: undefined }))
+  }
 
-  const handleSave = async () => {
-    if (!form.name.trim() || !form.address.trim() || !form.city.trim() || !form.state.trim() || !form.zip.trim()) {
-      toast.error('Name, address, city, state, and ZIP are required')
+  // ── Per-field save ───────────────────────────────────────────────────
+  const saveField = async (field: Field, rawValue: string) => {
+    const value = rawValue.trim()
+
+    // Required-field check (revert visually on blur with an empty value)
+    if (!value) {
+      setErrors((e) => ({ ...e, [field]: `${labelFor(field)} is required` }))
       return
     }
-    setSaving(true)
+    // State must not be in the geo-blocked list
+    if (field === 'state' && isBlockedState(value)) {
+      setErrors((e) => ({
+        ...e,
+        state: `FindStoop isn't yet available for properties in ${blockedStateName(value)}.`,
+      }))
+      return
+    }
+    if (value === savedValues[field]) return  // no-op
+
+    setSavingField(field)
     const { data, error } = await supabase
       .from('properties')
-      .update({
-        name: form.name.trim(),
-        address: form.address.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        zip: form.zip.trim(),
-        thumbnail_url: form.thumbnail_url,
-      })
+      .update({ [field]: value })
       .eq('id', property.id)
       .select()
       .single()
-    setSaving(false)
+    setSavingField(null)
+
     if (error || !data) {
-      toast.error(error?.message ?? 'Could not save property')
+      toast.error(error?.message ?? 'Could not save')
+      // Revert local form value to last-saved so the UI stays consistent
+      setForm((f) => ({ ...f, [field]: savedValues[field] }))
       return
     }
-    toast.success('Property saved')
+
+    setSavedValues((s) => ({ ...s, [field]: value }))
     onSaved(data as Property)
+    setJustSaved(field)
+    setTimeout(() => setJustSaved((j) => (j === field ? null : j)), 1500)
   }
+
+  // ── Thumbnail save (fires immediately after upload completes) ────────
+  const saveThumbnail = async (nextUrl: string | null) => {
+    setForm((f) => ({ ...f, thumbnail_url: nextUrl }))
+    setSavingField('thumbnail')
+    const { data, error } = await supabase
+      .from('properties')
+      .update({ thumbnail_url: nextUrl })
+      .eq('id', property.id)
+      .select()
+      .single()
+    setSavingField(null)
+    if (error || !data) {
+      toast.error(error?.message ?? 'Could not save thumbnail')
+      // Revert
+      setForm((f) => ({ ...f, thumbnail_url: property.thumbnail_url ?? null }))
+      return
+    }
+    onSaved(data as Property)
+    setJustSaved('thumbnail')
+    setTimeout(() => setJustSaved((j) => (j === 'thumbnail' ? null : j)), 1500)
+  }
+
+  const fieldStatus = (field: Field | 'thumbnail') =>
+    savingField === field ? 'Saving…'
+    : justSaved === field ? 'Saved'
+    : ''
 
   return (
     <div className="space-y-4">
-      <ImageUploader
-        currentUrl={form.thumbnail_url}
-        onChange={(url) => setForm((f) => ({ ...f, thumbnail_url: url }))}
-        pathPrefix={`property-thumbnails/${property.id}`}
-        variant="square"
-        size={80}
-        label="Thumbnail"
-      />
-      <FormField label="Property name" required>
-        <input className={inputClass} value={form.name} onChange={set('name')} />
-      </FormField>
-      <FormField label="Street address" required>
-        <input className={inputClass} value={form.address} onChange={set('address')} />
-      </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="City" required>
-          <input className={inputClass} value={form.city} onChange={set('city')} />
-        </FormField>
-        <FormField label="State" required>
-          <input className={inputClass} value={form.state} onChange={set('state')} maxLength={2} />
-        </FormField>
+      <div>
+        <ImageUploader
+          currentUrl={form.thumbnail_url}
+          onChange={saveThumbnail}
+          pathPrefix={`property-thumbnails/${property.id}`}
+          variant="square"
+          size={80}
+          label="Thumbnail"
+        />
+        {fieldStatus('thumbnail') && (
+          <p className="text-[11px] text-mute mt-1">{fieldStatus('thumbnail')}</p>
+        )}
       </div>
-      <FormField label="ZIP" required>
-        <input className={inputClass} value={form.zip} onChange={set('zip')} maxLength={10} />
-      </FormField>
-      <div className="flex gap-3 pt-2">
-        <button type="button" onClick={onCancel} disabled={saving} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-mute hover:bg-gray-50 disabled:opacity-50">
-          Cancel
+
+      <AutoSavedField
+        label="Property name" required
+        value={form.name}
+        onChange={set('name')}
+        onBlur={() => saveField('name', form.name)}
+        error={errors.name}
+        status={fieldStatus('name')}
+      />
+      <AutoSavedField
+        label="Street address" required
+        value={form.address}
+        onChange={set('address')}
+        onBlur={() => saveField('address', form.address)}
+        error={errors.address}
+        status={fieldStatus('address')}
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <AutoSavedField
+          label="City" required
+          value={form.city}
+          onChange={set('city')}
+          onBlur={() => saveField('city', form.city)}
+          error={errors.city}
+          status={fieldStatus('city')}
+        />
+        <AutoSavedField
+          label="State" required maxLength={2}
+          value={form.state}
+          onChange={set('state')}
+          onBlur={() => saveField('state', form.state)}
+          error={errors.state}
+          status={fieldStatus('state')}
+        />
+      </div>
+      <AutoSavedField
+        label="ZIP" required maxLength={10}
+        value={form.zip}
+        onChange={set('zip')}
+        onBlur={() => saveField('zip', form.zip)}
+        error={errors.zip}
+        status={fieldStatus('zip')}
+      />
+
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-full py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
+        >
+          Done
         </button>
-        <button type="button" onClick={handleSave} disabled={saving} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <p className="text-[11px] text-mute text-center mt-2">
+          Changes save automatically when you click out of each field.
+        </p>
       </div>
     </div>
   )
+}
+
+function AutoSavedField({
+  label, required, value, onChange, onBlur, error, status, maxLength,
+}: {
+  label: string
+  required?: boolean
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onBlur: () => void
+  error?: string
+  status: string
+  maxLength?: number
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1">
+        <label className="text-xs uppercase tracking-wider text-mute font-semibold">
+          {label}{required && <span className="text-red-500"> *</span>}
+        </label>
+        {status && <span className="text-[10px] text-mute uppercase tracking-wider">{status}</span>}
+      </div>
+      <input
+        className={`${inputClass} ${error ? 'border-red-400' : ''}`}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        maxLength={maxLength}
+      />
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </div>
+  )
+}
+
+function labelFor(field: 'name' | 'address' | 'city' | 'state' | 'zip'): string {
+  return field === 'zip' ? 'ZIP' : field[0].toUpperCase() + field.slice(1)
 }
 
 // ── Property delete form (type DELETE to confirm) ────────────────────────────

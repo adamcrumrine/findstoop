@@ -55,7 +55,19 @@ Deno.serve(async (req) => {
 
     const result = await twilioRes.json()
     if (result.status !== 'approved') {
-      return new Response(JSON.stringify({ error: 'Incorrect code, please try again.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      // Pass through Twilio's diagnostic so the UI can show why the code
+      // didn't pass. Common values: 'pending' (wrong code), 'expired',
+      // 'canceled', 'failed', or an error message + code from Twilio.
+      return new Response(
+        JSON.stringify({
+          error: 'Incorrect code, please try again.',
+          twilio_status: result.status ?? null,
+          twilio_message: result.message ?? null,
+          twilio_code:    result.code ?? null,
+          http_status:    twilioRes.status,
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })

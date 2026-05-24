@@ -7,6 +7,7 @@ import { isBlockedState, blockedStateName, BLOCKED_STATES_DISPLAY } from '../../
 import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { checkPasswordStrength, hibpCheckPassword } from '../../lib/passwordSecurity'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -37,12 +38,25 @@ export default function Register({ role }: Props) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
+  const [transitioning, setTransitioning] = useState(false)
   const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({})
   const [success, setSuccess] = useState(false)
+
+  // OAuth-return seam: user is signed in but profile hasn't loaded yet.
+  // Render the branded loader instead of letting the form flash through.
+  if (user && !profile) {
+    return <LoadingSpinner message="Setting up your account…" />
+  }
 
   // Already logged in → redirect
   if (!authLoading && user && profile) {
     return <Navigate to={defaultPathForRole(profile.role)} replace />
+  }
+
+  // Sticky transition for Google OAuth — the click triggers a redirect
+  // that can take a beat; we don't want them staring at the form.
+  if (transitioning) {
+    return <LoadingSpinner message="Signing you in…" />
   }
 
   // Best-effort geo block — show a friendly "not yet available" page if the
@@ -89,10 +103,12 @@ export default function Register({ role }: Props) {
   }
 
   const handleGoogle = async () => {
+    setTransitioning(true)
     try {
       await signInWithGoogle(role)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Google sign-in failed')
+      setTransitioning(false)
     }
   }
 

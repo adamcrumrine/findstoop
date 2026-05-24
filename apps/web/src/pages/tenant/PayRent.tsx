@@ -203,7 +203,7 @@ function PaymentHistoryRow({ payment }: { payment: Payment }) {
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
       <div>
         <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           {payment.paid_at
             ? new Date(payment.paid_at).toLocaleDateString()
             : new Date(payment.created_at).toLocaleDateString()}

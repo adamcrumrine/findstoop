@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
@@ -7,7 +7,10 @@ import Modal from '../../components/shared/Modal'
 import FormField, { selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
-import { Wrench } from 'lucide-react'
+import {
+  Wrench, AlertTriangle, Clock, CheckCircle2, ImageIcon, Search,
+  Building2,
+} from 'lucide-react'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
   low: 'Low',
@@ -24,17 +27,17 @@ const STATUS_LABEL: Record<MaintenanceStatus, string> = {
 }
 
 const PRIORITY_BADGE: Record<MaintenancePriority, string> = {
-  low: 'bg-gray-100 text-gray-600',
-  medium: 'bg-blue-100 text-blue-700',
-  high: 'bg-orange-100 text-orange-700',
-  emergency: 'bg-red-100 text-red-700',
+  low:       'bg-slate-100 text-slate-600 border-slate-200',
+  medium:    'bg-blue-50 text-blue-700 border-blue-200',
+  high:      'bg-amber-50 text-amber-700 border-amber-200',
+  emergency: 'bg-red-50 text-red-700 border-red-200',
 }
 
 const STATUS_BADGE: Record<MaintenanceStatus, string> = {
-  open: 'bg-yellow-100 text-yellow-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  resolved: 'bg-green-100 text-green-700',
-  closed: 'bg-gray-100 text-gray-500',
+  open:        'bg-yellow-50 text-yellow-700 border-yellow-200',
+  in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
+  resolved:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+  closed:      'bg-slate-50 text-slate-500 border-slate-200',
 }
 
 const PRIORITY_ORDER: Record<MaintenancePriority, number> = {
@@ -71,8 +74,10 @@ export default function ManagerMaintenance() {
 
   const loading = propsLoading || unitsLoading || reqLoading
 
-  const [filterStatus, setFilterStatus] = useState<MaintenanceStatus | 'all'>('all')
+  const [filterStatus, setFilterStatus] = useState<MaintenanceStatus | 'all' | 'active'>('active')
   const [filterPriority, setFilterPriority] = useState<MaintenancePriority | 'all'>('all')
+  const [filterPropertyId, setFilterPropertyId] = useState<string | 'all'>('all')
+  const [search, setSearch] = useState('')
   const [selectedRequest, setSelectedRequest] = useState<(typeof requests)[0] | null>(null)
 
   // Update modal state
@@ -96,23 +101,9 @@ export default function ManagerMaintenance() {
     }
   }
 
-  // Lookup helpers
-  const unitMap = Object.fromEntries(units.map((u) => [u.id, u]))
-  const propertyMap = Object.fromEntries(properties.map((p) => [p.id, p]))
-
-  const filtered = requests
-    .filter((r) => filterStatus === 'all' || r.status === filterStatus)
-    .filter((r) => filterPriority === 'all' || r.priority === filterPriority)
-    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
-
-  const emergency = filtered.filter((r) => r.priority === 'emergency' && r.status !== 'resolved' && r.status !== 'closed')
-  const rest = filtered.filter((r) => !(r.priority === 'emergency' && r.status !== 'resolved' && r.status !== 'closed'))
-
-  const stats = {
-    open: requests.filter((r) => r.status === 'open').length,
-    inProgress: requests.filter((r) => r.status === 'in_progress').length,
-    emergency: requests.filter((r) => r.priority === 'emergency' && r.status !== 'resolved' && r.status !== 'closed').length,
-  }
+  // Lookup helpers — memoized so we don't rebuild on every render
+  const unitMap     = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
+  const propertyMap = useMemo(() => Object.fromEntries(properties.map((p) => [p.id, p])), [properties])
 
   const getUnitLabel = (unitId: string) => {
     const u = unitMap[unitId]
@@ -121,128 +112,222 @@ export default function ManagerMaintenance() {
     return `${p?.name ?? 'Property'} · Unit ${u.unit_number}`
   }
 
+  // ── Stats — always computed on the full set, not the filtered set ─────
+  const stats = useMemo(() => {
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    return {
+      open:       requests.filter((r) => r.status === 'open').length,
+      inProgress: requests.filter((r) => r.status === 'in_progress').length,
+      emergency:  requests.filter((r) => r.priority === 'emergency' && r.status !== 'resolved' && r.status !== 'closed').length,
+      resolvedThisMonth: requests.filter((r) => {
+        if (r.status !== 'resolved' && r.status !== 'closed') return false
+        // No updated_at on the schema today — use created_at as a proxy.
+        // Tracks "issues from this month that are now resolved", close enough
+        // until we add a resolved_at column.
+        return new Date(r.created_at) >= monthStart
+      }).length,
+    }
+  }, [requests])
+
+  // ── Filtered list ────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return requests
+      .filter((r) => {
+        if (filterStatus === 'all')    return true
+        if (filterStatus === 'active') return r.status === 'open' || r.status === 'in_progress'
+        return r.status === filterStatus
+      })
+      .filter((r) => filterPriority === 'all' || r.priority === filterPriority)
+      .filter((r) => {
+        if (filterPropertyId === 'all') return true
+        const unit = unitMap[r.unit_id]
+        return unit?.property_id === filterPropertyId
+      })
+      .filter((r) => {
+        if (!term) return true
+        return (
+          r.title.toLowerCase().includes(term) ||
+          (r.description ?? '').toLowerCase().includes(term)
+        )
+      })
+      .sort((a, b) => {
+        // Emergency open ones float to the top regardless of priority weight
+        const ae = a.priority === 'emergency' && a.status !== 'resolved' && a.status !== 'closed' ? 0 : 1
+        const be = b.priority === 'emergency' && b.status !== 'resolved' && b.status !== 'closed' ? 0 : 1
+        if (ae !== be) return ae - be
+        const pri = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+        if (pri !== 0) return pri
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+  }, [requests, filterStatus, filterPriority, filterPropertyId, search, unitMap])
+
+  const hasAnyRequests = requests.length > 0
+
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
-        <p className="text-sm text-gray-500 mt-0.5">All maintenance requests across your properties</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-yellow-700">{stats.open}</p>
-          <p className="text-xs text-yellow-600 font-medium">Open</p>
+    <div className="space-y-5 max-w-6xl">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Track and resolve requests across your properties.</p>
         </div>
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-blue-700">{stats.inProgress}</p>
-          <p className="text-xs text-blue-600 font-medium">In Progress</p>
-        </div>
-        <div className={`rounded-xl p-3 text-center border ${stats.emergency > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
-          <p className={`text-2xl font-bold ${stats.emergency > 0 ? 'text-red-700' : 'text-gray-400'}`}>{stats.emergency}</p>
-          <p className={`text-xs font-medium ${stats.emergency > 0 ? 'text-red-600' : 'text-gray-400'}`}>Emergency</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="flex-1 min-w-[140px]">
-          <select
-            className={selectClass}
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as MaintenanceStatus | 'all')}
-          >
-            <option value="all">All Statuses</option>
-            {(Object.keys(STATUS_LABEL) as MaintenanceStatus[]).map((s) => (
-              <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1 min-w-[140px]">
-          <select
-            className={selectClass}
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value as MaintenancePriority | 'all')}
-          >
-            <option value="all">All Priorities</option>
-            {(Object.keys(PRIORITY_LABEL) as MaintenancePriority[]).map((p) => (
-              <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Emergency banner */}
-      {emergency.length > 0 && (
-        <div className="bg-red-50 border border-red-300 rounded-xl p-4">
-          <p className="text-sm font-bold text-red-700 mb-2">🚨 Emergency Requests ({emergency.length})</p>
-          <div className="space-y-2">
-            {emergency.map((req) => (
-              <button
-                key={req.id}
-                onClick={() => openDetail(req)}
-                className="w-full text-left bg-white border border-red-200 rounded-lg p-3 hover:border-red-400 transition-colors"
-              >
-                <p className="font-medium text-gray-900 text-sm">{req.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{getUnitLabel(req.unit_id)}</p>
-                <span className={`inline-flex mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_BADGE[req.status]}`}>
-                  {STATUS_LABEL[req.status]}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Main list */}
-      {loading ? (
-        <Skeleton />
-      ) : rest.length === 0 && emergency.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <Wrench className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
-          <p className="text-sm">No maintenance requests</p>
-        </div>
-      ) : rest.length > 0 ? (
-        <div className="space-y-3">
-          {rest.map((req) => (
-            <button
-              key={req.id}
-              onClick={() => openDetail(req)}
-              className="w-full text-left bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:border-brand-300 transition-colors"
+        {properties.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Building2 className="w-3.5 h-3.5 text-mute" strokeWidth={1.75} />
+            <select
+              className={`${selectClass} text-sm py-1.5 pr-7`}
+              value={filterPropertyId}
+              onChange={(e) => setFilterPropertyId(e.target.value)}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{req.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{getUnitLabel(req.unit_id)}</p>
-                  {req.description && (
-                    <p className="text-sm text-gray-500 mt-1 line-clamp-1">{req.description}</p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    {new Date(req.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5 items-end shrink-0">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${PRIORITY_BADGE[req.priority]}`}>
-                    {PRIORITY_LABEL[req.priority]}
-                  </span>
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_BADGE[req.status]}`}>
-                    {STATUS_LABEL[req.status]}
-                  </span>
-                </div>
-              </div>
-              {req.images && req.images.length > 0 && (
-                <div className="flex gap-1.5 mt-2">
-                  {req.images.slice(0, 3).map((url, i) => (
-                    <img key={i} src={url} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                  ))}
-                </div>
-              )}
+              <option value="all">All properties</option>
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* ── Stat tiles ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatTile
+          Icon={Wrench}
+          label="Open"
+          value={stats.open}
+          tone="amber"
+        />
+        <StatTile
+          Icon={Clock}
+          label="In progress"
+          value={stats.inProgress}
+          tone="blue"
+        />
+        <StatTile
+          Icon={AlertTriangle}
+          label="Emergency"
+          value={stats.emergency}
+          tone={stats.emergency > 0 ? 'red' : 'gray'}
+        />
+        <StatTile
+          Icon={CheckCircle2}
+          label="Resolved this month"
+          value={stats.resolvedThisMonth}
+          tone="emerald"
+        />
+      </div>
+
+      {/* ── Filters + search ────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] uppercase tracking-wider text-mute font-semibold mr-1">Status</span>
+          {([
+            { id: 'active',      label: 'Active' },
+            { id: 'all',         label: 'All' },
+            { id: 'open',        label: 'Open' },
+            { id: 'in_progress', label: 'In progress' },
+            { id: 'resolved',    label: 'Resolved' },
+            { id: 'closed',      label: 'Closed' },
+          ] as const).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setFilterStatus(s.id)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                filterStatus === s.id ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+              }`}
+            >
+              {s.label}
             </button>
           ))}
         </div>
-      ) : null}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] uppercase tracking-wider text-mute font-semibold mr-1">Priority</span>
+          {(['all', 'emergency', 'high', 'medium', 'low'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setFilterPriority(p)}
+              className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                filterPriority === p ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+              }`}
+            >
+              {p === 'all' ? 'All' : PRIORITY_LABEL[p as MaintenancePriority]}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-mute" strokeWidth={1.75} />
+          <input
+            type="text"
+            placeholder="Search by title or description…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm placeholder-mute focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+          />
+        </div>
+      </div>
 
-      {/* Detail / Update Modal */}
+      {/* ── List / empty / loading ───────────────────────────────── */}
+      {loading ? (
+        <Skeleton />
+      ) : !hasAnyRequests ? (
+        <EmptyStateNoRequests propertyCount={properties.length} unitCount={units.length} />
+      ) : filtered.length === 0 ? (
+        <EmptyStateNoMatches onClear={() => { setFilterStatus('all'); setFilterPriority('all'); setFilterPropertyId('all'); setSearch('') }} />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((req) => {
+            const isEmergency = req.priority === 'emergency' && req.status !== 'resolved' && req.status !== 'closed'
+            return (
+              <button
+                key={req.id}
+                onClick={() => openDetail(req)}
+                className={`w-full text-left bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all ${
+                  isEmergency
+                    ? 'border-l-4 border-l-red-500 border-y-red-100 border-r-red-100'
+                    : 'border-gray-100 hover:border-brand-300'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isEmergency && (
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" strokeWidth={2} />
+                      )}
+                      <p className="font-semibold text-gray-900 truncate">{req.title}</p>
+                    </div>
+                    <p className="text-xs text-mute mt-0.5">{getUnitLabel(req.unit_id)}</p>
+                    {req.description && (
+                      <p className="text-sm text-gray-600 mt-1.5 line-clamp-2 leading-relaxed">{req.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-mute">
+                      <span>{timeAgo(req.created_at)}</span>
+                      {req.images && req.images.length > 0 && (
+                        <span className="inline-flex items-center gap-0.5">
+                          <ImageIcon className="w-3 h-3" strokeWidth={1.75} />
+                          {req.images.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 items-end shrink-0">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize border ${PRIORITY_BADGE[req.priority]}`}>
+                      {PRIORITY_LABEL[req.priority]}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_BADGE[req.status]}`}>
+                      {STATUS_LABEL[req.status]}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Detail / Update Modal ─────────────────────────────────── */}
       {selectedRequest && (
         <Modal
           open={!!selectedRequest}
@@ -253,15 +338,18 @@ export default function ManagerMaintenance() {
             <p className="text-sm text-gray-500">{getUnitLabel(selectedRequest.unit_id)}</p>
 
             <div className="flex gap-2">
-              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${PRIORITY_BADGE[selectedRequest.priority]}`}>
+              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border capitalize ${PRIORITY_BADGE[selectedRequest.priority]}`}>
                 {PRIORITY_LABEL[selectedRequest.priority]}
+              </span>
+              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${STATUS_BADGE[selectedRequest.status]}`}>
+                {STATUS_LABEL[selectedRequest.status]}
               </span>
             </div>
 
             {selectedRequest.description && (
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Description</p>
-                <p className="text-sm text-gray-700">{selectedRequest.description}</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{selectedRequest.description}</p>
               </div>
             )}
 
@@ -279,7 +367,7 @@ export default function ManagerMaintenance() {
             )}
 
             <div className="border-t border-gray-100 pt-4 space-y-3">
-              <p className="text-sm font-semibold text-gray-800">Update Request</p>
+              <p className="text-sm font-semibold text-gray-800">Update request</p>
 
               <FormField label="Status">
                 <select
@@ -293,13 +381,13 @@ export default function ManagerMaintenance() {
                 </select>
               </FormField>
 
-              <FormField label="Notes for Tenant">
+              <FormField label="Notes for tenant">
                 <textarea
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
-                  placeholder="Add a note visible to the tenant..."
+                  placeholder="Add a note visible to the tenant…"
                 />
               </FormField>
             </div>
@@ -307,20 +395,20 @@ export default function ManagerMaintenance() {
             <div className="flex gap-3">
               <button
                 onClick={() => setSelectedRequest(null)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700"
+                className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdate}
                 disabled={updating === selectedRequest.id}
-                className="flex-1 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                className="flex-1 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
               >
-                {updating === selectedRequest.id ? 'Saving…' : 'Save Changes'}
+                {updating === selectedRequest.id ? 'Saving…' : 'Save changes'}
               </button>
             </div>
 
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-xs text-gray-500 text-center">
               Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
                 year: 'numeric', month: 'long', day: 'numeric',
               })}
@@ -330,4 +418,89 @@ export default function ManagerMaintenance() {
       )}
     </div>
   )
+}
+
+// ── Subcomponents ────────────────────────────────────────────────────
+
+function StatTile({ Icon, label, value, tone }: {
+  Icon: typeof Wrench
+  label: string
+  value: number
+  tone: 'amber' | 'blue' | 'red' | 'emerald' | 'gray'
+}) {
+  const tones: Record<typeof tone, { bg: string; iconBg: string; iconText: string; value: string }> = {
+    amber:   { bg: 'bg-white border-amber-200',   iconBg: 'bg-amber-50',   iconText: 'text-amber-700',   value: 'text-amber-700' },
+    blue:    { bg: 'bg-white border-blue-200',    iconBg: 'bg-blue-50',    iconText: 'text-blue-700',    value: 'text-blue-700' },
+    red:     { bg: 'bg-red-50 border-red-200',    iconBg: 'bg-red-100',    iconText: 'text-red-700',     value: 'text-red-700' },
+    emerald: { bg: 'bg-white border-emerald-200', iconBg: 'bg-emerald-50', iconText: 'text-emerald-700', value: 'text-emerald-700' },
+    gray:    { bg: 'bg-white border-gray-200',    iconBg: 'bg-gray-50',    iconText: 'text-gray-500',    value: 'text-gray-500' },
+  }
+  const t = tones[tone]
+  return (
+    <div className={`rounded-xl border p-4 ${t.bg}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-wider text-mute font-semibold">{label}</p>
+          <p className={`text-3xl font-bold mt-1 tabular-nums ${t.value}`}>{value}</p>
+        </div>
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.iconBg} ${t.iconText}`}>
+          <Icon className="w-4 h-4" strokeWidth={1.75} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyStateNoRequests({ propertyCount, unitCount }: { propertyCount: number; unitCount: number }) {
+  // Context-aware empty state — explains *why* there's nothing yet
+  let title: string
+  let body: string
+  if (propertyCount === 0) {
+    title = 'Add a property first'
+    body  = 'Maintenance requests come from your tenants. Add a property and unit, sign a lease, and your tenants can start submitting requests from their portal.'
+  } else if (unitCount === 0) {
+    title = 'Add a unit to start tracking maintenance'
+    body  = 'You have a property set up — add a unit, lease it to a tenant, and any maintenance issues they report will land here.'
+  } else {
+    title = 'No maintenance requests yet'
+    body  = 'When tenants submit requests from their portal, they show up here in priority order. Emergency requests get a red border and float to the top.'
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+      <div className="w-14 h-14 mx-auto mb-4 bg-brand-50 rounded-2xl flex items-center justify-center">
+        <Wrench className="w-7 h-7 text-brand-600" strokeWidth={1.5} />
+      </div>
+      <p className="font-semibold text-gray-700">{title}</p>
+      <p className="text-sm text-mute mt-2 max-w-md mx-auto leading-relaxed">{body}</p>
+    </div>
+  )
+}
+
+function EmptyStateNoMatches({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+      <div className="w-14 h-14 mx-auto mb-4 bg-gray-50 rounded-2xl flex items-center justify-center">
+        <Search className="w-7 h-7 text-mute" strokeWidth={1.5} />
+      </div>
+      <p className="font-semibold text-gray-700">No requests match your filters</p>
+      <p className="text-sm text-mute mt-2">Try widening the status or priority filter, or clearing the search.</p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="mt-4 text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline"
+      >
+        Clear all filters
+      </button>
+    </div>
+  )
+}
+
+function timeAgo(iso: string): string {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000
+  if (s < 60)    return 'just now'
+  if (s < 3600)  return `${Math.round(s / 60)}m ago`
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`
+  if (s < 86400 * 30) return `${Math.round(s / 86400)}d ago`
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

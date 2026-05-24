@@ -23,7 +23,7 @@ export default function Terms() {
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
 
         <Sec title="1. Agreement">
-          These Terms of Service ("Terms") form a binding agreement between you and Hawk Pig LLC ("FindStoop", "we", "us"),
+          These Terms of Service ("Terms") form a binding agreement between you and FindStoop ("we", "us"),
           covering your use of the website at findstoop.com and the software services we provide there ("Service").
           By creating an account, accessing the Service, or applying to rent a property listed on it, you agree to these Terms.
           If you don't agree, don't use the Service.
@@ -111,7 +111,7 @@ export default function Terms() {
         </Sec>
 
         <Sec title="10. Our intellectual property">
-          The Service software, design, brand, and content (excluding user content) are owned by Hawk Pig LLC and protected
+          The Service software, design, brand, and content (excluding user content) are owned by FindStoop and protected
           by US copyright and trademark law. You may not copy, modify, distribute, or create derivative works without our
           written permission.
         </Sec>
@@ -191,14 +191,14 @@ export default function Terms() {
 
         <Sec title="Contact">
           <p>
-            Hawk Pig LLC, d/b/a FindStoop<br />
+            FindStoop<br />
             <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>
           </p>
         </Sec>
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} Hawk Pig LLC, d/b/a FindStoop.
+        © {new Date().getFullYear()} FindStoop.
       </p>
     </div>
   )

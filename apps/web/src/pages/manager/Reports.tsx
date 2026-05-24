@@ -20,7 +20,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${color ?? 'text-gray-900'}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -29,7 +29,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   return (
     <div className="mb-3">
       <h2 className="text-base font-semibold text-gray-800">{title}</h2>
-      {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
     </div>
   )
 }
@@ -218,7 +218,7 @@ export default function ManagerReports() {
         <ChartCard>
           <SectionHeader title="Occupancy" subtitle={`${occupancy.total} total units`} />
           {occupancy.total === 0 ? (
-            <div className="h-48 flex items-center justify-center text-sm text-gray-400">No units yet</div>
+            <div className="h-48 flex items-center justify-center text-sm text-gray-500">No units yet</div>
           ) : (
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="60%" height={160}>
@@ -261,7 +261,7 @@ export default function ManagerReports() {
         <ChartCard>
           <SectionHeader title="Maintenance" subtitle={`${totalMaintenance} total requests`} />
           {totalMaintenance === 0 ? (
-            <div className="h-48 flex items-center justify-center text-sm text-gray-400">No requests yet</div>
+            <div className="h-48 flex items-center justify-center text-sm text-gray-500">No requests yet</div>
           ) : (
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="60%" height={160}>
@@ -302,7 +302,7 @@ export default function ManagerReports() {
                   </div>
                 ))}
                 {maintenanceStats.avgResolutionDays !== null && (
-                  <p className="text-xs text-gray-400 pt-1 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 pt-1 border-t border-gray-100">
                     Avg resolution: {maintenanceStats.avgResolutionDays}d
                   </p>
                 )}

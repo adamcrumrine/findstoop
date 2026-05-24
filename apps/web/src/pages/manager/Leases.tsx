@@ -61,9 +61,9 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
           </div>
           <p className="text-sm text-gray-500 mt-0.5">{propertyName} — Unit {unitNumber}</p>
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-gray-500">
-            <div><span className="text-gray-400">Start:</span> {new Date(lease.start_date).toLocaleDateString()}</div>
-            <div><span className="text-gray-400">End:</span> {new Date(lease.end_date).toLocaleDateString()}</div>
-            <div><span className="text-gray-400">Rent:</span> ${Number(lease.rent_amount).toLocaleString()}/mo</div>
+            <div><span className="text-gray-500">Start:</span> {new Date(lease.start_date).toLocaleDateString()}</div>
+            <div><span className="text-gray-500">End:</span> {new Date(lease.end_date).toLocaleDateString()}</div>
+            <div><span className="text-gray-500">Rent:</span> ${Number(lease.rent_amount).toLocaleString()}/mo</div>
             {lease.status === 'active' && (
               <div className={daysLeft < 30 ? 'text-yellow-600 font-medium' : ''}>
                 {daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}
@@ -121,14 +121,12 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
               {sentLabel ? 'Re-send for signature' : 'Send for signature'}
             </button>
           )}
-          {!lease.signed_at && (
-            <Link
-              to={`/manager/review-lease/${lease.id}`}
-              className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
-            >
-              Review →
-            </Link>
-          )}
+          <Link
+            to={`/manager/review-lease/${lease.id}`}
+            className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+          >
+            {lease.signed_at || (tenantSigned && managerSigned) ? 'View →' : 'Review →'}
+          </Link>
         </div>
       </div>
     </div>
@@ -246,7 +244,7 @@ export default function ManagerLeases() {
           <p className="font-semibold text-gray-700">
             {leases.length === 0 ? 'No leases yet' : 'No leases match this filter'}
           </p>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 mt-1">
             {leases.length === 0 ? 'Create your first lease to get started' : 'Try a different status filter'}
           </p>
           {leases.length === 0 && units.length > 0 && (

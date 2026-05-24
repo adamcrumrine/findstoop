@@ -14,4 +14,5 @@ export interface Property {
   require_credit_check: boolean
   require_criminal_check: boolean
   require_eviction_check: boolean
+  require_credit_self_disclosed: boolean
 }

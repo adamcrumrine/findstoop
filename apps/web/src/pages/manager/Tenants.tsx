@@ -43,7 +43,7 @@ function TenantCard({ tenant, activeLease, unitNumber, propertyName }: TenantCar
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 truncate">{name}</p>
           <p className="text-sm text-gray-500 truncate">{tenant.email}</p>
-          {tenant.phone && <p className="text-sm text-gray-400">{tenant.phone}</p>}
+          {tenant.phone && <p className="text-sm text-gray-500">{tenant.phone}</p>}
         </div>
         {activeLease && (
           <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full shrink-0">
@@ -54,15 +54,15 @@ function TenantCard({ tenant, activeLease, unitNumber, propertyName }: TenantCar
       {activeLease && (
         <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-xs text-gray-500">
           <div>
-            <p className="text-gray-400 uppercase tracking-wide">Unit</p>
+            <p className="text-gray-500 uppercase tracking-wide">Unit</p>
             <p className="font-medium text-gray-700 mt-0.5">{unitNumber ?? '—'}</p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase tracking-wide">Property</p>
+            <p className="text-gray-500 uppercase tracking-wide">Property</p>
             <p className="font-medium text-gray-700 mt-0.5 truncate">{propertyName ?? '—'}</p>
           </div>
           <div>
-            <p className="text-gray-400 uppercase tracking-wide">Rent</p>
+            <p className="text-gray-500 uppercase tracking-wide">Rent</p>
             <p className="font-medium text-gray-700 mt-0.5">${Number(activeLease.rent_amount).toLocaleString()}/mo</p>
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function ManagerTenants() {
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <Users className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No tenants yet</p>
-          <p className="text-sm text-gray-400 mt-1">Invite a tenant or create a lease to get started</p>
+          <p className="text-sm text-gray-500 mt-1">Invite a tenant or create a lease to get started</p>
           <button
             onClick={() => setInviteOpen(true)}
             className="mt-4 bg-brand-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"

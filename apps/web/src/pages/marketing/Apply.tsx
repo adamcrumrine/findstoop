@@ -26,6 +26,7 @@ interface UnitCtx {
   require_credit_check: boolean
   require_criminal_check: boolean
   require_eviction_check: boolean
+  require_credit_self_disclosed: boolean
 }
 
 interface FormState {
@@ -164,12 +165,14 @@ export default function Apply() {
           applicantName={`${form.first_name} ${form.last_name}`.trim()}
           applicantEmail={form.email.trim().toLowerCase()}
           requirements={{
-            // v1: pre-qual + selfie are live (own Claude pipeline). Credit /
-            // criminal / eviction remain off until vendor onboarding completes.
-            selfie:   !!unit?.require_selfie_screening,
-            credit:   false,
-            criminal: false,
-            eviction: false,
+            // v1: pre-qual + selfie + applicant-provided credit history are
+            // live (our own Claude pipeline). Bureau-pulled credit / criminal /
+            // eviction remain off until vendor onboarding completes.
+            selfie:                !!unit?.require_selfie_screening,
+            credit_self_disclosed: !!unit?.require_credit_self_disclosed,
+            credit:                false,
+            criminal:              false,
+            eviction:              false,
           }}
         />
       </div>
@@ -330,12 +333,14 @@ function Grid({ children }: { children: React.ReactNode }) {
 }
 
 function Field({ label, required, full, children }: { label: string; required?: boolean; full?: boolean; children: React.ReactNode }) {
+  // Wrap children inside the <label> so any nested <input>/<select>/<textarea>
+  // is implicitly associated — no need to thread htmlFor/id through every call site.
   return (
-    <div className={full ? 'sm:col-span-2' : ''}>
-      <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">
+    <label className={`block ${full ? 'sm:col-span-2' : ''}`}>
+      <span className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">
         {label} {required && <span className="text-red-500">*</span>}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   )
 }

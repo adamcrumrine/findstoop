@@ -47,7 +47,7 @@ function PaymentRow({ payment, paymentMethodSetup, autopayOn }: { payment: Payme
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
-        <p className="text-xs text-gray-400">{new Date(date).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500">{new Date(date).toLocaleDateString()}</p>
         {payment.memo && <p className="text-xs text-gray-500 mt-0.5 italic truncate">{payment.memo}</p>}
       </div>
       <div className="text-right shrink-0">
@@ -74,7 +74,7 @@ function MaintenanceRow({ request }: { request: MaintenanceRequest }) {
     <div className="flex items-start justify-between py-3 border-b border-gray-100 last:border-0 gap-2">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-800 truncate">{request.title}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{new Date(request.created_at).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{new Date(request.created_at).toLocaleDateString()}</p>
       </div>
       <div className="flex gap-1.5 shrink-0">
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>
@@ -372,19 +372,19 @@ export default function TenantDashboard() {
               )}
               <div className="grid grid-cols-2 gap-y-3 text-sm">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">Start</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Start</p>
                   <p className="font-medium text-gray-800 mt-0.5">{new Date(lease.start_date).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">End</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">End</p>
                   <p className="font-medium text-gray-800 mt-0.5">{new Date(lease.end_date).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">Monthly Rent</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Monthly Rent</p>
                   <p className="font-medium text-gray-800 mt-0.5">{formatUsd(Number(lease.rent_amount))}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">Status</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
                   <span className="inline-block bg-brand-50 text-brand-700 border border-brand-200 text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 capitalize">
                     {lease.status}
                   </span>
@@ -392,7 +392,7 @@ export default function TenantDashboard() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-gray-400 py-3 text-center">No active lease found</p>
+            <p className="text-sm text-gray-500 py-3 text-center">No active lease found</p>
           )}
         </div>
       </Card>

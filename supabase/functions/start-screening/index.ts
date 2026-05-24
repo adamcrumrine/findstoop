@@ -29,10 +29,11 @@ const BASE_PRICING = {
 } as const
 
 const ADDON_PRICING = {
-  selfie_match:   { amount_cents:  200, margin_cents:  170 },  // +$2  / +$1.70 (-$0.30 extra Claude call)
-  credit_check:   { amount_cents: 1500, margin_cents:  800 },  // +$15 / +$8 (-$7 Array)
-  criminal_check: { amount_cents: 2500, margin_cents: 1500 },  // +$25 / +$15 (-$10 Vergent.ai)
-  eviction_check: { amount_cents: 1000, margin_cents:  300 },  // +$10 / +$3 (-$7 LexisNexis)
+  selfie_match:           { amount_cents:  200, margin_cents:  170 },  // +$2  / +$1.70 (-$0.30 extra Claude call)
+  credit_self_disclosed:  { amount_cents: 2000, margin_cents: 1970 },  // +$20 / +$19.70 (-$0.07 Haiku+Sonnet, -$0.23 Stripe portion)
+  credit_check:           { amount_cents: 1500, margin_cents:  800 },  // +$15 / +$8 (-$7 Array)        — Coming Soon
+  criminal_check:         { amount_cents: 2500, margin_cents: 1500 },  // +$25 / +$15 (-$10 Vergent.ai) — Coming Soon
+  eviction_check:         { amount_cents: 1000, margin_cents:  300 },  // +$10 / +$3 (-$7 LexisNexis)   — Coming Soon
 } as const
 
 type AddonKey = keyof typeof ADDON_PRICING
@@ -72,10 +73,11 @@ Deno.serve(async (req) => {
     if (addons?.credit_check || addons?.criminal_check || addons?.eviction_check) {
       return json(req, { error: 'Credit, criminal, and eviction screening are coming soon — not yet available' }, { status: 400 })
     }
-    const wantsSelfie   = !!addons?.selfie_match
-    const wantsCriminal = false
-    const wantsCredit   = false
-    const wantsEviction = false
+    const wantsSelfie       = !!addons?.selfie_match
+    const wantsCreditSelf   = !!addons?.credit_self_disclosed
+    const wantsCriminal     = false
+    const wantsCredit       = false
+    const wantsEviction     = false
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -91,13 +93,14 @@ Deno.serve(async (req) => {
 
     const zero = { amount_cents: 0, margin_cents: 0 }
     const base = BASE_PRICING.prequal
-    const selfie   = wantsSelfie   ? ADDON_PRICING.selfie_match   : zero
-    const credit   = wantsCredit   ? ADDON_PRICING.credit_check   : zero
-    const criminal = wantsCriminal ? ADDON_PRICING.criminal_check : zero
-    const eviction = wantsEviction ? ADDON_PRICING.eviction_check : zero
+    const selfie     = wantsSelfie     ? ADDON_PRICING.selfie_match          : zero
+    const creditSelf = wantsCreditSelf ? ADDON_PRICING.credit_self_disclosed : zero
+    const credit     = wantsCredit     ? ADDON_PRICING.credit_check          : zero
+    const criminal   = wantsCriminal   ? ADDON_PRICING.criminal_check        : zero
+    const eviction   = wantsEviction   ? ADDON_PRICING.eviction_check        : zero
 
-    const amount_cents = base.amount_cents + selfie.amount_cents + credit.amount_cents + criminal.amount_cents + eviction.amount_cents
-    const margin_cents = base.margin_cents + selfie.margin_cents + credit.margin_cents + criminal.margin_cents + eviction.margin_cents
+    const amount_cents = base.amount_cents + selfie.amount_cents + creditSelf.amount_cents + credit.amount_cents + criminal.amount_cents + eviction.amount_cents
+    const margin_cents = base.margin_cents + selfie.margin_cents + creditSelf.margin_cents + credit.margin_cents + criminal.margin_cents + eviction.margin_cents
     const fee_cents = amount_cents - margin_cents
 
     // Tier value stays in the schema for now but always 'prequal' in à la
@@ -116,10 +119,11 @@ Deno.serve(async (req) => {
     let pi: Stripe.PaymentIntent | null = null
 
     const addonLabels: string[] = []
-    if (wantsCredit)   addonLabels.push('credit')
-    if (wantsCriminal) addonLabels.push('criminal')
-    if (wantsEviction) addonLabels.push('eviction')
-    if (wantsSelfie)   addonLabels.push('selfie')
+    if (wantsCredit)     addonLabels.push('credit')
+    if (wantsCreditSelf) addonLabels.push('self-credit')
+    if (wantsCriminal)   addonLabels.push('criminal')
+    if (wantsEviction)   addonLabels.push('eviction')
+    if (wantsSelfie)     addonLabels.push('selfie')
     const description = `FindStoop screening — ${app.first_name} ${app.last_name}` +
       (addonLabels.length ? ` (pre-qual + ${addonLabels.join(' + ')})` : ' (pre-qual)')
 
@@ -151,10 +155,11 @@ Deno.serve(async (req) => {
       })
 
       const addonFields = {
-        addon_selfie_match:   wantsSelfie,
-        addon_credit_check:   wantsCredit,
-        addon_criminal_check: wantsCriminal,
-        addon_eviction_check: wantsEviction,
+        addon_selfie_match:          wantsSelfie,
+        addon_credit_self_disclosed: wantsCreditSelf,
+        addon_credit_check:          wantsCredit,
+        addon_criminal_check:        wantsCriminal,
+        addon_eviction_check:        wantsEviction,
       }
 
       if (existing) {
@@ -189,10 +194,11 @@ Deno.serve(async (req) => {
       paymentIntentId: pi.id,
       amount_cents,
       addons: {
-        selfie_match:   wantsSelfie,
-        credit_check:   wantsCredit,
-        criminal_check: wantsCriminal,
-        eviction_check: wantsEviction,
+        selfie_match:          wantsSelfie,
+        credit_self_disclosed: wantsCreditSelf,
+        credit_check:          wantsCredit,
+        criminal_check:        wantsCriminal,
+        eviction_check:        wantsEviction,
       },
     })
   } catch (err) {

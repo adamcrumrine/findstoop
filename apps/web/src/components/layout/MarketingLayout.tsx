@@ -32,6 +32,13 @@ export default function MarketingLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      {/* Skip link for keyboard users — visible only when focused. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
       {/* ── Header ────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 h-24 flex items-center justify-between">
@@ -108,7 +115,7 @@ export default function MarketingLayout() {
       </header>
 
       {/* ── Page content ──────────────────────────────────────────────── */}
-      <main key={pathname} className="flex-1">
+      <main id="main-content" key={pathname} className="flex-1">
         <Outlet />
       </main>
 
@@ -121,10 +128,28 @@ export default function MarketingLayout() {
               The all-in-one rental platform for landlords who'd rather collect rent
               than chase it.
             </p>
-            {/* Equal Housing Opportunity */}
-            <div className="mt-5 inline-flex items-center gap-2 text-xs text-white/70 border border-white/15 rounded px-2 py-1.5">
-              <span aria-hidden className="inline-flex w-5 h-5 items-center justify-center rounded border border-white/40 text-[10px] font-bold">EHO</span>
-              <span>Equal Housing Opportunity</span>
+            {/* Equal Housing Opportunity logo — HUD's standard symbol:
+                house outline with "=" inside, signaling that we comply
+                with the Fair Housing Act. The mark itself is a federal
+                symbol and free to use in housing-industry contexts. */}
+            <div className="mt-5 inline-flex items-center gap-2.5 text-xs text-white/80">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="w-8 h-8 text-white/90 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 11.5 L12 3.5 L21 11.5 V20.5 H3 Z" />
+                <line x1="8" y1="13.5" x2="16" y2="13.5" />
+                <line x1="8" y1="17"   x2="16" y2="17" />
+              </svg>
+              <span className="uppercase tracking-wider text-[10px] leading-tight">
+                Equal Housing<br />Opportunity
+              </span>
             </div>
           </div>
           <div>
@@ -159,7 +184,7 @@ export default function MarketingLayout() {
         </div>
         <div className="border-t border-white/10">
           <div className="max-w-6xl mx-auto px-5 lg:px-8 py-5 text-xs text-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p>© {new Date().getFullYear()} Hawk Pig LLC, d/b/a FindStoop. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} FindStoop. All rights reserved.</p>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
               <p className="text-white/40">
                 <a

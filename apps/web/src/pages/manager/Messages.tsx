@@ -38,7 +38,7 @@ function MessageBubble({ msg, isOwn, senderName }: {
           <p className="text-xs italic opacity-70 mb-1.5">Image expired (older than 12 months)</p>
         )}
         {msg.body && <p className="leading-relaxed whitespace-pre-line">{msg.body}</p>}
-        <p className={`text-[10px] mt-1 ${isOwn ? 'text-brand-200' : 'text-gray-400'}`}>
+        <p className={`text-[10px] mt-1 ${isOwn ? 'text-brand-200' : 'text-gray-500'}`}>
           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
@@ -78,7 +78,7 @@ function ConversationList({
       <div className="flex flex-col items-center justify-center flex-1 text-center px-4 py-12">
         <MessageSquare className="w-10 h-10 mb-2 text-mute-400" strokeWidth={1.5} />
         <p className="text-sm text-gray-500">No conversations yet</p>
-        <p className="text-xs text-gray-400 mt-1">Open any tenant card and tap the chat bubble to start one.</p>
+        <p className="text-xs text-gray-500 mt-1">Open any tenant card and tap the chat bubble to start one.</p>
       </div>
     )
   }
@@ -107,7 +107,7 @@ function ConversationList({
                 {c.type === 'group' && <span className="ml-1.5 text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">GROUP</span>}
               </p>
               {c.lastMessageAt && (
-                <p className="text-[10px] text-gray-400 shrink-0">
+                <p className="text-[10px] text-gray-500 shrink-0">
                   {new Date(c.lastMessageAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                 </p>
               )}
@@ -211,7 +211,7 @@ function ChatThread({
         )}
         <div>
           <p className="font-semibold text-gray-900 text-sm">{conversation.displayName}</p>
-          <p className="text-xs text-gray-400">{conversation.subtitle ?? ''}</p>
+          <p className="text-xs text-gray-500">{conversation.subtitle ?? ''}</p>
         </div>
       </div>
 
@@ -229,7 +229,7 @@ function ChatThread({
       ) : (
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 text-gray-500">
               <p className="text-sm">Start a conversation with {conversation.displayName}</p>
             </div>
           )}
@@ -237,7 +237,7 @@ function ChatThread({
             <div key={date} className="space-y-2">
               <div className="flex items-center gap-2 my-2">
                 <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-[10px] text-gray-400 font-medium">{date}</span>
+                <span className="text-[10px] text-gray-500 font-medium">{date}</span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
               {msgs.map((msg) => (
@@ -605,7 +605,7 @@ export default function ManagerMessages() {
             onBack={() => setSelected(null)}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
             <MessageSquare className="w-12 h-12 mb-3 text-mute-400" strokeWidth={1.5} />
             <p className="text-sm">Select a conversation to start messaging</p>
           </div>

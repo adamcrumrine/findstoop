@@ -9,7 +9,7 @@ const PER_UNIT_ANNUAL  = 90 // effective $7.50/mo, 16.7% discount, non-refundabl
 const includedAtThisPrice = [
   'Unlimited properties and units',
   'Verified pre-qualification on every applicant (applicant pays $5)',
-  'AI rentability score with Fair-Housing-safe scoring',
+  'AI Tenability™ with Fair-Housing-safe scoring',
   'Online rent collection — ACH free for your tenants',
   '50-state lease templates with e-sign',
   'Maintenance tracking with photos',
@@ -22,8 +22,9 @@ const includedAtThisPrice = [
 const tenantCosts = [
   { label: 'ACH rent payment',              price: 'Free', sub: 'covered by the landlord' },
   { label: 'Card rent payment',             price: '3.5%', sub: 'paid by the renter at checkout' },
-  { label: 'Verified pre-qualification',    price: '$5',   sub: 'paystubs + ID + AI rentability score' },
-  { label: 'Pre-qual + selfie ID match',    price: '$7',   sub: 'opt-in when the landlord requires it' },
+  { label: 'Verified pre-qualification',    price: '$5',   sub: 'paystubs + ID + AI Tenability™' },
+  { label: 'Selfie ID match (opt-in)',      price: '+$2',  sub: 'when the landlord requires it' },
+  { label: 'Applicant-provided credit',     price: '+$20', sub: 'upload your free AnnualCreditReport.gov PDF — we check authenticity' },
 ]
 
 const billingExamples = [

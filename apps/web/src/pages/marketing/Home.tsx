@@ -43,14 +43,17 @@ export default function Home() {
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
                 Every applicant arrives pre-qualified with verified income, verified ID,
-                and an AI-generated rentability score — for $5, in minutes. Plus
+                and an AI-generated Tenability™ — for $5, in minutes. Plus
                 listings, e-sign leases, and online rent in one place.
               </p>
 
               {/* Email signup */}
               <form onSubmit={handleSignup} className="mt-8 flex flex-col sm:flex-row gap-3 max-w-md">
+                <label htmlFor="home-signup-email" className="sr-only">Email address</label>
                 <input
+                  id="home-signup-email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -91,7 +94,7 @@ export default function Home() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
             <Stat number="$5" label="verified pre-qualification per applicant" />
-            <Stat number="0–100" label="AI rentability score on every applicant" />
+            <Stat number="0–100" label="AI Tenability™ on every applicant" />
             <Stat number="$9" label="per unit / month for landlords, every feature" />
             <Stat number="50-state" label="lease templates included" />
           </div>
@@ -103,8 +106,8 @@ export default function Home() {
       <FeatureSection
         eyebrow="Verified pre-qualification"
         status="live"
-        title="Every applicant arrives verified — income, identity, and an AI rentability score."
-        body="For $5, the applicant uploads two paystubs and a driver's license. Our AI reads them, cross-checks against the application, and produces a 0–100 rentability score. No employer phone calls, no faxes, no 'wait three days for Truework' — results land in minutes. The AI is built to ignore protected-class signals under the Fair Housing Act."
+        title="Every applicant arrives verified — income, identity, and an AI Tenability™."
+        body="For $5, the applicant uploads two paystubs and a driver's license. Our AI reads them, cross-checks against the application, and produces a 0–100 Tenability™. No employer phone calls, no faxes, no 'wait three days for Truework' — results land in minutes. The AI is built to ignore protected-class signals under the Fair Housing Act."
         learnMore="/features"
         Icon={ShieldCheck}
         illustrationName="screening"
@@ -195,7 +198,7 @@ export default function Home() {
             ctaHref="/register"
             features={[
               'Verified pre-qualification on every applicant ($5 paid by applicant)',
-              'AI rentability score with Fair-Housing-safe scoring',
+              'AI Tenability™ with Fair-Housing-safe scoring',
               'Online rent collection — ACH free for your tenants',
               'State-specific lease templates with e-sign',
               'Maintenance tracking with photos',

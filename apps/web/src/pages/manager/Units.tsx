@@ -152,7 +152,7 @@ function UnitCard({ unit, propertyName, onEdit, onDelete }: UnitCardProps) {
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-0.5">{propertyName}</p>
-          <div className="flex items-center gap-3 mt-2 text-xs text-gray-400 flex-wrap">
+          <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 flex-wrap">
             {unit.bedrooms != null && <span>{unit.bedrooms} bd</span>}
             {unit.bathrooms != null && <span>{unit.bathrooms} ba</span>}
             {unit.square_feet != null && <span>{unit.square_feet.toLocaleString()} sqft</span>}
@@ -327,13 +327,13 @@ export default function ManagerUnits() {
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <DoorOpen className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No properties yet</p>
-          <p className="text-sm text-gray-400 mt-1">Add a property before adding units</p>
+          <p className="text-sm text-gray-500 mt-1">Add a property before adding units</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <DoorOpen className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No units found</p>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 mt-1">
             {units.length === 0 ? 'Add your first unit to get started' : 'Try adjusting your filters'}
           </p>
           {units.length === 0 && (

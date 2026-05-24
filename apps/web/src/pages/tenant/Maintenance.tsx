@@ -175,7 +175,7 @@ export default function TenantMaintenance() {
                   {req.description && (
                     <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{req.description}</p>
                   )}
-                  <p className="text-xs text-gray-400 mt-1.5">
+                  <p className="text-xs text-gray-500 mt-1.5">
                     {new Date(req.created_at).toLocaleDateString()}
                   </p>
                 </div>
@@ -333,7 +333,7 @@ export default function TenantMaintenance() {
               </div>
             )}
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               Submitted {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
                 year: 'numeric', month: 'long', day: 'numeric',
               })}

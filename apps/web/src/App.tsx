@@ -33,6 +33,13 @@ const VerifyBackup   = lazy(() => import('./pages/auth/VerifyBackup'))
 
 // Shared (manager + tenant)
 const SignLease           = lazy(() => import('./pages/shared/SignLease'))
+const InspectionEditor    = lazy(() => import('./pages/shared/InspectionEditor'))
+const InspectionPdf       = lazy(() => import('./pages/shared/InspectionPdf'))
+
+// Legal / compliance pages (federal disclosures, EPA pamphlet, etc.)
+const FairHousingNotice   = lazy(() => import('./pages/legal/FairHousingNotice'))
+const LeadPaintPamphlet   = lazy(() => import('./pages/legal/LeadPaintPamphlet'))
+const LeadDisclosure      = lazy(() => import('./pages/legal/LeadDisclosure'))
 
 // Manager pages
 const ManagerDashboard    = lazy(() => import('./pages/manager/Dashboard'))
@@ -58,6 +65,7 @@ const AdminSystem         = lazy(() => import('./pages/admin/System'))
 const AdminSubscriptions  = lazy(() => import('./pages/admin/Subscriptions'))
 const AdminFunnel         = lazy(() => import('./pages/admin/Funnel'))
 const AdminMfaSetup       = lazy(() => import('./pages/admin/MfaSetup'))
+const AdminVisitors       = lazy(() => import('./pages/admin/Visitors'))
 const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
@@ -136,6 +144,15 @@ export default function App() {
               can be opened cleanly in a new tab for printing. */}
           <Route path="/lease-pdf/:id"   element={<ManagerLeasePdf />} />
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
+          {/* Standalone inspection PDF — no sidebar; RLS handles access */}
+          <Route path="/inspection-pdf/:id" element={<InspectionPdf />} />
+
+          {/* Federal-disclosure pages — standalone print-ready routes.
+              Accessible to any signed-in user; the page-level logic gates
+              who can sign / acknowledge based on profile.role. */}
+          <Route path="/legal/fair-housing-notice"     element={<FairHousingNotice />} />
+          <Route path="/legal/lead-paint-pamphlet"     element={<LeadPaintPamphlet />} />
+          <Route path="/legal/lead-disclosure/:leaseId" element={<LeadDisclosure />} />
           {/* Admin MFA setup — outside AdminLayout so it renders full-screen.
               ProtectedRoute(admin) still requires the admin role to be here,
               but its MFA-required redirect explicitly exempts this path. */}
@@ -154,6 +171,7 @@ export default function App() {
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard"      element={<AdminDashboard />} />
             <Route path="activity"       element={<AdminActivity />} />
+            <Route path="visitors"       element={<AdminVisitors />} />
             <Route path="users"          element={<AdminUsers />} />
             <Route path="subscriptions"  element={<AdminSubscriptions />} />
             <Route path="revenue"        element={<AdminRevenue />} />
@@ -188,6 +206,7 @@ export default function App() {
             <Route path="billing"      element={<ManagerBilling />} />
             <Route path="settings"     element={<ManagerSettings />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
+            <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
           </Route>
 
           <Route path="/tenant" element={
@@ -203,6 +222,7 @@ export default function App() {
             <Route path="messages"    element={<TenantMessages />} />
             <Route path="settings"    element={<TenantSettings />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
+            <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
           </Route>
         </Routes>
       </Suspense>

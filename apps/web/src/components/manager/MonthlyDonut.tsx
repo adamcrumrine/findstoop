@@ -78,7 +78,7 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
       {loading ? (
         <div className="h-56 w-full animate-pulse bg-gray-100 rounded-lg" />
       ) : slices.length === 0 ? (
-        <p className="text-sm text-gray-400 py-12 text-center">No payments this month</p>
+        <p className="text-sm text-gray-500 py-12 text-center">No payments this month</p>
       ) : (
         <div className="grid md:grid-cols-2 gap-4 items-center">
           <div className="relative h-56">

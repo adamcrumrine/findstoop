@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import { Mail, Bell, Loader2, CheckCircle2, UserCircle, IdCard } from 'lucide-react'
@@ -259,6 +260,9 @@ export default function TenantSettings() {
         </p>
       </section>
 
+      {/* Analytics opt-out */}
+      <AnalyticsOptOut profileId={profile?.id ?? null} initial={!!profile?.analytics_opt_out} />
+
       {/* Account info — read-only for now */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-4">Account</h2>
@@ -274,6 +278,55 @@ export default function TenantSettings() {
         </dl>
       </section>
     </div>
+  )
+}
+
+// Toggle wires straight to profiles.analytics_opt_out. The DB function
+// extract_application_analytics() honors the flag and wipes any prior
+// pseudonymized row on opt-in.
+function AnalyticsOptOut({ profileId, initial }: { profileId: string | null; initial: boolean }) {
+  const [optOut, setOptOut] = useState(initial)
+  const [saving, setSaving] = useState(false)
+
+  const handleToggle = async (next: boolean) => {
+    if (!profileId) return
+    setSaving(true)
+    const prior = optOut
+    setOptOut(next)
+    const { error } = await supabase.from('profiles').update({ analytics_opt_out: next }).eq('id', profileId)
+    setSaving(false)
+    if (error) {
+      setOptOut(prior)
+      toast.error(error.message)
+      return
+    }
+    toast.success(next ? 'Opted out of analytics.' : 'Analytics re-enabled.')
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-1">Privacy</h2>
+      <p className="text-xs text-mute mb-4 leading-relaxed">
+        We store a pseudonymized, bucketed copy of your application + screening data to improve our AI scoring
+        models. Names, exact addresses, and document files are never copied. See our{' '}
+        <Link to="/privacy" className="text-brand-600 hover:underline">Privacy Policy</Link> for the full picture.
+      </p>
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={optOut}
+          disabled={saving}
+          onChange={(e) => handleToggle(e.target.checked)}
+          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+        />
+        <span className="text-sm">
+          <span className="font-medium text-ink">Opt out of analytics extraction</span>
+          <span className="block text-xs text-mute mt-0.5">
+            Turning this on stops new data from being extracted and deletes any prior pseudonymized rows.
+          </span>
+        </span>
+      </label>
+    </section>
   )
 }
 

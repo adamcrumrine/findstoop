@@ -155,11 +155,13 @@ export default function Login({ role }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
+            <label htmlFor="login-email" className="block text-sm font-medium text-ink mb-1">
               Email address <span className="text-red-500">*</span>
             </label>
             <input
+              id="login-email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -170,7 +172,7 @@ export default function Login({ role }: Props) {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-ink">
+              <label htmlFor="login-password" className="block text-sm font-medium text-ink">
                 Password <span className="text-red-500">*</span>
               </label>
               <Link to="/forgot-password" className="text-xs text-mute hover:text-ink transition-colors">
@@ -178,7 +180,9 @@ export default function Login({ role }: Props) {
               </Link>
             </div>
             <input
+              id="login-password"
               type="password"
+              autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}

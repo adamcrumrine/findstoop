@@ -5,10 +5,11 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { defaultPathForRole } from '../../lib/roleRouting'
 
 const navLinks = [
-  { to: '/pricing',   label: 'Pricing' },
-  { to: '/',          label: 'Landlords', exact: true },
-  { to: '/tenants',   label: 'Tenants' },
-  { to: '/education', label: 'Education' },
+  { to: '/tenability', label: 'Tenability™' },
+  { to: '/pricing',    label: 'Pricing' },
+  { to: '/',           label: 'Landlords', exact: true },
+  { to: '/tenants',    label: 'Tenants' },
+  { to: '/education',  label: 'Education' },
 ]
 
 export default function MarketingLayout() {

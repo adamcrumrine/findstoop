@@ -156,17 +156,6 @@ export default function Home() {
       />
 
       <FeatureSection
-        eyebrow="Accounting"
-        status="beta"
-        title="P&L per property, the way your accountant wants it."
-        body="Rent receipts and maintenance costs flow into a per-property income statement. Export to CSV when tax season hits — line items grouped to map cleanly to Schedule E."
-        learnMore="/features"
-        Icon={BarChart3}
-        illustrationName="accounting"
-        reverse
-      />
-
-      <FeatureSection
         eyebrow="Messaging"
         status="live"
         title="Every tenant conversation, in one thread per lease."
@@ -174,6 +163,17 @@ export default function Home() {
         learnMore="/features"
         Icon={MessageSquare}
         illustrationName="messages"
+        reverse
+      />
+
+      <FeatureSection
+        eyebrow="Accounting"
+        status="beta"
+        title="P&L per property, the way your accountant wants it."
+        body="Rent receipts and maintenance costs flow into a per-property income statement. Export to CSV when tax season hits — line items grouped to map cleanly to Schedule E."
+        learnMore="/features"
+        Icon={BarChart3}
+        illustrationName="accounting"
       />
 
       {/* ── Pricing — single tier ────────────────────────────────────── */}

@@ -104,10 +104,10 @@ export default function Home() {
       {/* ── Feature sections ─────────────────────────────────────────── */}
 
       <FeatureSection
-        eyebrow="Verified pre-qualification"
+        eyebrow="Meet Tenability™"
         status="live"
-        title="Every applicant arrives verified — income, identity, and an AI Tenability™."
-        body="For $5, the applicant uploads two paystubs and a driver's license. Our AI reads them, cross-checks against the application, and produces a 0–100 Tenability™. No employer phone calls, no faxes, no 'wait three days for Truework' — results land in minutes. The AI is built to ignore protected-class signals under the Fair Housing Act."
+        title="Every applicant arrives with a Tenability™ — a 0–100 score, in minutes."
+        body="For $5, every applicant gets a Tenability™ — our private AI-generated rentability score the landlord sees alongside their application. No employer phone calls, no 3-day Truework waits. The proprietary signal pipeline is configured to ignore protected-class information under the Fair Housing Act."
         learnMore="/features"
         Icon={ShieldCheck}
         illustrationName="screening"

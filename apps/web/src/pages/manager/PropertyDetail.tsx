@@ -306,19 +306,32 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
     }
   }
 
+  // Turning the credit-self tier ON also force-enables the selfie ID match
+  // (it's bundled at no extra cost — the authenticity check needs the
+  // selfie/DL cross-reference to be most effective). One DB round-trip per
+  // toggle; if it fails we roll BOTH flags back.
   const setCreditSelf = async (value: boolean) => {
-    const prior = property.require_credit_self_disclosed
-    onUpdate({ ...property, require_credit_self_disclosed: value })
-    const { error } = await supabase.from('properties').update({ require_credit_self_disclosed: value }).eq('id', property.id)
+    const priorCS = property.require_credit_self_disclosed
+    const priorSelfie = property.require_selfie_screening
+    const nextSelfie = value || priorSelfie  // turning credit-self on forces selfie on; turning it off leaves selfie where it was
+    onUpdate({ ...property, require_credit_self_disclosed: value, require_selfie_screening: nextSelfie })
+    const { error } = await supabase.from('properties').update({
+      require_credit_self_disclosed: value,
+      require_selfie_screening: nextSelfie,
+    }).eq('id', property.id)
     if (error) {
-      onUpdate({ ...property, require_credit_self_disclosed: prior })
+      onUpdate({ ...property, require_credit_self_disclosed: priorCS, require_selfie_screening: priorSelfie })
       toast.error(error.message)
     }
   }
 
-  const selfieOn     = property.require_selfie_screening
   const creditSelfOn = property.require_credit_self_disclosed
-  const total = 5 + (selfieOn ? 2 : 0) + (creditSelfOn ? 20 : 0)
+  // Selfie is always on when credit-self is on (bundled). Manager can't toggle
+  // it off in that case.
+  const selfieOn     = property.require_selfie_screening || creditSelfOn
+  const selfieBundled = creditSelfOn
+  // Total: $5 base + $2 selfie (only when NOT bundled) + $20 credit-self
+  const total = 5 + (selfieOn && !selfieBundled ? 2 : 0) + (creditSelfOn ? 20 : 0)
 
   const comingSoon = [
     { label: 'Credit report',       price: 15, sub: 'Credit history + score from a regulated consumer reporting agency.', Icon: CreditCard },
@@ -336,27 +349,37 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
         Every applicant completes <strong className="text-ink">verified pre-qualification</strong> — income (paystub OCR), identity (driver's license OCR), and an AI Tenability™ — for $5. Add the selfie ID match below for stronger fraud protection.
       </p>
 
-      {/* Live: selfie toggle */}
+      {/* Live: selfie toggle — disabled (forced on) when bundled with credit-self */}
       <button
         type="button"
-        onClick={() => setSelfie(!selfieOn)}
+        onClick={() => { if (!selfieBundled) setSelfie(!selfieOn) }}
+        disabled={selfieBundled}
+        title={selfieBundled ? 'Selfie ID match is included free with the applicant-provided credit report.' : undefined}
         className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors mb-2 ${
           selfieOn ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 bg-white hover:border-gray-300'
-        }`}
+        } ${selfieBundled ? 'cursor-not-allowed opacity-95' : ''}`}
       >
         <div className={`shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center ${selfieOn ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-mute'}`}>
           <IdCard className="w-4 h-4" strokeWidth={1.75} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-ink">Selfie ID match</p>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+$2</span>
+            {selfieBundled ? (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-mute line-through bg-gray-100 px-1.5 py-0.5 rounded">+$2</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">$0 — Included</span>
+              </>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+$2</span>
+            )}
           </div>
           <p className="text-xs text-mute mt-0.5 leading-relaxed">
             Applicant snaps a selfie; we match it to their license photo. Catches identity fraud cleanly.
+            {selfieBundled && ' Bundled free with the applicant-provided credit report below.'}
           </p>
         </div>
-        <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${selfieOn ? 'bg-brand-500' : 'bg-gray-300'}`}>
+        <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${selfieOn ? 'bg-brand-500' : 'bg-gray-300'} ${selfieBundled ? 'opacity-70' : ''}`}>
           <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${selfieOn ? 'left-[18px]' : 'left-0.5'}`} />
         </div>
       </button>
@@ -380,7 +403,7 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
           <p className="text-xs text-mute mt-0.5 leading-relaxed">
             Applicant uploads their free AnnualCreditReport.gov PDF + signs an attestation. Our AI cross-checks it against
             their ID and pay stubs and gives you an authenticity score. <strong className="text-ink">Not a bureau-pulled report</strong> —
-            cheaper, faster, applicant-trusted.
+            cheaper, faster, applicant-trusted. <strong className="text-emerald-700">Selfie ID match included.</strong>
           </p>
         </div>
         <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${creditSelfOn ? 'bg-brand-500' : 'bg-gray-300'}`}>

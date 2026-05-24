@@ -72,12 +72,16 @@ const ADDON_PRICE_CENTS = {
 const BASE_PRICE_CENTS = 500
 
 function computeTotalCents(req: ScreeningRequirements): number {
+  // Selfie is bundled FREE with the applicant-provided credit tier — its $2
+  // cost is absorbed because the authenticity check is materially stronger
+  // when it can cross-reference the selfie against the DL photo.
+  const selfieBundled = req.credit_self_disclosed
   return BASE_PRICE_CENTS
-    + (req.selfie                ? ADDON_PRICE_CENTS.selfie                : 0)
-    + (req.credit_self_disclosed ? ADDON_PRICE_CENTS.credit_self_disclosed : 0)
-    + (req.credit                ? ADDON_PRICE_CENTS.credit                : 0)
-    + (req.criminal              ? ADDON_PRICE_CENTS.criminal              : 0)
-    + (req.eviction              ? ADDON_PRICE_CENTS.eviction              : 0)
+    + (req.selfie && !selfieBundled ? ADDON_PRICE_CENTS.selfie                : 0)
+    + (req.credit_self_disclosed    ? ADDON_PRICE_CENTS.credit_self_disclosed : 0)
+    + (req.credit                   ? ADDON_PRICE_CENTS.credit                : 0)
+    + (req.criminal                 ? ADDON_PRICE_CENTS.criminal              : 0)
+    + (req.eviction                 ? ADDON_PRICE_CENTS.eviction              : 0)
 }
 
 const PATH_OPTIONS: { id: IncomePath; label: string; kinds: DocKind[]; helper: string }[] = [
@@ -293,11 +297,15 @@ function IntroCard({ applicantName, onStart, requirements, error }: {
         <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">What you're paying for</p>
         <dl className="space-y-1.5 text-sm">
           <Line label="Pre-qualification" cents={BASE_PRICE_CENTS} />
-          {requirements.selfie                && <Line label="Selfie ID match"               cents={ADDON_PRICE_CENTS.selfie} />}
-          {requirements.credit_self_disclosed && <Line label="Applicant-provided credit"     cents={ADDON_PRICE_CENTS.credit_self_disclosed} />}
-          {requirements.credit                && <Line label="Credit report"                 cents={ADDON_PRICE_CENTS.credit} />}
-          {requirements.criminal              && <Line label="Criminal background"           cents={ADDON_PRICE_CENTS.criminal} />}
-          {requirements.eviction              && <Line label="Eviction history"              cents={ADDON_PRICE_CENTS.eviction} />}
+          {requirements.selfie && (
+            requirements.credit_self_disclosed
+              ? <Line label="Selfie ID match" cents={ADDON_PRICE_CENTS.selfie} strikeCents includedLabel="Included" />
+              : <Line label="Selfie ID match" cents={ADDON_PRICE_CENTS.selfie} />
+          )}
+          {requirements.credit_self_disclosed && <Line label="Applicant-provided credit" cents={ADDON_PRICE_CENTS.credit_self_disclosed} />}
+          {requirements.credit                && <Line label="Credit report"             cents={ADDON_PRICE_CENTS.credit} />}
+          {requirements.criminal              && <Line label="Criminal background"       cents={ADDON_PRICE_CENTS.criminal} />}
+          {requirements.eviction              && <Line label="Eviction history"          cents={ADDON_PRICE_CENTS.eviction} />}
         </dl>
         <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-gray-100">
           <span className="text-sm font-semibold text-ink">Total</span>
@@ -333,11 +341,32 @@ function IntroCard({ applicantName, onStart, requirements, error }: {
   )
 }
 
-function Line({ label, cents }: { label: string; cents: number }) {
+function Line({ label, cents, strikeCents, includedLabel }: {
+  label: string
+  cents: number
+  // When set, render the dollar amount with a strikethrough and append the
+  // includedLabel chip — used for the selfie line when it's bundled free
+  // with the applicant-provided credit tier.
+  strikeCents?: boolean
+  includedLabel?: string
+}) {
   return (
-    <div className="flex justify-between gap-3">
+    <div className="flex justify-between gap-3 items-baseline">
       <dt className="text-mute">{label}</dt>
-      <dd className="text-ink tabular-nums">${(cents / 100).toFixed(0)}</dd>
+      <dd className="text-ink tabular-nums inline-flex items-center gap-2">
+        {strikeCents ? (
+          <>
+            <span className="line-through text-mute">${(cents / 100).toFixed(0)}</span>
+            {includedLabel && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                {includedLabel}
+              </span>
+            )}
+          </>
+        ) : (
+          <>${(cents / 100).toFixed(0)}</>
+        )}
+      </dd>
     </div>
   )
 }

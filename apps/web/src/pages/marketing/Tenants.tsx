@@ -20,7 +20,7 @@ const perks: Perk[] = [
   {
     Icon: Sparkles,
     title: 'Get verified for $5 — and jump the line',
-    body: 'Verified applicants land at the top of the landlord\'s review queue with an AI-generated Tenability™. Most decisions come back in under 24 hours instead of 3–7 days. Upload two paystubs and a driver\'s license, you\'re done.',
+    body: 'Verified applicants land at the top of the landlord\'s review queue with a Tenability™ — our private AI-generated rentability score the landlord sees with your application. Most decisions come back in under 24 hours instead of 3–7 days. Upload your income docs and ID — you\'re done.',
   },
   {
     Icon: FileSignature,
@@ -128,9 +128,9 @@ export default function Tenants() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
             <Row label="Create an account + apply" sub="Apply, message, see lease docs" price="Free" />
-            <Row label="Verified pre-qualification" sub="Income (paystub OCR) + ID (driver's license) + AI Tenability™" price="$5" />
-            <Row label="Selfie ID match (opt-in)" sub="If the landlord requires the selfie upgrade" price="+$2" />
-            <Row label="Applicant-provided credit report" sub="Upload your free AnnualCreditReport.gov PDF — we check it against your other docs" price="+$20" />
+            <Row label="Verified pre-qualification" sub="Income + ID verification + your AI Tenability™" price="$5" />
+            <Row label="Selfie ID match (opt-in)" sub="If the landlord requires it — included free when the $20 credit tier is selected" price="+$2" />
+            <Row label="Applicant-provided credit report" sub="Upload your free AnnualCreditReport.gov PDF. Includes selfie ID match." price="+$20" />
             <Row label="Pay rent by ACH" sub="From any US bank, free for renters" price="$0" />
             <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3.5%" />
           </div>

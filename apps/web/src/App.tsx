@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import ProtectedRoute from './components/shared/ProtectedRoute'
+import LoadingSpinner from './components/shared/LoadingSpinner'
 import ManagerLayout from './components/layout/ManagerLayout'
 import TenantLayout from './components/layout/TenantLayout'
 import MarketingLayout from './components/layout/MarketingLayout'
@@ -82,13 +83,9 @@ const TenantDocuments   = lazy(() => import('./pages/tenant/Documents'))
 const TenantMessages    = lazy(() => import('./pages/tenant/Messages'))
 const TenantSettings    = lazy(() => import('./pages/tenant/Settings'))
 
-function PageLoader() {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-}
+// Use the same branded loader everywhere — the user never sees two different
+// "loading" treatments in a single navigation.
+const PageLoader = LoadingSpinner
 
 // Fires a page-view event on every route change. Mounted inside the
 // BrowserRouter so useLocation works.

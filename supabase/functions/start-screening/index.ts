@@ -73,8 +73,14 @@ Deno.serve(async (req) => {
     if (addons?.credit_check || addons?.criminal_check || addons?.eviction_check) {
       return json(req, { error: 'Credit, criminal, and eviction screening are coming soon — not yet available' }, { status: 400 })
     }
-    const wantsSelfie       = !!addons?.selfie_match
+    // Selfie ID match is BUNDLED for free with the applicant-provided credit
+    // tier — the AI authenticity check is materially stronger when it can
+    // cross-reference the applicant's selfie against the DL photo, so we
+    // include the $2 selfie at no extra cost. Force the flag on when the
+    // credit-self tier is selected; zero out the $2 charge below.
     const wantsCreditSelf   = !!addons?.credit_self_disclosed
+    const wantsSelfie       = !!addons?.selfie_match || wantsCreditSelf
+    const selfieBundled     = wantsCreditSelf  // selfie included free with credit-self
     const wantsCriminal     = false
     const wantsCredit       = false
     const wantsEviction     = false
@@ -93,8 +99,11 @@ Deno.serve(async (req) => {
 
     const zero = { amount_cents: 0, margin_cents: 0 }
     const base = BASE_PRICING.prequal
-    const selfie     = wantsSelfie     ? ADDON_PRICING.selfie_match          : zero
-    const creditSelf = wantsCreditSelf ? ADDON_PRICING.credit_self_disclosed : zero
+    // When selfie is bundled with credit-self, charge $0 for the selfie line —
+    // but its margin reduction (extra Claude call) is absorbed into the
+    // credit-self margin since the credit-self tier nets ~$19.70 anyway.
+    const selfie     = wantsSelfie && !selfieBundled ? ADDON_PRICING.selfie_match          : zero
+    const creditSelf = wantsCreditSelf               ? ADDON_PRICING.credit_self_disclosed : zero
     const credit     = wantsCredit     ? ADDON_PRICING.credit_check          : zero
     const criminal   = wantsCriminal   ? ADDON_PRICING.criminal_check        : zero
     const eviction   = wantsEviction   ? ADDON_PRICING.eviction_check        : zero

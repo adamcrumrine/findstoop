@@ -11,6 +11,14 @@ const RESEND_FROM      = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop
 
 const resend = new Resend(RESEND_API_KEY)
 
+// Tiny HTML escaper so user-provided names (manager full_name, vendor
+// label) don't punch out of the email template.
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]!))
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -49,16 +57,25 @@ Deno.serve(async (req) => {
     }
 
     // ── Validate body ─────────────────────────────────────────────────
-    const { email, fullName, applyUnitId } = await req.json() as {
+    // `migrationFrom` is set by the portfolio-import wizard to change the
+    // email copy from "your landlord added you" to "your landlord just
+    // moved to FindStoop — your lease came with them."
+    const {
+      email, fullName, full_name, applyUnitId, migrationFrom,
+    } = await req.json() as {
       email?: string
       fullName?: string
+      full_name?: string         // accept snake_case for callers from server-side code
       applyUnitId?: string
+      migrationFrom?: string     // e.g. "Avail" — display name of prior platform
     }
+    const callerFullName = fullName ?? full_name
     if (!email || !email.includes('@')) {
       return json({ error: 'Valid email required' }, { status: 400 })
     }
     const cleanEmail = email.toLowerCase().trim()
     const applyLink = applyUnitId ? `${APP_URL}/apply/${applyUnitId}` : null
+    const isMigration = !!migrationFrom
 
     // ── Detect an already-registered tenant ───────────────────────────
     // If this email is already in profiles, the manager probably wants
@@ -88,7 +105,7 @@ Deno.serve(async (req) => {
       email: cleanEmail,
       options: {
         redirectTo: `${APP_URL}/login`,
-        data: { role: 'tenant', full_name: fullName ?? '' },
+        data: { role: 'tenant', full_name: callerFullName ?? '' },
       },
     })
     if (linkErr || !linkData?.properties?.action_link) {
@@ -104,31 +121,57 @@ Deno.serve(async (req) => {
 
     const actionLink = linkData.properties.action_link
     const inviterName = callerProfile.full_name ?? 'Your landlord'
-    const tenantFirstName = (fullName?.split(' ')[0]) || 'there'
+    const tenantFirstName = (callerFullName?.split(' ')[0]) || 'there'
+    const newTenantId = linkData.user?.id ?? null
 
     // ── Send branded invite email via Resend ──────────────────────────
-    const subject = `${inviterName} invited you to FindStoop`
+    // Subject + headline branch on migration context — "your landlord
+    // moved platforms" reads very differently from a cold invite.
+    const subject = isMigration
+      ? `Your lease moved to FindStoop — set up your renter account`
+      : `${inviterName} invited you to FindStoop`
+
+    const headline = isMigration
+      ? `Your landlord just moved from <strong>${escapeHtml(migrationFrom!)}</strong> to FindStoop`
+      : `<strong>${escapeHtml(inviterName)}</strong> added you to FindStoop`
+
+    const body = isMigration
+      ? `<p><strong>${escapeHtml(inviterName)}</strong> recently moved their property management from ${escapeHtml(migrationFrom!)} to FindStoop — and brought your lease with them. Your lease terms, rent amount, and dates carry over unchanged.</p>
+         <p>Click below to claim your FindStoop renter account. From here you'll pay rent (ACH is free), submit maintenance requests with photos, sign documents, and access everything in one place. Nothing changes about your lease itself.</p>`
+      : `<p><strong>${escapeHtml(inviterName)}</strong> added you to FindStoop — the all-in-one platform you'll use to pay rent, submit maintenance requests, sign leases, and access your lease documents.</p>
+         <p>Click below to set up your account. The link signs you in directly — no password to remember on the first try.</p>`
+
     const html = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
         <div style="text-align:center;padding:24px 0;border-bottom:1px solid #eee;margin-bottom:24px">
           <span style="font-size:24px;font-weight:700;color:#00A896;letter-spacing:-0.02em">FindStoop</span>
         </div>
-        <p>Hi ${tenantFirstName},</p>
-        <p><strong>${inviterName}</strong> added you to FindStoop — the all-in-one platform you'll use to pay rent, submit maintenance requests, sign leases, and access your lease documents.</p>
-        <p>Click below to set up your account. The link signs you in directly — no password to remember on the first try.</p>
+        <p>Hi ${escapeHtml(tenantFirstName)},</p>
+        <p>${headline}.</p>
+        ${body}
         <p style="text-align:center;margin:28px 0">
-          <a href="${actionLink}" style="display:inline-block;background:#00A896;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">Set up my renter account</a>
+          <a href="${actionLink}" style="display:inline-block;background:#00A896;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">${isMigration ? 'Claim my renter account' : 'Set up my renter account'}</a>
         </p>
+        ${isMigration ? `
+        <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
+          <p style="margin:0 0 8px 0;font-weight:600;color:#00736B">What stays the same</p>
+          <ul style="margin:0;padding-left:20px;font-size:13px;color:#3A3A3C;line-height:1.65">
+            <li>Your lease — same rent, same terms, same start/end dates</li>
+            <li>Your relationship with ${escapeHtml(inviterName)}</li>
+            <li>Any payment history or documents already on file</li>
+          </ul>
+        </div>
+        ` : ''}
         ${applyLink ? `
         <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0 0 8px 0;font-weight:600;color:#00736B">Apply for the unit</p>
-          <p style="margin:0 0 12px 0;font-size:13px;color:#3A3A3C">${inviterName} also shared a rental application for you to fill out:</p>
+          <p style="margin:0 0 12px 0;font-size:13px;color:#3A3A3C">${escapeHtml(inviterName)} also shared a rental application for you to fill out:</p>
           <a href="${applyLink}" style="display:inline-block;background:white;color:#00A896;border:1px solid #00A896;padding:8px 20px;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Open application</a>
         </div>
         ` : ''}
         <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link into your browser:<br><a href="${actionLink}" style="color:#00A896;word-break:break-all">${actionLink}</a></p>
         <div style="margin-top:32px;padding-top:24px;border-top:1px solid #eee;color:#8E8E93;font-size:12px;line-height:1.5">
-          <p>You're receiving this because ${inviterName} added you as a renter on FindStoop.</p>
+          <p>You're receiving this because ${escapeHtml(inviterName)} ${isMigration ? 'moved your lease to FindStoop' : 'added you as a renter on FindStoop'}.</p>
           <p>If you weren't expecting this, you can safely ignore this email.</p>
         </div>
       </div>
@@ -145,7 +188,13 @@ Deno.serve(async (req) => {
       return json({ error: `Email failed to send: ${emailErr.message}` }, { status: 500 })
     }
 
-    return json({ ok: true, alreadyExists: false, messageId: emailData?.id, email: cleanEmail })
+    return json({
+      ok: true,
+      alreadyExists: false,
+      tenantId: newTenantId,
+      messageId: emailData?.id,
+      email: cleanEmail,
+    })
   } catch (err) {
     return json(
       { error: err instanceof Error ? err.message : 'Unknown error' },

@@ -16,8 +16,10 @@ const MarketingPricing     = lazy(() => import('./pages/marketing/Pricing'))
 const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))
 const MarketingTenants     = lazy(() => import('./pages/marketing/Tenants'))
 const MarketingTenability  = lazy(() => import('./pages/marketing/Tenability'))
+const MarketingMigrate     = lazy(() => import('./pages/marketing/Migrate'))
 const MarketingEducation   = lazy(() => import('./pages/marketing/Education'))
 const EduScreenTenants     = lazy(() => import('./pages/marketing/education/HowToScreenTenants'))
+const ManagerImport        = lazy(() => import('./pages/manager/Import'))
 const EduFairHousing       = lazy(() => import('./pages/marketing/education/FairHousingGuide'))
 const EduLeadPaint         = lazy(() => import('./pages/marketing/education/LeadBasedPaintDisclosure'))
 const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
@@ -29,6 +31,7 @@ const FairHousing          = lazy(() => import('./pages/marketing/FairHousing'))
 const Accessibility        = lazy(() => import('./pages/marketing/Accessibility'))
 
 // Auth
+const Welcome        = lazy(() => import('./pages/auth/Welcome'))
 const Login          = lazy(() => import('./pages/auth/Login'))
 const Register       = lazy(() => import('./pages/auth/Register'))
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
@@ -120,6 +123,7 @@ export default function App() {
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
             <Route path="/tenability"   element={<MarketingTenability />} />
+            <Route path="/migrate"      element={<MarketingMigrate />} />
             <Route path="/how-it-works" element={<MarketingHowItWorks />} />
             <Route path="/screening-terms" element={<ScreeningTerms />} />
             <Route path="/privacy"      element={<Privacy />} />
@@ -134,6 +138,7 @@ export default function App() {
           </Route>
 
           {/* Auth */}
+          <Route path="/welcome"         element={<Welcome />} />
           <Route path="/login"           element={<Login role="manager" />} />
           <Route path="/login/renter"    element={<Login role="tenant" />} />
           <Route path="/register"        element={<Register role="manager" />} />
@@ -212,6 +217,7 @@ export default function App() {
             <Route path="reports"      element={<ManagerReports />} />
             <Route path="billing"      element={<ManagerBilling />} />
             <Route path="settings"     element={<ManagerSettings />} />
+            <Route path="import"       element={<ManagerImport />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
             <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
           </Route>

@@ -1,0 +1,5 @@
+first_name,last_name,email,phone,property,unit,rent,security_deposit,lease_start,lease_end,bedrooms,bathrooms
+Jane,Smith,jane.smith@example.com,614-555-0142,Maple Street Duplex,A,1500,1500,2025-09-01,2026-08-31,2,1
+Marcus,Johnson,marcus.j@example.com,614-555-0167,Maple Street Duplex,B,1450,1450,2025-10-15,2026-10-14,2,1
+Alicia,Park,a.park@example.com,614-555-0193,Oak Avenue House,1,2100,2100,2025-08-01,2026-07-31,3,2
+David,Patel,davidp@example.com,614-555-0274,The Birchwood,3B,1850,1850,2026-01-01,2026-12-31,2,2

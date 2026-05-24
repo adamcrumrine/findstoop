@@ -9,6 +9,7 @@ const navLinks = [
   { to: '/pricing',    label: 'Pricing' },
   { to: '/',           label: 'Landlords', exact: true },
   { to: '/tenants',    label: 'Tenants' },
+  { to: '/migrate',    label: 'Migrate' },
   { to: '/education',  label: 'Education' },
 ]
 
@@ -24,7 +25,9 @@ export default function MarketingLayout() {
     return <Navigate to={defaultPathForRole(profile.role)} replace />
   }
 
-  const myAccountHref = !user ? '/login' : defaultPathForRole(profile?.role)
+  // Anonymous visitors land on /welcome so they pick a role first. Authed
+  // users get sent straight to their dashboard.
+  const myAccountHref = !user ? '/welcome' : defaultPathForRole(profile?.role)
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `text-sm font-medium transition-colors ${
@@ -169,7 +172,7 @@ export default function MarketingLayout() {
             <ul className="space-y-2 text-white/70">
               <li><Link to="/register" className="hover:text-white transition-colors">Landlord sign up</Link></li>
               <li><Link to="/register/renter" className="hover:text-white transition-colors">Renter sign up</Link></li>
-              <li><Link to="/login" className="hover:text-white transition-colors">Log in</Link></li>
+              <li><Link to="/welcome" className="hover:text-white transition-colors">Log in</Link></li>
             </ul>
           </div>
           <div>

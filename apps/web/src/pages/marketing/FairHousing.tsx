@@ -65,7 +65,7 @@ export default function FairHousing() {
             <li>You may not ask questions on the application that elicit protected-class information.</li>
             <li>Screening criteria must be applied consistently to every applicant. Using disparate criteria, or applying
               the same criteria selectively, is unlawful.</li>
-            <li>Our AI rentability scoring is explicitly configured to exclude protected-class signals. You — the landlord —
+            <li>Our AI Tenability™ scoring is explicitly configured to exclude protected-class signals. You — the landlord —
               are responsible for the final rental decision and for documenting non-discriminatory reasons for any denial.</li>
           </ul>
         </Sec>
@@ -110,7 +110,7 @@ export default function FairHousing() {
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} Hawk Pig LLC, d/b/a FindStoop.
+        © {new Date().getFullYear()} FindStoop.
       </p>
     </div>
   )

@@ -76,6 +76,12 @@ export default function TenantLayout() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
 
       {/* Header — logo on the left, avatar (with dropdown) on the right */}
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0">
@@ -118,7 +124,7 @@ export default function TenantLayout() {
       </header>
 
       {/* Page */}
-      <main className="relative flex-1 p-4 pb-24 overflow-hidden">
+      <main id="main-content" className="relative flex-1 p-4 pb-24 overflow-hidden">
         {/* One large, washed-out illustration anchored to this route. Lives
             in the absolute background layer so the page's cards sit on top
             and the illustration peeks out behind/around them. Hidden on
@@ -142,7 +148,7 @@ export default function TenantLayout() {
       </main>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
+      <nav aria-label="Tenant primary navigation" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
         <div className="flex max-w-2xl mx-auto">
           {navItems.map(({ to, label, Icon }) => (
             <NavLink

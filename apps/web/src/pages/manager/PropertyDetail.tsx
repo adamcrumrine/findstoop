@@ -306,8 +306,19 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
     }
   }
 
-  const selfieOn = property.require_selfie_screening
-  const total = 5 + (selfieOn ? 2 : 0)
+  const setCreditSelf = async (value: boolean) => {
+    const prior = property.require_credit_self_disclosed
+    onUpdate({ ...property, require_credit_self_disclosed: value })
+    const { error } = await supabase.from('properties').update({ require_credit_self_disclosed: value }).eq('id', property.id)
+    if (error) {
+      onUpdate({ ...property, require_credit_self_disclosed: prior })
+      toast.error(error.message)
+    }
+  }
+
+  const selfieOn     = property.require_selfie_screening
+  const creditSelfOn = property.require_credit_self_disclosed
+  const total = 5 + (selfieOn ? 2 : 0) + (creditSelfOn ? 20 : 0)
 
   const comingSoon = [
     { label: 'Credit report',       price: 15, sub: 'Credit history + score from a regulated consumer reporting agency.', Icon: CreditCard },
@@ -322,7 +333,7 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
         <span className="text-xs text-mute">Applicant pays <strong className="text-ink">${total}</strong></span>
       </div>
       <p className="text-xs text-mute mb-4">
-        Every applicant completes <strong className="text-ink">verified pre-qualification</strong> — income (paystub OCR), identity (driver's license OCR), and an AI rentability score — for $5. Add the selfie ID match below for stronger fraud protection.
+        Every applicant completes <strong className="text-ink">verified pre-qualification</strong> — income (paystub OCR), identity (driver's license OCR), and an AI Tenability™ — for $5. Add the selfie ID match below for stronger fraud protection.
       </p>
 
       {/* Live: selfie toggle */}
@@ -347,6 +358,33 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
         </div>
         <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${selfieOn ? 'bg-brand-500' : 'bg-gray-300'}`}>
           <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${selfieOn ? 'left-[18px]' : 'left-0.5'}`} />
+        </div>
+      </button>
+
+      {/* Live: applicant-provided credit report */}
+      <button
+        type="button"
+        onClick={() => setCreditSelf(!creditSelfOn)}
+        className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors mb-2 ${
+          creditSelfOn ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 bg-white hover:border-gray-300'
+        }`}
+      >
+        <div className={`shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center ${creditSelfOn ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-mute'}`}>
+          <CreditCard className="w-4 h-4" strokeWidth={1.75} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-ink">Applicant-provided credit report</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+$20</span>
+          </div>
+          <p className="text-xs text-mute mt-0.5 leading-relaxed">
+            Applicant uploads their free AnnualCreditReport.gov PDF + signs an attestation. Our AI cross-checks it against
+            their ID and pay stubs and gives you an authenticity score. <strong className="text-ink">Not a bureau-pulled report</strong> —
+            cheaper, faster, applicant-trusted.
+          </p>
+        </div>
+        <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${creditSelfOn ? 'bg-brand-500' : 'bg-gray-300'}`}>
+          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${creditSelfOn ? 'left-[18px]' : 'left-0.5'}`} />
         </div>
       </button>
 

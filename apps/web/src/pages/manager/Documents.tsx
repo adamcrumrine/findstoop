@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
@@ -11,8 +11,10 @@ import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import toast from 'react-hot-toast'
 import {
   ClipboardList, FilePlus2, Search, Megaphone, FileText,
-  Folder, Paperclip, type LucideIcon,
+  Folder, Paperclip, ExternalLink, type LucideIcon,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
 
 const DOC_TYPE_LABEL: Record<DocumentType, string> = {
   lease: 'Lease Agreement',
@@ -150,6 +152,10 @@ export default function ManagerDocuments() {
         </div>
       )}
 
+      {/* Move-in / move-out inspections — these aren't in the `documents` table;
+          they're stored separately and surfaced here as quick links. */}
+      <InspectionsRecent leaseIds={leaseIds} />
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="flex-1 min-w-[140px]">
@@ -184,7 +190,7 @@ export default function ManagerDocuments() {
       {loading ? (
         <Skeleton />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-gray-500">
           <Folder className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="text-sm">No documents found</p>
         </div>
@@ -201,11 +207,11 @@ export default function ManagerDocuments() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 text-sm truncate">{doc.name}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs text-gray-400">{DOC_TYPE_LABEL[doc.type]}</span>
+                  <span className="text-xs text-gray-500">{DOC_TYPE_LABEL[doc.type]}</span>
                   <span className="text-gray-200">·</span>
-                  <span className="text-xs text-gray-400">{getTenantName(doc.lease_id)}</span>
+                  <span className="text-xs text-gray-500">{getTenantName(doc.lease_id)}</span>
                   <span className="text-gray-200">·</span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-500">
                     {new Date(doc.created_at).toLocaleDateString()}
                   </span>
                 </div>
@@ -213,7 +219,7 @@ export default function ManagerDocuments() {
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => handleDownload(doc)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                  className="p-2 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                   title="Download"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -222,7 +228,7 @@ export default function ManagerDocuments() {
                 </button>
                 <button
                   onClick={() => setDocToDelete(doc)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  className="p-2 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"
                   title="Delete"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -332,5 +338,114 @@ export default function ManagerDocuments() {
         onCancel={() => setDocToDelete(null)}
       />
     </div>
+  )
+}
+
+// ── Recent inspections row ─────────────────────────────────────────────
+// Pulls inspections across all of this manager's leases and renders a
+// horizontal scroller of cards. Each card → opens the editor; if both
+// parties have signed, the card shows a "PDF" link too.
+interface InspectionRow {
+  id: string
+  lease_id: string
+  type: 'move_in' | 'move_out'
+  state: 'draft' | 'manager_signed' | 'tenant_signed' | 'both_signed'
+  updated_at: string
+  manager_signed_at: string | null
+  tenant_signed_at: string | null
+  lease?: {
+    unit?: { unit_number: string; property?: { name: string } | null } | null
+    tenant?: { full_name: string | null } | null
+  } | null
+}
+
+function InspectionsRecent({ leaseIds }: { leaseIds: string[] }) {
+  const [rows, setRows] = useState<InspectionRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (leaseIds.length === 0) { setLoading(false); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('inspections')
+        .select(`
+          id, lease_id, type, state, updated_at, manager_signed_at, tenant_signed_at,
+          lease:leases!inspections_lease_id_fkey (
+            tenant:profiles!leases_tenant_id_fkey ( full_name ),
+            unit:units!leases_unit_id_fkey (
+              unit_number,
+              property:properties!units_property_id_fkey ( name )
+            )
+          )
+        `)
+        .in('lease_id', leaseIds)
+        .order('updated_at', { ascending: false })
+      if (!cancelled) {
+        setRows((data ?? []) as unknown as InspectionRow[])
+        setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [leaseIds])
+
+  if (loading) return null
+  if (rows.length === 0) return null
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Move-in / move-out checklists</h2>
+        <span className="text-xs text-mute">{rows.length} total</span>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {rows.map((r) => {
+          const stateCfg =
+            r.state === 'both_signed'                                       ? { label: 'Signed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' } :
+            r.state === 'manager_signed' || r.state === 'tenant_signed'     ? { label: 'Awaiting signature', cls: 'bg-amber-50 text-amber-700 border-amber-200' } :
+                                                                              { label: 'Draft', cls: 'bg-blue-50 text-blue-700 border-blue-200' }
+          const propLabel = r.lease?.unit
+            ? `${r.lease.unit.property?.name ?? 'Property'} · Unit ${r.lease.unit.unit_number}`
+            : 'Unit'
+          return (
+            <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-700 inline-flex items-center justify-center shrink-0">
+                  <ClipboardList className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-ink">{r.type === 'move_in' ? 'Move-in' : 'Move-out'} — {propLabel}</p>
+                  <p className="text-xs text-mute truncate">{r.lease?.tenant?.full_name ?? 'Tenant'}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${stateCfg.cls}`}>
+                      {stateCfg.label}
+                    </span>
+                    <span className="text-[10px] text-mute">{new Date(r.updated_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2.5">
+                <Link
+                  to={`/manager/lease/${r.lease_id}/inspection/${r.type}`}
+                  className="text-xs font-medium text-brand-700 hover:text-brand-800 hover:underline"
+                >
+                  {r.state === 'both_signed' ? 'View' : 'Continue'}
+                </Link>
+                {r.state === 'both_signed' && (
+                  <Link
+                    to={`/inspection-pdf/${r.id}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-mute hover:text-ink"
+                  >
+                    <ExternalLink className="w-3 h-3" strokeWidth={2} />
+                    PDF
+                  </Link>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }

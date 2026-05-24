@@ -19,7 +19,7 @@ const features: Feature[] = [
   {
     Icon: Sparkles,
     status: 'live',
-    title: 'AI rentability score on every applicant',
+    title: 'AI Tenability™ on every applicant',
     body: 'For $5, we read the applicant\'s paystubs, driver\'s license, and application — then produce a single 0–100 score the manager sees alongside the income-to-rent ratio. The model is configured to ignore protected-class signals under the Fair Housing Act.',
     bullets: ['0–100 score + plain-English summary', 'Income-to-rent ratio calculated from real paystubs', 'Tamper detection on uploaded documents'],
   },
@@ -97,7 +97,7 @@ const STATUS_CFG: Record<Status, { label: string; cls: string }> = {
 export default function Features() {
   useSeo({
     title: 'Features',
-    description: 'Verified pre-qualification with AI rentability scoring, e-sign leases, online rent collection, maintenance tracking, in-app messaging, and Schedule-E-friendly reports — every tool a small landlord actually uses.',
+    description: 'Verified pre-qualification with AI Tenability™ scoring, e-sign leases, online rent collection, maintenance tracking, in-app messaging, and Schedule-E-friendly reports — every tool a small landlord actually uses.',
     path: '/features',
   })
   return (

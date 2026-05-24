@@ -5,13 +5,14 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Users, DollarSign, ShieldCheck,
-  HeartHandshake, Cpu, LogOut, CreditCard, Funnel,
+  HeartHandshake, Cpu, LogOut, CreditCard, Funnel, MapPin,
 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 
 const navLinks = [
   { to: '/admin/dashboard',     label: 'Dashboard',     Icon: LayoutDashboard },
   { to: '/admin/activity',      label: 'Activity',      Icon: Activity },
+  { to: '/admin/visitors',      label: 'Visitors',      Icon: MapPin },
   { to: '/admin/users',         label: 'Users',         Icon: Users },
   { to: '/admin/subscriptions', label: 'Subscriptions', Icon: CreditCard },
   { to: '/admin/revenue',       label: 'Revenue',       Icon: DollarSign },
@@ -34,6 +35,12 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen flex bg-slate-50">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
       {/* Sidebar */}
       <aside className="w-56 shrink-0 bg-slate-900 text-slate-200 flex flex-col">
         <div className="px-5 pt-6 pb-5 border-b border-slate-800">
@@ -44,11 +51,11 @@ export default function AdminLayout() {
             </span>
           </div>
           {profile && (
-            <p className="text-[11px] text-slate-500 mt-1 truncate">{profile.full_name ?? 'admin'}</p>
+            <p className="text-[11px] text-slate-300 mt-1 truncate">{profile.full_name ?? 'admin'}</p>
           )}
         </div>
 
-        <nav className="flex-1 px-2 py-4 space-y-0.5">
+        <nav aria-label="Admin navigation" className="flex-1 px-2 py-4 space-y-0.5">
           {navLinks.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
@@ -80,7 +87,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Content */}
-      <main key={pathname} className="flex-1 min-w-0 overflow-x-auto">
+      <main id="main-content" key={pathname} className="flex-1 min-w-0 overflow-x-auto">
         <Outlet />
       </main>
     </div>

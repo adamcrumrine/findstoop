@@ -135,11 +135,13 @@ export default function Register({ role }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
+            <label htmlFor="register-name" className="block text-sm font-medium text-ink mb-1">
               Full name <span className="text-red-500">*</span>
             </label>
             <input
+              id="register-name"
               type="text"
+              autoComplete="name"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -149,11 +151,13 @@ export default function Register({ role }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
+            <label htmlFor="register-email" className="block text-sm font-medium text-ink mb-1">
               Email address <span className="text-red-500">*</span>
             </label>
             <input
+              id="register-email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -163,33 +167,41 @@ export default function Register({ role }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
+            <label htmlFor="register-password" className="block text-sm font-medium text-ink mb-1">
               Password <span className="text-red-500">*</span>
             </label>
             <input
+              id="register-password"
               type="password"
+              autoComplete="new-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'register-password-error' : undefined}
               className={`${inputClass} ${errors.password ? 'border-red-400' : ''}`}
               placeholder="••••••••"
             />
-            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+            {errors.password && <p id="register-password-error" className="text-xs text-red-500 mt-1">{errors.password}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
+            <label htmlFor="register-confirm" className="block text-sm font-medium text-ink mb-1">
               Confirm password <span className="text-red-500">*</span>
             </label>
             <input
+              id="register-confirm"
               type="password"
+              autoComplete="new-password"
               required
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
+              aria-invalid={!!errors.confirm}
+              aria-describedby={errors.confirm ? 'register-confirm-error' : undefined}
               className={`${inputClass} ${errors.confirm ? 'border-red-400' : ''}`}
               placeholder="••••••••"
             />
-            {errors.confirm && <p className="text-xs text-red-500 mt-1">{errors.confirm}</p>}
+            {errors.confirm && <p id="register-confirm-error" className="text-xs text-red-500 mt-1">{errors.confirm}</p>}
           </div>
 
           <button

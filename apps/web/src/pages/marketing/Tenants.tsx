@@ -20,7 +20,7 @@ const perks: Perk[] = [
   {
     Icon: Sparkles,
     title: 'Get verified for $5 — and jump the line',
-    body: 'Verified applicants land at the top of the landlord\'s review queue with an AI-generated rentability score. Most decisions come back in under 24 hours instead of 3–7 days. Upload two paystubs and a driver\'s license, you\'re done.',
+    body: 'Verified applicants land at the top of the landlord\'s review queue with an AI-generated Tenability™. Most decisions come back in under 24 hours instead of 3–7 days. Upload two paystubs and a driver\'s license, you\'re done.',
   },
   {
     Icon: FileSignature,
@@ -128,14 +128,16 @@ export default function Tenants() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
             <Row label="Create an account + apply" sub="Apply, message, see lease docs" price="Free" />
-            <Row label="Verified pre-qualification" sub="Income (paystub OCR) + ID (driver's license) + AI rentability score" price="$5" />
-            <Row label="Pre-qual + selfie ID match" sub="If the landlord requires the selfie upgrade" price="$7" />
+            <Row label="Verified pre-qualification" sub="Income (paystub OCR) + ID (driver's license) + AI Tenability™" price="$5" />
+            <Row label="Selfie ID match (opt-in)" sub="If the landlord requires the selfie upgrade" price="+$2" />
+            <Row label="Applicant-provided credit report" sub="Upload your free AnnualCreditReport.gov PDF — we check it against your other docs" price="+$20" />
             <Row label="Pay rent by ACH" sub="From any US bank, free for renters" price="$0" />
             <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3.5%" />
           </div>
           <p className="text-xs text-mute text-center mt-3">
-            Full credit + criminal + eviction reports are coming soon as an optional upgrade. Until then,
-            if your landlord requires those, they'll order them directly from a consumer-reporting agency.
+            The $20 credit-report tier is a copy of <em>your own</em> AnnualCreditReport.gov report — federally free to pull —
+            with our AI consistency check on top. Full bureau-pulled credit + criminal + eviction reports are coming
+            soon as a separate upgrade.
           </p>
         </div>
       </section>
@@ -150,7 +152,7 @@ export default function Tenants() {
             <Faq q="What does the $5 pre-qualification get me?">
               It gets you a verified-applicant status with the landlord: confirmed income
               from your paystubs, confirmed identity from your driver's license, and an
-              AI-generated rentability score the landlord sees alongside your application.
+              AI-generated Tenability™ the landlord sees alongside your application.
               Verified applications get reviewed first and most get a decision in under
               24 hours.
             </Faq>

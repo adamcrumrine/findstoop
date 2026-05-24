@@ -117,7 +117,7 @@ function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting, pat
 // ── Unit count badge ───────────────────────────────────────────────────────────
 function UnitCountBadge({ propertyId }: { propertyId: string }) {
   const { units, loading } = useUnitsByProperty(propertyId)
-  if (loading) return <span className="text-xs text-gray-400">…</span>
+  if (loading) return <span className="text-xs text-gray-500">…</span>
   const occupied = units.filter((u) => u.status === 'occupied').length
   return (
     <span className="text-xs text-gray-500">
@@ -135,9 +135,14 @@ interface PropertyCardProps {
 function PropertyCard({ property, onOpen }: PropertyCardProps) {
   return (
     <div
-      className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition cursor-pointer group"
+      className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition cursor-pointer group focus:outline-none focus:ring-2 focus:ring-brand-500"
       onClick={() => onOpen(property)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(property) }
+      }}
       role="button"
+      tabIndex={0}
+      aria-label={`Open ${property.name}`}
     >
       <div className="flex items-start gap-4">
         <div className="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
@@ -208,7 +213,7 @@ export default function ManagerProperties() {
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <Building2 className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">No properties yet</p>
-          <p className="text-sm text-gray-400 mt-1">Add your first property to get started</p>
+          <p className="text-sm text-gray-500 mt-1">Add your first property to get started</p>
           <button
             onClick={() => setAddOpen(true)}
             className="mt-4 bg-brand-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"

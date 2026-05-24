@@ -44,7 +44,7 @@ function MessageBubble({ msg, isOwn }: {
           <p className="text-xs italic opacity-70 mb-1.5">Image expired (older than 12 months)</p>
         )}
         {msg.body && <p className="leading-relaxed whitespace-pre-line">{msg.body}</p>}
-        <p className={`text-[10px] mt-1 ${isOwn ? 'text-brand-200' : 'text-gray-400'}`}>
+        <p className={`text-[10px] mt-1 ${isOwn ? 'text-brand-200' : 'text-gray-500'}`}>
           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
@@ -155,7 +155,7 @@ export default function TenantMessages() {
         <Avatar url={displayLogo} name={displayName} email={manager?.email} size={36} />
         <div>
           <p className="font-semibold text-gray-900 text-sm">{displayName}</p>
-          <p className="text-xs text-gray-400">{subtitle}</p>
+          <p className="text-xs text-gray-500">{subtitle}</p>
         </div>
       </div>
 
@@ -189,7 +189,7 @@ export default function TenantMessages() {
                 <div key={date} className="space-y-2">
                   <div className="flex items-center gap-2 my-2">
                     <div className="flex-1 h-px bg-gray-100" />
-                    <span className="text-[10px] text-gray-400 font-medium">{date}</span>
+                    <span className="text-[10px] text-gray-500 font-medium">{date}</span>
                     <div className="flex-1 h-px bg-gray-100" />
                   </div>
                   {msgs.map((msg) => (

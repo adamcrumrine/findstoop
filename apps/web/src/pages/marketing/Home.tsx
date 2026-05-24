@@ -42,8 +42,8 @@ export default function Home() {
                 Run your rentals like a pro — without <span className="text-brand-500">becoming one.</span>
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                Every applicant arrives pre-qualified with verified income, verified ID,
-                and an AI-generated Tenability™ — for $5, in minutes. Plus
+                Every applicant arrives pre-qualified with a Tenability™ score (from $5)
+                — verified income, verified ID, and an AI rentability number in minutes. Plus
                 listings, e-sign leases, and online rent in one place.
               </p>
 
@@ -90,7 +90,10 @@ export default function Home() {
       <section className="border-y border-gray-100 py-8 bg-white">
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
           <p className="text-center text-xs uppercase tracking-wider text-mute font-semibold mb-5">
-            Built for the 73% of rentals owned by individuals, not institutions
+            Built for the 73% of US rental properties owned by individuals, not institutions
+            <span className="block mt-1 text-[10px] tracking-normal normal-case font-normal text-mute/70">
+              Source: US Census Bureau, Rental Housing Finance Survey
+            </span>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
             <Stat number="$5" label="verified pre-qualification per applicant" />
@@ -107,8 +110,8 @@ export default function Home() {
         eyebrow="Meet Tenability™"
         status="live"
         title="Every applicant arrives with a Tenability™ — a 0–100 score, in minutes."
-        body="For $5, every applicant gets a Tenability™ — our private AI-generated rentability score the landlord sees alongside their application. No employer phone calls, no 3-day Truework waits. The proprietary signal pipeline is configured to ignore protected-class information under the Fair Housing Act."
-        learnMore="/features"
+        body="Tenability™ ($5) gives every applicant a private 0–100 rentability score with verified income and ID. Tenability™ Pro ($25) adds a selfie ID match (free with Pro) and an applicant-provided credit report with AI authenticity scoring. Both tiers are configured to ignore protected-class signals under the Fair Housing Act."
+        learnMore="/tenability"
         Icon={ShieldCheck}
         illustrationName="screening"
       />

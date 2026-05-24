@@ -128,9 +128,8 @@ export default function Tenants() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
             <Row label="Create an account + apply" sub="Apply, message, see lease docs" price="Free" />
-            <Row label="Verified pre-qualification" sub="Income + ID verification + your AI Tenability™" price="$5" />
-            <Row label="Selfie ID match (opt-in)" sub="If the landlord requires it — included free when the $20 credit tier is selected" price="+$2" />
-            <Row label="Applicant-provided credit report" sub="Upload your free AnnualCreditReport.gov PDF. Includes selfie ID match." price="+$20" />
+            <Row label="Tenability™" sub="Income verification + ID verification + your AI Tenability™ score" price="$5" />
+            <Row label="Tenability™ Pro" sub="Everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring. Selfie is free." price="$25" />
             <Row label="Pay rent by ACH" sub="From any US bank, free for renters" price="$0" />
             <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3.5%" />
           </div>

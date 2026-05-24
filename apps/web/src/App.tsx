@@ -17,6 +17,10 @@ const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))
 const MarketingTenants     = lazy(() => import('./pages/marketing/Tenants'))
 const MarketingTenability  = lazy(() => import('./pages/marketing/Tenability'))
 const MarketingEducation   = lazy(() => import('./pages/marketing/Education'))
+const EduScreenTenants     = lazy(() => import('./pages/marketing/education/HowToScreenTenants'))
+const EduFairHousing       = lazy(() => import('./pages/marketing/education/FairHousingGuide'))
+const EduLeadPaint         = lazy(() => import('./pages/marketing/education/LeadBasedPaintDisclosure'))
+const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
 const ScreeningTerms       = lazy(() => import('./pages/marketing/ScreeningTerms'))
 const Privacy              = lazy(() => import('./pages/marketing/Privacy'))
@@ -109,6 +113,10 @@ export default function App() {
             <Route path="/"             element={<MarketingHome />} />
             <Route path="/tenants"      element={<MarketingTenants />} />
             <Route path="/education"    element={<MarketingEducation />} />
+            <Route path="/education/how-to-screen-tenants"     element={<EduScreenTenants />} />
+            <Route path="/education/fair-housing-act-guide"    element={<EduFairHousing />} />
+            <Route path="/education/lead-based-paint-disclosure" element={<EduLeadPaint />} />
+            <Route path="/education/move-in-checklist-guide"   element={<EduMoveInChecklist />} />
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
             <Route path="/tenability"   element={<MarketingTenability />} />

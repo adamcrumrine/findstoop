@@ -16,7 +16,7 @@ import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
-  ShieldCheck, IdCard,
+  ShieldCheck,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
@@ -291,33 +291,25 @@ function OverviewTab({ property, units, leases, onPropertyUpdate }: {
   )
 }
 
-// ── Screening preferences card (Overview tab) ────────────────────────────
-// v1: pre-qual (base $5) + selfie ID match (+$2) are live — both run on our
-// own Claude vision pipeline, no external vendor needed. Credit / criminal /
-// eviction stay "Coming Soon" until vendor onboarding completes.
+// ── Tenability™ tier selector (Overview tab) ──────────────────────────────
+// Two tiers, single source of truth:
+//   Tenability™       ($5)  — require_credit_self_disclosed=false, require_selfie_screening=false
+//   Tenability™ Pro   ($25) — require_credit_self_disclosed=true,  require_selfie_screening=true
+// The selfie ID match is bundled FREE with Pro (its $2 cost is absorbed by
+// the Pro tier so applicants see a clean +$20 over Standard rather than +$22).
 function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpdate: (p: Property) => void }) {
-  const setSelfie = async (value: boolean) => {
-    const prior = property.require_selfie_screening
-    onUpdate({ ...property, require_selfie_screening: value })
-    const { error } = await supabase.from('properties').update({ require_selfie_screening: value }).eq('id', property.id)
-    if (error) {
-      onUpdate({ ...property, require_selfie_screening: prior })
-      toast.error(error.message)
-    }
-  }
+  const isPro = property.require_credit_self_disclosed
+  const total = isPro ? 25 : 5
 
-  // Turning the credit-self tier ON also force-enables the selfie ID match
-  // (it's bundled at no extra cost — the authenticity check needs the
-  // selfie/DL cross-reference to be most effective). One DB round-trip per
-  // toggle; if it fails we roll BOTH flags back.
-  const setCreditSelf = async (value: boolean) => {
+  // Single-call tier switch. Either both flags go on, or both go off.
+  const setTier = async (pro: boolean) => {
+    if (pro === isPro) return
     const priorCS = property.require_credit_self_disclosed
     const priorSelfie = property.require_selfie_screening
-    const nextSelfie = value || priorSelfie  // turning credit-self on forces selfie on; turning it off leaves selfie where it was
-    onUpdate({ ...property, require_credit_self_disclosed: value, require_selfie_screening: nextSelfie })
+    onUpdate({ ...property, require_credit_self_disclosed: pro, require_selfie_screening: pro })
     const { error } = await supabase.from('properties').update({
-      require_credit_self_disclosed: value,
-      require_selfie_screening: nextSelfie,
+      require_credit_self_disclosed: pro,
+      require_selfie_screening: pro,
     }).eq('id', property.id)
     if (error) {
       onUpdate({ ...property, require_credit_self_disclosed: priorCS, require_selfie_screening: priorSelfie })
@@ -325,91 +317,65 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
     }
   }
 
-  const creditSelfOn = property.require_credit_self_disclosed
-  // Selfie is always on when credit-self is on (bundled). Manager can't toggle
-  // it off in that case.
-  const selfieOn     = property.require_selfie_screening || creditSelfOn
-  const selfieBundled = creditSelfOn
-  // Total: $5 base + $2 selfie (only when NOT bundled) + $20 credit-self
-  const total = 5 + (selfieOn && !selfieBundled ? 2 : 0) + (creditSelfOn ? 20 : 0)
-
   const comingSoon = [
-    { label: 'Credit report',       price: 15, sub: 'Credit history + score from a regulated consumer reporting agency.', Icon: CreditCard },
-    { label: 'Criminal background', price: 25, sub: 'National criminal + sex offender + global watchlist.', Icon: ShieldCheck },
-    { label: 'Eviction history',    price: 10, sub: 'Eviction court records nationwide.', Icon: AlertCircle },
+    { label: 'Bureau credit report',  price: 15, sub: 'Credit history + score from a regulated consumer reporting agency.', Icon: CreditCard },
+    { label: 'Criminal background',   price: 25, sub: 'National criminal + sex offender + global watchlist.', Icon: ShieldCheck },
+    { label: 'Eviction history',      price: 10, sub: 'Eviction court records nationwide.', Icon: AlertCircle },
   ]
 
   return (
     <section className="bg-white rounded-2xl border border-gray-200 p-5">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Screening required for applicants</h2>
+        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Tenability™ tier</h2>
         <span className="text-xs text-mute">Applicant pays <strong className="text-ink">${total}</strong></span>
       </div>
       <p className="text-xs text-mute mb-4">
-        Every applicant completes <strong className="text-ink">verified pre-qualification</strong> — income (paystub OCR), identity (driver's license OCR), and an AI Tenability™ — for $5. Add the selfie ID match below for stronger fraud protection.
+        Pick the screening depth required for applicants to this property. The score is the same 0–100
+        Tenability™ either way — Pro just looks deeper.
       </p>
 
-      {/* Live: selfie toggle — disabled (forced on) when bundled with credit-self */}
-      <button
-        type="button"
-        onClick={() => { if (!selfieBundled) setSelfie(!selfieOn) }}
-        disabled={selfieBundled}
-        title={selfieBundled ? 'Selfie ID match is included free with the applicant-provided credit report.' : undefined}
-        className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors mb-2 ${
-          selfieOn ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 bg-white hover:border-gray-300'
-        } ${selfieBundled ? 'cursor-not-allowed opacity-95' : ''}`}
-      >
-        <div className={`shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center ${selfieOn ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-mute'}`}>
-          <IdCard className="w-4 h-4" strokeWidth={1.75} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-ink">Selfie ID match</p>
-            {selfieBundled ? (
-              <>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-mute line-through bg-gray-100 px-1.5 py-0.5 rounded">+$2</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">$0 — Included</span>
-              </>
-            ) : (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+$2</span>
-            )}
+      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+        {/* Standard */}
+        <button
+          type="button"
+          onClick={() => setTier(false)}
+          className={`text-left rounded-xl border-2 p-4 transition-colors ${
+            !isPro ? 'border-brand-500 bg-brand-50/50' : 'border-gray-200 bg-white hover:border-gray-300'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-sm font-semibold text-ink">Tenability™</p>
+            <span className="text-sm font-bold text-ink">$5</span>
           </div>
-          <p className="text-xs text-mute mt-0.5 leading-relaxed">
-            Applicant snaps a selfie; we match it to their license photo. Catches identity fraud cleanly.
-            {selfieBundled && ' Bundled free with the applicant-provided credit report below.'}
+          <p className="text-[11px] text-mute leading-relaxed">
+            Verified income, verified ID, and the 0–100 score.
           </p>
-        </div>
-        <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${selfieOn ? 'bg-brand-500' : 'bg-gray-300'} ${selfieBundled ? 'opacity-70' : ''}`}>
-          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${selfieOn ? 'left-[18px]' : 'left-0.5'}`} />
-        </div>
-      </button>
+        </button>
 
-      {/* Live: applicant-provided credit report */}
-      <button
-        type="button"
-        onClick={() => setCreditSelf(!creditSelfOn)}
-        className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors mb-2 ${
-          creditSelfOn ? 'border-brand-400 bg-brand-50/40' : 'border-gray-200 bg-white hover:border-gray-300'
-        }`}
-      >
-        <div className={`shrink-0 w-9 h-9 rounded-lg inline-flex items-center justify-center ${creditSelfOn ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-mute'}`}>
-          <CreditCard className="w-4 h-4" strokeWidth={1.75} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-ink">Applicant-provided credit report</p>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-mute bg-gray-100 px-1.5 py-0.5 rounded">+$20</span>
+        {/* Pro */}
+        <button
+          type="button"
+          onClick={() => setTier(true)}
+          className={`text-left rounded-xl border-2 p-4 transition-colors relative ${
+            isPro ? 'border-brand-500 bg-brand-50/50' : 'border-gray-200 bg-white hover:border-gray-300'
+          }`}
+        >
+          <span className="absolute -top-2.5 right-3 inline-flex text-[9px] font-bold uppercase tracking-wider text-white bg-brand-600 px-1.5 py-0.5 rounded-full">Best value</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-sm font-semibold text-ink">Tenability™ Pro</p>
+            <span className="text-sm font-bold text-ink">$25</span>
           </div>
-          <p className="text-xs text-mute mt-0.5 leading-relaxed">
-            Applicant uploads their free AnnualCreditReport.gov PDF + signs an attestation. Our AI cross-checks it against
-            their ID and pay stubs and gives you an authenticity score. <strong className="text-ink">Not a bureau-pulled report</strong> —
-            cheaper, faster, applicant-trusted. <strong className="text-emerald-700">Selfie ID match included.</strong>
+          <p className="text-[11px] text-mute leading-relaxed">
+            Adds selfie ID match (free) + applicant-provided credit + authenticity scoring.
           </p>
-        </div>
-        <div className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${creditSelfOn ? 'bg-brand-500' : 'bg-gray-300'}`}>
-          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${creditSelfOn ? 'left-[18px]' : 'left-0.5'}`} />
-        </div>
-      </button>
+        </button>
+      </div>
+
+      <div className="bg-brand-50/60 border border-brand-200/60 rounded-lg px-3 py-2 mb-3 text-[11px] text-ink leading-relaxed">
+        <strong className="text-brand-700">What Pro adds:</strong> applicant uploads their free
+        AnnualCreditReport.gov PDF and signs an attestation; our AI cross-checks it against the ID and pay
+        stubs and surfaces an authenticity score. Selfie ID match is included free.
+      </div>
 
       {/* Coming soon: credit / criminal / eviction */}
       <div className="space-y-2">

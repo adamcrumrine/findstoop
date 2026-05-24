@@ -244,16 +244,17 @@ function IntroCard({ applicantName, onStart, requirements, error }: {
 }) {
   const total = computeTotalCents(requirements) / 100
   const hasFcraChecks = requirements.credit || requirements.criminal || requirements.eviction
+  const tierLabel = requirements.credit_self_disclosed ? 'Tenability™ Pro' : 'Tenability™'
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-2xl p-7 mb-5">
         <div className="flex items-center gap-2 text-xs uppercase tracking-wider opacity-90 font-semibold">
-          <Sparkles className="w-3.5 h-3.5" /> Verified pre-qualification
+          <Sparkles className="w-3.5 h-3.5" /> {tierLabel}
         </div>
         <h2 className="text-2xl font-bold mt-2">Nice work, {applicantName.split(' ')[0]} — one more step.</h2>
         <p className="text-sm text-white/90 mt-2 leading-relaxed">
           Spend 3 minutes verifying your income and ID. Verified applications land at the top of
-          the landlord's review queue with a Tenability™ — most get a decision in under 24 hours.
+          the landlord's review queue with your {tierLabel} score — most get a decision in under 24 hours.
         </p>
         <div className="mt-5 flex items-baseline gap-1">
           <span className="text-4xl font-bold">${total}</span>
@@ -294,18 +295,25 @@ function IntroCard({ applicantName, onStart, requirements, error }: {
 
       {/* Price breakdown */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 mt-4">
-        <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">What you're paying for</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs uppercase tracking-wider text-mute font-semibold">What's included in {tierLabel}</p>
+          {requirements.credit_self_disclosed && (
+            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded">
+              Best value
+            </span>
+          )}
+        </div>
         <dl className="space-y-1.5 text-sm">
-          <Line label="Pre-qualification" cents={BASE_PRICE_CENTS} />
+          <Line label="Tenability™ — verified income + ID + 0–100 score" cents={BASE_PRICE_CENTS} />
           {requirements.selfie && (
             requirements.credit_self_disclosed
               ? <Line label="Selfie ID match" cents={ADDON_PRICE_CENTS.selfie} strikeCents includedLabel="Included" />
               : <Line label="Selfie ID match" cents={ADDON_PRICE_CENTS.selfie} />
           )}
-          {requirements.credit_self_disclosed && <Line label="Applicant-provided credit" cents={ADDON_PRICE_CENTS.credit_self_disclosed} />}
-          {requirements.credit                && <Line label="Credit report"             cents={ADDON_PRICE_CENTS.credit} />}
-          {requirements.criminal              && <Line label="Criminal background"       cents={ADDON_PRICE_CENTS.criminal} />}
-          {requirements.eviction              && <Line label="Eviction history"          cents={ADDON_PRICE_CENTS.eviction} />}
+          {requirements.credit_self_disclosed && <Line label="Applicant-provided credit + authenticity scoring" cents={ADDON_PRICE_CENTS.credit_self_disclosed} />}
+          {requirements.credit                && <Line label="Bureau credit report"     cents={ADDON_PRICE_CENTS.credit} />}
+          {requirements.criminal              && <Line label="Criminal background"      cents={ADDON_PRICE_CENTS.criminal} />}
+          {requirements.eviction              && <Line label="Eviction history"         cents={ADDON_PRICE_CENTS.eviction} />}
         </dl>
         <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-gray-100">
           <span className="text-sm font-semibold text-ink">Total</span>

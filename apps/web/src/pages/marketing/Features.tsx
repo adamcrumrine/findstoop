@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import {
-  ClipboardList, ShieldCheck, Sparkles, FileSignature, CreditCard, Wrench,
-  MessageSquare, Folder, BarChart3, ArrowRight, IdCard, type LucideIcon,
+  ShieldCheck, Sparkles, FileSignature, CreditCard, Wrench,
+  MessageSquare, Folder, BarChart3, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
 
@@ -19,30 +19,16 @@ const features: Feature[] = [
   {
     Icon: Sparkles,
     status: 'live',
-    title: 'Tenability™ — the 0–100 score every applicant arrives with',
-    body: 'For $5, every applicant gets a Tenability™ — our private rentability score the manager sees alongside the income-to-rent ratio. Built on a proprietary AI signal pipeline configured to ignore protected-class signals under the Fair Housing Act.',
-    bullets: ['Single 0–100 score with a plain-English summary', 'Income-to-rent ratio computed from verified docs', 'Document anomaly flags surfaced automatically'],
-  },
-  {
-    Icon: ClipboardList,
-    status: 'live',
-    title: 'Verified income — without the Truework wait',
-    body: 'Applicants upload income documents and our AI verifies them in seconds. No employer phone calls, no 3–7 day Truework waits. Supports five income paths so gig workers, retirees, and new hires aren\'t shut out.',
-    bullets: ['Seconds, not days, to verify', 'Five income paths covered', 'Last-4 SSN only — never full SSN'],
-  },
-  {
-    Icon: IdCard,
-    status: 'live',
-    title: 'Identity verification — included',
-    body: 'Driver\'s license verification on every applicant, with an optional selfie ID match (+$2 — included free with the applicant-provided credit tier). Cross-checks against the application catch identity fraud cleanly.',
-    bullets: ['DL verification on every applicant', 'Optional selfie face match for a tighter lock', 'Suspicious-document flags surfaced to the landlord'],
+    title: 'Tenability™ — $5 — the 0–100 score every applicant arrives with',
+    body: 'The standard tier. Every applicant gets a Tenability™ score: income verification, ID verification, and a private 0–100 rentability number with a plain-English summary. Built on a proprietary AI signal pipeline configured to ignore protected-class signals under the Fair Housing Act.',
+    bullets: ['Income verification across 5 income paths', 'Driver\'s license verification', 'Single 0–100 score + plain-English summary', 'Income-to-rent ratio + document anomaly flags'],
   },
   {
     Icon: CreditCard,
     status: 'live',
-    title: 'Applicant-provided credit history',
-    body: 'For +$20, applicants upload their free AnnualCreditReport.gov PDF with a signed attestation. Our AI runs an authenticity check against their other documents and surfaces a confidence score to the landlord. Selfie ID match included free.',
-    bullets: ['Applicant uploads their own federally-free report', 'AI authenticity score 0–100 vs. other docs', 'Selfie ID match bundled at no extra cost'],
+    title: 'Tenability™ Pro — $25 — adds selfie + applicant-provided credit',
+    body: 'The complete pipeline. Pro adds a selfie ID match (normally $2 — free with Pro) and an applicant-provided credit report from AnnualCreditReport.gov, with our AI authenticity check cross-referenced against every other document on file.',
+    bullets: ['Everything in Tenability™', 'Selfie ID match — included free', 'Applicant-provided credit history with signed attestation', 'Authenticity scoring cross-referenced against income + ID'],
   },
   {
     Icon: CreditCard,

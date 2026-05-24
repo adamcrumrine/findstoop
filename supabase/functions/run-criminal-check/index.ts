@@ -16,6 +16,7 @@
 //   CHECKR_API_BASE         — optional, defaults to https://api.checkr.com/v1
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { logApiCall, timed, CHECKR_COST_CENTS } from '../_shared/logging.ts'
 
 const CHECKR_API_BASE     = Deno.env.get('CHECKR_API_BASE') ?? 'https://api.checkr.com/v1'
 const CHECKR_API_KEY      = Deno.env.get('CHECKR_API_KEY') ?? ''
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
     if (!order.checkr_candidate_id)      return json({ error: 'Checkr candidate not created — call submit-checkr-candidate first' }, { status: 400 })
     if (order.checkr_report_id)          return json({ ok: true, report_id: order.checkr_report_id, already_existed: true })
 
-    const resp = await fetch(`${CHECKR_API_BASE}/reports`, {
+    const { result: resp, latency_ms: callLatency } = await timed(() => fetch(`${CHECKR_API_BASE}/reports`, {
       method: 'POST',
       headers: {
         'Authorization': checkrAuthHeader(),
@@ -75,13 +76,28 @@ Deno.serve(async (req) => {
         package: CHECKR_PACKAGE_SLUG,
         candidate_id: order.checkr_candidate_id,
       }),
-    })
+    }))
     if (!resp.ok) {
       const errBody = await resp.text()
+      await logApiCall({
+        function_name: 'run-criminal-check', vendor: 'checkr',
+        latency_ms: callLatency, reference_id: orderId,
+        status_code: resp.status, error_message: errBody.slice(0, 500),
+      })
       return json({ error: `Checkr report create failed (${resp.status})`, detail: errBody }, { status: 502 })
     }
     const report = await resp.json() as { id?: string; status?: string }
     if (!report.id) return json({ error: 'Checkr returned no report id' }, { status: 502 })
+
+    // Log the Checkr cost — billed at the report level, charged regardless
+    // of final adjudication. Adjust CHECKR_COST_CENTS in _shared/logging.ts
+    // once your account's wholesale rate firms up.
+    await logApiCall({
+      function_name: 'run-criminal-check', vendor: 'checkr',
+      latency_ms: callLatency, reference_id: orderId,
+      cost_cents: CHECKR_COST_CENTS,
+      metadata: { package: CHECKR_PACKAGE_SLUG, report_id: report.id, candidate_id: order.checkr_candidate_id },
+    })
 
     await admin.from('screening_orders').update({
       checkr_report_id: report.id,

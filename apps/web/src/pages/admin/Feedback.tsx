@@ -66,10 +66,10 @@ export default function AdminFeedback() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-ink">Feedback inbox</h1>
-        <p className="text-sm text-mute mt-1">Bug reports + feature requests submitted by FindStoop users.</p>
+    <div className="p-6 max-w-5xl">
+      <header className="mb-4">
+        <h1 className="text-2xl font-bold text-slate-900">Feedback</h1>
+        <p className="text-sm text-slate-500 mt-1">Bug reports + feature requests submitted by FindStoop users.</p>
       </header>
 
       <div className="flex gap-2 mb-4">
@@ -79,7 +79,7 @@ export default function AdminFeedback() {
             type="button"
             onClick={() => setFilter(s)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
-              filter === s ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+              filter === s ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             {s} ({s === 'all' ? rows.length : rows.filter((r) => r.status === s).length})
@@ -88,17 +88,17 @@ export default function AdminFeedback() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-mute">
+        <div className="flex items-center justify-center py-16 text-slate-400">
           <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-center text-mute py-16">Nothing to triage.</p>
+        <p className="text-center text-slate-500 py-16 text-sm">Nothing to triage.</p>
       ) : (
         <div className="space-y-3">
           {filtered.map((r) => {
             const cfg = KIND_ICON[r.kind]
             return (
-              <article key={r.id} className="bg-white rounded-2xl border border-gray-200 p-5">
+              <article key={r.id} className="bg-white rounded-xl border border-slate-200 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

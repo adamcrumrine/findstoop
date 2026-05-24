@@ -4,6 +4,9 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
 import { useGeoState } from '../../lib/useGeoState'
 import { isBlockedState, blockedStateName, BLOCKED_STATES_DISPLAY } from '../../lib/blockedStates'
+import { trackAuth } from '../../lib/analytics'
+import { defaultPathForRole } from '../../lib/roleRouting'
+import { checkPasswordStrength, hibpCheckPassword } from '../../lib/passwordSecurity'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -39,7 +42,7 @@ export default function Register({ role }: Props) {
 
   // Already logged in → redirect
   if (!authLoading && user && profile) {
-    return <Navigate to={profile.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard'} replace />
+    return <Navigate to={defaultPathForRole(profile.role)} replace />
   }
 
   // Best-effort geo block — show a friendly "not yet available" page if the
@@ -52,20 +55,31 @@ export default function Register({ role }: Props) {
   const isRenter = role === 'tenant'
   const label = isRenter ? 'renter' : 'landlord'
 
-  const validate = () => {
+  const validate = (): { ok: boolean; passwordError?: string } => {
     const errs: typeof errors = {}
-    if (password.length < 6) errs.password = 'Password must be at least 6 characters'
+    const strength = checkPasswordStrength(password, email)
+    if (!strength.ok) errs.password = strength.reason
     if (password !== confirm) errs.confirm = 'Passwords do not match'
     setErrors(errs)
-    return Object.keys(errs).length === 0
+    return { ok: Object.keys(errs).length === 0, passwordError: errs.password }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validate()) return
+    const v = validate()
+    if (!v.ok) return
     setLoading(true)
     try {
+      // HIBP check — block passwords known to be in leaked-credential dumps.
+      // Fails open if HIBP is unreachable.
+      const seenCount = await hibpCheckPassword(password)
+      if (seenCount > 0) {
+        setErrors({ password: `This password has appeared in ${seenCount.toLocaleString()} data breaches. Choose a different one.` })
+        setLoading(false)
+        return
+      }
       await signUp(email, password, role, fullName)
+      trackAuth('sign_up')
       setSuccess(true)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Registration failed')

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, Navigate } from 'react-router-dom'
 import { Menu, X, UserCircle2 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
+import { defaultPathForRole } from '../../lib/roleRouting'
 
 const navLinks = [
   { to: '/pricing',   label: 'Pricing' },
@@ -19,13 +20,10 @@ export default function MarketingLayout() {
   // Google OAuth callback drops them on "/" instead of "/login"), bounce them
   // straight to their dashboard. Wait for profile so we route to the right one.
   if (!loading && user && profile) {
-    return <Navigate to={profile.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard'} replace />
+    return <Navigate to={defaultPathForRole(profile.role)} replace />
   }
 
-  const myAccountHref =
-    !user ? '/login'
-      : profile?.role === 'tenant' ? '/tenant/dashboard'
-      : '/manager/dashboard'
+  const myAccountHref = !user ? '/login' : defaultPathForRole(profile?.role)
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
     `text-sm font-medium transition-colors ${

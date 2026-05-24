@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import {
   ClipboardList, CreditCard, FileSignature, Wrench, MessageSquare,
-  ShieldCheck, ArrowRight, type LucideIcon,
+  ShieldCheck, Sparkles, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
 
@@ -14,13 +14,13 @@ interface Perk {
 const perks: Perk[] = [
   {
     Icon: ClipboardList,
-    title: 'One application, every listing',
-    body: 'Fill out a single rental application and reuse it across any FindStoop listing. No copy-pasting your work history for the fifteenth time.',
+    title: 'One standardized application',
+    body: 'Fill out the same clean application every time — income, employment, current address, references. No more rewriting your work history into a different PDF for every landlord.',
   },
   {
-    Icon: ShieldCheck,
-    title: 'A screening report that travels with you',
-    body: 'Order your own credit, background, and eviction reports — you pay once, share with as many landlords as you want for the next 30 days.',
+    Icon: Sparkles,
+    title: 'Get verified for $5 — and jump the line',
+    body: 'Verified applicants land at the top of the landlord\'s review queue with an AI-generated rentability score. Most decisions come back in under 24 hours instead of 3–7 days. Upload two paystubs and a driver\'s license, you\'re done.',
   },
   {
     Icon: FileSignature,
@@ -47,7 +47,7 @@ const perks: Perk[] = [
 export default function Tenants() {
   useSeo({
     title: 'For renters',
-    description: 'One rental application across every FindStoop listing, a portable screening report, e-sign leases from your phone, and online rent payments with a free ACH option.',
+    description: 'Apply for rentals on FindStoop with verified pre-qualification for $5, e-sign your lease from your phone, and pay rent free by ACH. Verified applications jump the queue and decisions land in under 24 hours.',
     path: '/tenants',
   })
   return (
@@ -65,9 +65,9 @@ export default function Tenants() {
                 Renting, with the receipts.
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                Apply once and reuse it. Pay rent without writing a check. Get
-                maintenance done by sending a photo. Renting on FindStoop is the
-                way it should've always worked.
+                Apply, get verified for $5, and skip ahead of unverified applicants. Sign
+                the lease on your phone. Pay rent free by ACH. Send maintenance with a photo.
+                Renting on FindStoop is the way it should've always worked.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
@@ -85,7 +85,7 @@ export default function Tenants() {
                 </Link>
               </div>
               <p className="mt-4 text-xs text-mute">
-                Free to create an account. You only pay for screening reports if you order one.
+                Free to create an account. Pre-qualification is optional — only $5 if you choose it.
               </p>
             </div>
             <div>
@@ -127,11 +127,16 @@ export default function Tenants() {
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
-            <Row label="Create an account" sub="Apply, message, see lease docs" price="Free" />
+            <Row label="Create an account + apply" sub="Apply, message, see lease docs" price="Free" />
+            <Row label="Verified pre-qualification" sub="Income (paystub OCR) + ID (driver's license) + AI rentability score" price="$5" />
+            <Row label="Pre-qual + selfie ID match" sub="If the landlord requires the selfie upgrade" price="$7" />
             <Row label="Pay rent by ACH" sub="From any US bank, free for renters" price="$0" />
             <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3.5%" />
-            <Row label="Order a screening report" sub="Credit + background + eviction, valid 30 days" price="$55" />
           </div>
+          <p className="text-xs text-mute text-center mt-3">
+            Full credit + criminal + eviction reports are coming soon as an optional upgrade. Until then,
+            if your landlord requires those, they'll order them directly from a consumer-reporting agency.
+          </p>
         </div>
       </section>
 
@@ -142,16 +147,30 @@ export default function Tenants() {
             Renter questions, answered
           </h2>
           <div className="space-y-6">
-            <Faq q="Will using FindStoop affect my credit?">
-              No. Ordering your own screening report is a soft inquiry — it
-              doesn't lower your score and it isn't visible to lenders. Hard
-              inquiries only happen when a landlord opens an account or pulls a
-              report directly, neither of which we do.
+            <Faq q="What does the $5 pre-qualification get me?">
+              It gets you a verified-applicant status with the landlord: confirmed income
+              from your paystubs, confirmed identity from your driver's license, and an
+              AI-generated rentability score the landlord sees alongside your application.
+              Verified applications get reviewed first and most get a decision in under
+              24 hours.
+            </Faq>
+            <Faq q="Will pre-qualification affect my credit?">
+              No. Pre-qualification doesn't pull your credit at all — it only reads
+              the paystubs and driver's license you upload. No credit inquiry, no impact
+              on your score. If the landlord later requests a full credit report (coming
+              soon), they'll need to ask your permission separately and the FCRA rules
+              apply.
             </Faq>
             <Faq q="My landlord uses FindStoop. Do I have to?">
               You'll get an email invitation. Accept it, set a password, and
               your lease and history come with you. You can keep paying by check
               if you want — but most renters switch to ACH within a month.
+            </Faq>
+            <Faq q="What happens to my driver's license and paystubs?">
+              Encrypted at rest, shown only to the landlord for the property you applied
+              to, and deleted within 90 days of the leasing decision. We never sell your
+              data. See our <Link to="/screening-terms" className="text-brand-600 hover:underline">Screening Terms</Link>{' '}
+              for the details.
             </Faq>
             <Faq q="What happens if there's a dispute over rent?">
               Every payment, message, and maintenance request is timestamped
@@ -159,9 +178,9 @@ export default function Tenants() {
               any time as a PDF or CSV.
             </Faq>
             <Faq q="Who can see my information?">
-              Only you and your landlord. We never sell your data, and your
-              screening report is yours — you decide which landlords get to see
-              it during the 30-day window.
+              Only you and your landlord. We never sell your data. Your screening documents
+              are scoped to the specific property you applied to — applying somewhere else
+              means uploading fresh.
             </Faq>
           </div>
         </div>
@@ -171,10 +190,10 @@ export default function Tenants() {
       <section className="bg-gradient-to-br from-brand-500 to-brand-600 text-white">
         <div className="max-w-3xl mx-auto px-5 lg:px-8 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Find your next place. Bring your paperwork with you.
+            Apply, get verified, sign on your phone, pay free by ACH.
           </h2>
           <p className="mt-3 text-white/85">
-            Apply once. Use the same report for every FindStoop listing for the next 30 days.
+            $5 for a verified pre-qualification that gets you to the front of the landlord's queue.
           </p>
           <Link
             to="/register/renter"

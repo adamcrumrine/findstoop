@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { UserRole } from '@findstoop/shared/types/profile'
+import { defaultPathForRole } from '../../lib/roleRouting'
 
 interface MfaState {
   role: UserRole
@@ -30,7 +31,7 @@ export default function VerifyBackup() {
       const { remaining } = await verifyBackupCode(code.trim())
       setCodesRemaining(remaining)
       setTimeout(() => {
-        navigate(state.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard', { replace: true })
+        navigate(defaultPathForRole(state.role), { replace: true })
       }, 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid backup code')

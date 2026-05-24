@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Camera, Loader2, Trash2, ImageIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { verifyImageMagicBytes } from '../../lib/fileValidation'
 
 interface ImageUploaderProps {
   currentUrl: string | null | undefined
@@ -18,9 +19,55 @@ interface ImageUploaderProps {
   size?: number
   label?: string
   className?: string
+  /**
+   * Client-side resize cap (longest edge, px) applied before upload.
+   * Default 512 keeps files tiny but stays crisp on retina for any display
+   * up to ~256px on screen. Set to 0 to skip resizing entirely.
+   */
+  maxOutputDimension?: number
 }
 
 const BUCKET = 'user-uploads'
+
+/**
+ * Resize an image client-side via canvas to keep storage small and rendering
+ * crisp. Returns a JPEG blob at the requested max-dimension (longest edge),
+ * preserving aspect ratio. Pass 0 for maxDim to return the file as-is.
+ */
+async function resizeImage(file: File, maxDim: number, quality = 0.9): Promise<Blob> {
+  if (maxDim <= 0) return file
+  const bitmap = await createImageBitmap(file)
+  try {
+    const { width, height } = bitmap
+    if (width <= maxDim && height <= maxDim) {
+      // Already small enough — but re-encode as JPEG to strip metadata + recompress.
+      // Skip for tiny files (<200 KB) where re-encoding gains little.
+      if (file.size < 200_000) return file
+    }
+    const scale = Math.min(1, maxDim / Math.max(width, height))
+    const outW = Math.round(width * scale)
+    const outH = Math.round(height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = outW
+    canvas.height = outH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    // Sharper downscale than the default — disable smoothing for the final pass
+    // to avoid the over-soft look browsers produce on big downscales.
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bitmap, 0, 0, outW, outH)
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Canvas conversion failed'))),
+        'image/jpeg',
+        quality,
+      )
+    })
+  } finally {
+    bitmap.close()
+  }
+}
 
 export default function ImageUploader({
   currentUrl,
@@ -30,6 +77,7 @@ export default function ImageUploader({
   size = 80,
   label,
   className = '',
+  maxOutputDimension = 512,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -41,17 +89,28 @@ export default function ImageUploader({
       toast.error('Please upload an image file')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5 MB')
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image must be under 10 MB')
+      return
+    }
+    // Verify the bytes actually match an image format — the browser-reported
+    // MIME type is trivially spoofable (rename evil.html to evil.jpg, claim
+    // image/jpeg, browser believes it). Magic-byte check stops that.
+    const verifiedMime = await verifyImageMagicBytes(file)
+    if (!verifiedMime) {
+      toast.error('That file doesn\'t look like a real image (JPEG, PNG, GIF, WebP, or HEIC).')
       return
     }
     setUploading(true)
     try {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      // Client-side downscale before upload. Keeps storage tiny (~30–80 KB
+      // typical) and the rendered image crisp on retina at our display sizes.
+      const resized = await resizeImage(file, maxOutputDimension)
+      const ext = resized.type === 'image/jpeg' ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `${pathPrefix}-${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+      const { error } = await supabase.storage.from(BUCKET).upload(path, resized, {
         upsert: true,
-        contentType: file.type,
+        contentType: resized.type || file.type,
       })
       if (error) throw error
       const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
@@ -111,7 +170,7 @@ export default function ImageUploader({
             </button>
           )}
         </div>
-        <p className="text-[11px] text-mute mt-1.5">PNG or JPG, up to 5 MB.</p>
+        <p className="text-[11px] text-mute mt-1.5">PNG or JPG, up to 10 MB. We resize automatically.</p>
       </div>
 
       <input

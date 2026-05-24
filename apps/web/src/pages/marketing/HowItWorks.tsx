@@ -28,23 +28,23 @@ const steps: Step[] = [
   {
     number: '02',
     Icon: Megaphone,
-    title: 'List vacant units where renters look',
-    body: 'Publish a listing once and we push it to the major rental sites. Photos, amenities, description — fill it in once, edit anywhere.',
+    title: 'List vacant units and share a branded apply link',
+    body: 'Add unit photos, amenities, and description once. You get a clean shareable apply link to drop into a Facebook Marketplace post, your own site, or a Craigslist listing. One-click syndication to the big rental marketplaces is on the roadmap.',
     detail: [
-      'Syndication to top rental marketplaces',
-      'Branded listing page with a shareable URL',
-      'Inquiry inbox routes prospects into your application funnel',
+      'Branded listing + apply page with a shareable URL',
+      'Per-unit application funnel — every applicant comes through one channel',
+      'Marketplace syndication coming soon',
     ],
   },
   {
     number: '03',
     Icon: ShieldCheck,
-    title: 'Accept applications and screen renters',
-    body: 'Every applicant fills out one standardized form. They order their own credit, background, and eviction reports — at no cost to you — and you review the results in a single dashboard.',
+    title: 'Get verified applicants — for $5, in minutes',
+    body: 'Every applicant fills out one standardized form, then completes a $5 verified pre-qualification: paystubs, driver\'s license, and an AI-generated rentability score the manager sees alongside the income-to-rent ratio. No employer phone calls, no 3–7 day Truework waits. Full credit + criminal + eviction reports coming as an opt-in add-on.',
     detail: [
-      'TransUnion credit + nationwide background + eviction history',
-      'Side-by-side applicant comparison',
-      'Auto-flag for income-to-rent ratio thresholds you set',
+      'Verified income via paystub OCR (or 1099 / bank statement / tax return)',
+      'Verified ID via driver\'s license OCR + optional selfie match',
+      'AI rentability score 0–100, Fair-Housing-safe, no protected-class signals',
     ],
   },
   {

@@ -21,8 +21,10 @@
 
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
+const MODEL_SCORE = 'claude-opus-4-7'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -155,14 +157,20 @@ Score ranges:
   30–49:  weak income (under 2x) OR significant verification gaps
   0–29:   failed verification (tamper detected, identity mismatch, etc.)`
 
-    const scoreResp = await anthropic.messages.create({
-      model: 'claude-opus-4-7',
+    const { result: scoreResp, latency_ms: scoreLatency } = await timed(() => anthropic.messages.create({
+      model: MODEL_SCORE,
       max_tokens: 1000,
       system: sysPrompt,
       messages: [{
         role: 'user',
         content: `Applicant data:\n${JSON.stringify(scoringContext, null, 2)}\n\nProduce the rentability JSON.`,
       }],
+    }))
+    await logApiCall({
+      function_name: 'rentability-score', vendor: 'anthropic',
+      latency_ms: scoreLatency, reference_id: orderId,
+      cost_cents: anthropicCost(MODEL_SCORE, scoreResp.usage?.input_tokens ?? 0, scoreResp.usage?.output_tokens ?? 0),
+      metadata: { model: MODEL_SCORE, input_tokens: scoreResp.usage?.input_tokens, output_tokens: scoreResp.usage?.output_tokens },
     })
     type TextBlock = { type: 'text'; text: string }
     const out = scoreResp.content.find((b): b is TextBlock => b.type === 'text')?.text ?? '{}'
@@ -193,6 +201,8 @@ Score ranges:
 
     return json(parsed)
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logApiCall({ function_name: 'rentability-score', status_code: 500, error_message: msg })
+    return json({ error: msg }, { status: 500 })
   }
 })

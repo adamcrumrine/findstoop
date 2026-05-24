@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CreditCard, FileSignature, Wrench, ShieldCheck, MessageSquare,
-  ArrowRight, Check, Sparkles, BarChart3, Megaphone,
+  ArrowRight, Check, Sparkles, BarChart3, ClipboardList,
   type LucideIcon,
 } from 'lucide-react'
 import Illustration from '../../components/marketing/Illustration'
@@ -42,9 +42,9 @@ export default function Home() {
                 Run your rentals like a pro — without <span className="text-brand-500">becoming one.</span>
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                List vacancies, screen applicants, sign leases, and accept rent
-                online — from any device, with a toolkit built around landlords
-                who own a handful of properties, not a hundred.
+                Every applicant arrives pre-qualified with verified income, verified ID,
+                and an AI-generated rentability score — for $5, in minutes. Plus
+                listings, e-sign leases, and online rent in one place.
               </p>
 
               {/* Email signup */}
@@ -90,9 +90,9 @@ export default function Home() {
             Built for the 73% of rentals owned by individuals, not institutions
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
-            <Stat number="3 min" label="to set up your first property" />
-            <Stat number="60%" label="faster rent collection vs. checks" />
-            <Stat number="$9" label="per unit / month, every feature included" />
+            <Stat number="$5" label="verified pre-qualification per applicant" />
+            <Stat number="0–100" label="AI rentability score on every applicant" />
+            <Stat number="$9" label="per unit / month for landlords, every feature" />
             <Stat number="50-state" label="lease templates included" />
           </div>
         </div>
@@ -101,29 +101,29 @@ export default function Home() {
       {/* ── Feature sections ─────────────────────────────────────────── */}
 
       <FeatureSection
-        eyebrow="Listings"
-        status="soon"
-        title="Post a vacancy once. Get seen on the sites renters actually visit."
-        body="We're rolling out one-click syndication to the largest rental marketplaces — so you stop reposting the same description across half a dozen tabs. Until then, share a clean branded listing page with anyone."
-        learnMore="/features"
-        Icon={Megaphone}
-        illustrationName="listings"
-      />
-
-      <FeatureSection
-        eyebrow="Applications & screening"
-        status="soon"
-        title="Standardized applications, applicant-paid screening, side-by-side comparison."
-        body="Renters fill out one application and order their own credit, background, and eviction reports. You evaluate every candidate against the same fields instead of squinting at email attachments."
+        eyebrow="Verified pre-qualification"
+        status="live"
+        title="Every applicant arrives verified — income, identity, and an AI rentability score."
+        body="For $5, the applicant uploads two paystubs and a driver's license. Our AI reads them, cross-checks against the application, and produces a 0–100 rentability score. No employer phone calls, no faxes, no 'wait three days for Truework' — results land in minutes. The AI is built to ignore protected-class signals under the Fair Housing Act."
         learnMore="/features"
         Icon={ShieldCheck}
         illustrationName="screening"
+      />
+
+      <FeatureSection
+        eyebrow="Applications"
+        status="live"
+        title="One standardized application per unit. Side-by-side comparison."
+        body="Share a branded apply link, get every applicant filling out the same fields, and review them in a single dashboard. Income, employment, current address, references, pets — all captured the same way every time."
+        learnMore="/features"
+        Icon={ClipboardList}
+        illustrationName="applications"
         reverse
       />
 
       <FeatureSection
         eyebrow="Lease templates & e-sign"
-        status="beta"
+        status="live"
         title="State-specific lease templates, signed on-screen, finished in minutes."
         body="Choose a template for your state, fill in the unit and rent, send. Both parties sign on phone or laptop. Every signature ships with an audit log — timestamp, IP, and device — so the document holds up later."
         learnMore="/features"
@@ -194,13 +194,13 @@ export default function Home() {
             cta="Get started"
             ctaHref="/register"
             features={[
+              'Verified pre-qualification on every applicant ($5 paid by applicant)',
+              'AI rentability score with Fair-Housing-safe scoring',
               'Online rent collection — ACH free for your tenants',
               'State-specific lease templates with e-sign',
-              'Tenant screening review and decisions',
               'Maintenance tracking with photos',
-              '24/7 tenant portal access',
+              '24/7 tenant portal + messaging per lease',
               'Income & expense tracking with CSV export',
-              'In-app messaging per lease',
               'Priority human support',
             ]}
             accent="brand"

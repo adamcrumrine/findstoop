@@ -67,9 +67,10 @@ export default function Terms() {
 
         <Sec title="5. Tenant pre-qualification fees (applicants)">
           When you submit a rental application through the Service, the property's landlord may require you to complete a
-          pre-qualification screening for $5 (or $7 with the optional selfie ID match). This fee is paid directly to FindStoop
-          and is non-refundable once your documents have been processed — which happens immediately. Pre-qualification is
-          not a consumer report under the Fair Credit Reporting Act. See our{' '}
+          Tenability™ screening — either Tenability™ ($5: verified income + ID + score) or Tenability™ Pro ($25: adds
+          selfie ID match and an applicant-provided credit report with authenticity scoring). This fee is paid directly to
+          FindStoop and is non-refundable once your documents have been processed — which happens immediately. Tenability™
+          is not a consumer report under the Fair Credit Reporting Act. See our{' '}
           <Link to="/screening-terms" className="text-brand-600 hover:underline">Screening Terms</Link> for details.
         </Sec>
 

@@ -20,11 +20,10 @@ const includedAtThisPrice = [
 ]
 
 const tenantCosts = [
-  { label: 'ACH rent payment',              price: 'Free', sub: 'covered by the landlord' },
-  { label: 'Card rent payment',             price: '3.5%', sub: 'paid by the renter at checkout' },
-  { label: 'Verified pre-qualification',    price: '$5',   sub: 'paystubs + ID + AI Tenability™' },
-  { label: 'Selfie ID match (opt-in)',      price: '+$2',  sub: 'when the landlord requires it — free with the $20 credit tier' },
-  { label: 'Applicant-provided credit',     price: '+$20', sub: 'upload your free AnnualCreditReport.gov PDF — selfie ID match included free' },
+  { label: 'ACH rent payment',  price: 'Free', sub: 'covered by the landlord' },
+  { label: 'Card rent payment', price: '3.5%', sub: 'paid by the renter at checkout' },
+  { label: 'Tenability™',       price: '$5',   sub: 'income verification + ID verification + AI Tenability™ score' },
+  { label: 'Tenability™ Pro',   price: '$25',  sub: 'everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring' },
 ]
 
 const billingExamples = [

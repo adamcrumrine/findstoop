@@ -20,8 +20,8 @@ import { useSeo } from '../../lib/useSeo'
 
 export default function Tenability() {
   useSeo({
-    title: 'Tenability™ — the 0–100 AI rentability score',
-    description: 'Tenability™ is FindStoop\'s private 0–100 rentability score. Verified income, verified ID, and a Fair-Housing-safe AI assessment — landed on the landlord\'s screen in minutes, not days. $5 per applicant.',
+    title: 'Tenability™ — the 0–100 AI rentability score (from $5)',
+    description: 'Tenability™ is FindStoop\'s private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.',
     path: '/tenability',
   })
 
@@ -33,14 +33,15 @@ export default function Tenability() {
         <div className="relative max-w-5xl mx-auto px-5 lg:px-8 pt-20 pb-16 md:pt-28 md:pb-20 text-center">
           <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
             <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Live · $5 per applicant
+            Live · From $5 per applicant
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-ink leading-[1.05] tracking-tight">
             Meet <span className="text-brand-500">Tenability™</span>
           </h1>
           <p className="mt-5 text-lg text-mute max-w-2xl mx-auto">
             A single 0–100 rentability score on every applicant — backed by verified income, verified ID, and an
-            AI signal pipeline configured to be Fair Housing safe. In minutes, not days.
+            AI signal pipeline configured to be Fair Housing safe. In minutes, not days. Two tiers:
+            <strong className="text-ink"> Tenability™ ($5)</strong> and <strong className="text-ink">Tenability™ Pro ($25)</strong>.
           </p>
 
           <div className="mt-8 inline-flex items-baseline gap-3 bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm">
@@ -96,7 +97,7 @@ export default function Tenability() {
             <SignalCard
               Icon={IdCard}
               title="Identity confidence"
-              body="Driver's-license verification with an optional selfie ID match — catches identity fraud cleanly."
+              body="Driver's-license verification on every applicant. Pro adds a selfie ID match — catches identity fraud cleanly."
             />
             <SignalCard
               Icon={BarChart3}
@@ -156,24 +157,67 @@ export default function Tenability() {
         </div>
       </section>
 
-      {/* ── Pricing snapshot ──────────────────────────────────────────── */}
+      {/* ── Two tiers ─────────────────────────────────────────────────── */}
       <section className="py-20 md:py-24">
-        <div className="max-w-3xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-8">
-            <p className="text-xs uppercase tracking-wider text-brand-700 font-bold mb-2">Pricing</p>
+        <div className="max-w-5xl mx-auto px-5 lg:px-8">
+          <div className="text-center mb-12 max-w-2xl mx-auto">
+            <p className="text-xs uppercase tracking-wider text-brand-700 font-bold mb-2">Two tiers, one brand</p>
             <h2 className="text-3xl md:text-4xl font-bold text-ink tracking-tight">
-              Verified, every time — for $5.
+              Pick the depth you need.
             </h2>
             <p className="mt-3 text-mute">
-              The applicant pays for their own pre-qualification. You see the score and the summary.
-              No subscriptions, no hidden upsells.
+              Tenability™ and Tenability™ Pro both produce the same 0–100 score. Pro looks deeper —
+              adding a selfie ID match and an applicant-provided credit report with an authenticity check
+              cross-referenced against the rest of the file.
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
-            <PriceRow label="Verified pre-qualification" sub="Includes Tenability™ + verified income + ID" price="$5" />
-            <PriceRow label="Selfie ID match (opt-in)" sub="If the landlord requires it — included free with the credit tier" price="+$2" />
-            <PriceRow label="Applicant-provided credit history" sub="Applicant uploads their free AnnualCreditReport.gov PDF. Selfie included." price="+$20" />
+          <div className="grid md:grid-cols-2 gap-5">
+            {/* Standard tier */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col">
+              <p className="text-xs uppercase tracking-wider text-brand-700 font-bold">Tenability™</p>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-4xl font-bold text-ink">$5</span>
+                <span className="text-sm text-mute">/ applicant</span>
+              </div>
+              <p className="mt-2 text-sm text-mute leading-relaxed">
+                The standard score. Income verification, ID verification, and an AI-generated 0–100
+                Tenability™ — landed on the landlord's screen in minutes.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-sm">
+                <TierFeature included>Income verification (5 income paths)</TierFeature>
+                <TierFeature included>Driver's license verification</TierFeature>
+                <TierFeature included>0–100 Tenability™ score + plain-English summary</TierFeature>
+                <TierFeature included>Income-to-rent ratio + document-anomaly flags</TierFeature>
+                <TierFeature>Selfie ID match</TierFeature>
+                <TierFeature>Applicant-provided credit report</TierFeature>
+                <TierFeature>Authenticity scoring across documents</TierFeature>
+              </ul>
+            </div>
+
+            {/* Pro tier */}
+            <div className="bg-gradient-to-br from-brand-50 to-white rounded-2xl border-2 border-brand-300 p-6 flex flex-col relative">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white bg-brand-600 px-2.5 py-1 rounded-full">
+                Best value
+              </span>
+              <p className="text-xs uppercase tracking-wider text-brand-700 font-bold">Tenability™ Pro</p>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-4xl font-bold text-ink">$25</span>
+                <span className="text-sm text-mute">/ applicant</span>
+              </div>
+              <p className="mt-2 text-sm text-mute leading-relaxed">
+                The complete pipeline. Adds a selfie ID match (normally $2 — free with Pro) and an
+                applicant-provided credit report with our AI authenticity check against every other
+                document on file.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-sm">
+                <TierFeature included>Everything in Tenability™</TierFeature>
+                <TierFeature included><strong>Selfie ID match</strong> — included free</TierFeature>
+                <TierFeature included><strong>Applicant-provided credit report</strong> from AnnualCreditReport.gov</TierFeature>
+                <TierFeature included><strong>Authenticity scoring</strong> cross-referenced against income + ID</TierFeature>
+                <TierFeature included>Tamper-signal detection on the credit PDF</TierFeature>
+              </ul>
+            </div>
           </div>
 
           <div className="text-center mt-10">
@@ -203,9 +247,16 @@ export default function Tenability() {
             </Faq>
             <Faq q="Is Tenability™ a credit score?">
               No. A Tenability™ score is not a FICO or VantageScore and has no relationship to either. It does
-              not pull or read your credit report. Some landlords additionally require an applicant-provided
-              credit report ($20 add-on) — but that's an entirely separate document the applicant uploads
-              themselves from AnnualCreditReport.gov.
+              not pull or read your credit report. <strong>Tenability™ Pro</strong> additionally asks the applicant
+              to upload their own free AnnualCreditReport.gov PDF and runs an authenticity check on it — that
+              document originates from the applicant, not from a bureau pulled by FindStoop.
+            </Faq>
+            <Faq q="What's the difference between Tenability™ and Tenability™ Pro?">
+              Tenability™ ($5) gives every applicant a 0–100 score based on verified income, ID, and document
+              consistency. Tenability™ Pro ($25) keeps all of that and adds a selfie ID match (free with Pro)
+              plus an applicant-provided credit report with an AI authenticity score cross-referenced against
+              the rest of the file. Pro produces the more defensible score; Standard is faster and cheaper.
+              The landlord picks per property.
             </Faq>
             <Faq q="Is it FCRA-regulated?">
               No. Tenability™ is an internal signal a landlord uses alongside the applicant's own materials —
@@ -218,8 +269,8 @@ export default function Tenability() {
               under federal and applicable state law. Only the four legitimate signals listed above are weighed.
             </Faq>
             <Faq q="Who pays — landlord or applicant?">
-              The applicant pays the $5 pre-qualification fee directly. Landlords pay $9 per unit per month
-              for the FindStoop platform and never pay for individual applications.
+              The applicant pays for their Tenability™ fee directly — $5 for Standard, $25 for Pro. Landlords
+              pay $9 per unit per month for the FindStoop platform and never pay for individual applications.
             </Faq>
             <Faq q="How long does scoring take?">
               Typically under 60 seconds from the moment the applicant finishes uploading their income docs and
@@ -295,15 +346,16 @@ function CompareCard({
   )
 }
 
-function PriceRow({ label, sub, price }: { label: string; sub: string; price: string }) {
+function TierFeature({ children, included }: { children: React.ReactNode; included?: boolean }) {
   return (
-    <div className="flex items-center justify-between px-5 py-4">
-      <div>
-        <p className="text-sm font-semibold text-ink">{label}</p>
-        <p className="text-xs text-mute mt-0.5">{sub}</p>
-      </div>
-      <p className="text-lg font-bold text-ink tabular-nums whitespace-nowrap ml-3">{price}</p>
-    </div>
+    <li className={`flex items-start gap-2 ${included ? 'text-ink' : 'text-mute/70'}`}>
+      {included ? (
+        <Check className="w-4 h-4 mt-0.5 text-brand-600 shrink-0" strokeWidth={2.25} />
+      ) : (
+        <span className="w-4 h-4 mt-0.5 rounded-full border border-gray-300 shrink-0" aria-hidden="true" />
+      )}
+      <span className="leading-relaxed">{children}</span>
+    </li>
   )
 }
 

@@ -28,5 +28,7 @@ export interface Profile {
   emergency_contact_relationship?: string | null
   previous_address?: string | null
   about_me?: string | null
+  // Privacy: opt-out of the pseudonymized analytics pipeline.
+  analytics_opt_out?: boolean
   created_at: string
 }

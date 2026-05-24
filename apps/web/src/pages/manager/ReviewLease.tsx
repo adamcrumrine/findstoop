@@ -23,10 +23,11 @@ import type { Unit } from '@findstoop/shared/types/unit'
 import type { Profile } from '@findstoop/shared/types/profile'
 import {
   ArrowLeft, AlertTriangle, Save, Send, FileSignature, Loader2, CheckCircle2,
-  FileText, ExternalLink,
+  FileText, ExternalLink, ClipboardList, ArrowRight, Check, ShieldCheck,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
+import { useInspection } from '@findstoop/shared/hooks/useInspection'
 
 interface LeaseWithRefs extends Lease {
   payment_due_day?: number | null
@@ -701,6 +702,12 @@ export default function ReviewLease() {
         </section>
       </div>
 
+      {/* Inspections — move-in + move-out checklists */}
+      <InspectionsPanel leaseId={lease.id} fullySigned={fullySigned} />
+
+      {/* Federal compliance — built-before-1978 toggle + disclosure / insurance status */}
+      <CompliancePanel leaseId={lease.id} fullySigned={fullySigned} />
+
       {/* Action footer */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5 mt-4 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-mute">
@@ -784,4 +791,319 @@ export default function ReviewLease() {
       })()}
     </div>
   )
+}
+
+// ── Inspections panel ──────────────────────────────────────────────────
+// Renders two cards (move-in + move-out) side-by-side. Each card shows the
+// state of the corresponding inspection + a CTA to open or start it.
+function InspectionsPanel({ leaseId, fullySigned }: { leaseId: string; fullySigned: boolean }) {
+  const moveIn  = useInspection(leaseId, 'move_in')
+  const moveOut = useInspection(leaseId, 'move_out')
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5 mt-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Move-in / move-out checklists</h2>
+          <p className="text-xs text-mute mt-1">
+            Walk through the unit with the tenant and document the condition. Both parties sign — the signed PDF lands in Documents.
+          </p>
+        </div>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <InspectionCard
+          leaseId={leaseId}
+          type="move_in"
+          label="Move-in"
+          subtitle="Document the starting condition"
+          loading={moveIn.loading}
+          inspection={moveIn.inspection}
+          locked={!fullySigned}
+        />
+        <InspectionCard
+          leaseId={leaseId}
+          type="move_out"
+          label="Move-out"
+          subtitle="Compare against move-in at lease end"
+          loading={moveOut.loading}
+          inspection={moveOut.inspection}
+          locked={!fullySigned}
+        />
+      </div>
+    </section>
+  )
+}
+
+function InspectionCard({ leaseId, type, label, subtitle, loading, inspection, locked }: {
+  leaseId: string
+  type: 'move_in' | 'move_out'
+  label: string
+  subtitle: string
+  loading: boolean
+  inspection: ReturnType<typeof useInspection>['inspection']
+  locked: boolean
+}) {
+  if (loading) {
+    return (
+      <div className="border border-gray-200 rounded-xl p-4 h-32 flex items-center justify-center">
+        <Loader2 className="w-4 h-4 animate-spin text-mute" />
+      </div>
+    )
+  }
+
+  // Manager can only START a move-in inspection AFTER the lease is signed
+  // (the data model needs a real, signed lease as the anchor). They can
+  // EDIT an existing one regardless.
+  if (!inspection && locked) {
+    return (
+      <div className="border border-dashed border-gray-200 rounded-xl p-4 bg-gray-50/50">
+        <p className="text-sm font-semibold text-mute">{label} checklist</p>
+        <p className="text-xs text-mute mt-1">{subtitle}</p>
+        <p className="text-[11px] text-amber-700 mt-2 inline-flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3" strokeWidth={2} />
+          Available after the lease is fully signed
+        </p>
+      </div>
+    )
+  }
+
+  const state = inspection?.state
+  const stateLabel =
+    state === 'both_signed'    ? 'Signed by both' :
+    state === 'manager_signed' ? 'Waiting on tenant' :
+    state === 'tenant_signed'  ? 'Waiting on manager' :
+    inspection                 ? 'Draft' : 'Not started'
+
+  const stateCls =
+    state === 'both_signed'    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    state === 'manager_signed' || state === 'tenant_signed'
+                               ? 'bg-amber-50 text-amber-700 border-amber-200' :
+    inspection                 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                 'bg-gray-50 text-mute border-gray-200'
+
+  return (
+    <Link
+      to={`/manager/lease/${leaseId}/inspection/${type}`}
+      className="block border border-gray-200 hover:border-brand-300 rounded-xl p-4 transition-colors group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-700 inline-flex items-center justify-center">
+            <ClipboardList className="w-4 h-4" strokeWidth={1.75} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-ink">{label} checklist</p>
+            <p className="text-xs text-mute">{subtitle}</p>
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 text-mute group-hover:text-brand-600 shrink-0" strokeWidth={1.75} />
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${stateCls}`}>
+          {state === 'both_signed' && <Check className="w-3 h-3" strokeWidth={2.5} />}
+          {stateLabel}
+        </span>
+        {inspection?.updated_at && (
+          <span className="text-[11px] text-mute">Updated {new Date(inspection.updated_at).toLocaleDateString()}</span>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+// ── Federal-compliance panel ───────────────────────────────────────────
+// Manager-side card showing federal lease compliance status:
+//   • Fair Housing notice acknowledged by tenant
+//   • Built-before-1978 toggle → enables / suppresses LBP disclosure
+//   • Lead disclosure progress (landlord pending / tenant pending / signed)
+//   • Renter's insurance state + due date + uploaded proof link
+interface ComplianceStatusRow {
+  lease_id: string
+  property_built_before_1978: boolean | null
+  lead_disclosure_state: 'not_set' | 'not_required' | 'landlord_pending' | 'tenant_pending' | 'signed'
+  fair_housing_state: 'pending' | 'acknowledged'
+  insurance_required: boolean
+  insurance_proof_url: string | null
+  insurance_uploaded_at: string | null
+  insurance_expires_at: string | null
+  insurance_due_date: string
+  insurance_state: 'not_required' | 'pending' | 'uploaded' | 'expired' | 'overdue'
+  insurance_days_remaining: number
+}
+
+function CompliancePanel({ leaseId, fullySigned: _fullySigned }: { leaseId: string; fullySigned: boolean }) {
+  const [row, setRow] = useState<ComplianceStatusRow | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const reload = async () => {
+    const { data } = await supabase
+      .from('lease_compliance_status')
+      .select('*')
+      .eq('lease_id', leaseId)
+      .single()
+    setRow((data ?? null) as ComplianceStatusRow | null)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    void reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaseId])
+
+  const setPre1978 = async (value: boolean) => {
+    setSaving(true)
+    const { error } = await supabase
+      .from('leases')
+      .update({ property_built_before_1978: value })
+      .eq('id', leaseId)
+    setSaving(false)
+    if (error) { toast.error(error.message); return }
+    await reload()
+  }
+
+  const openInsurance = async () => {
+    if (!row?.insurance_proof_url) return
+    const { data, error } = await supabase.storage
+      .from('insurance-documents')
+      .createSignedUrl(row.insurance_proof_url, 600)
+    if (error || !data?.signedUrl) { toast.error('Could not open proof.'); return }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  if (loading || !row) return null
+
+  const fairHousingOk  = row.fair_housing_state === 'acknowledged'
+  const leadOk         = row.lead_disclosure_state === 'signed' || row.lead_disclosure_state === 'not_required'
+  const insuranceOk    = row.insurance_state === 'uploaded' || row.insurance_state === 'not_required'
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5 mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Federal compliance</h2>
+        <p className="text-[11px] text-mute">
+          {[fairHousingOk, leadOk, insuranceOk].filter(Boolean).length} / 3 complete
+        </p>
+      </div>
+
+      {/* Built-before-1978 toggle */}
+      <div className="bg-gray-50/60 border border-gray-200 rounded-xl p-3 mb-3">
+        <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-1">Property built before 1978?</p>
+        <p className="text-xs text-mute mb-2">Required by federal law (24 CFR 35.92) for pre-1978 housing — triggers the lead-based-paint disclosure.</p>
+        <div className="flex gap-2">
+          {(['yes', 'no'] as const).map((v) => {
+            const value = v === 'yes'
+            const selected = row.property_built_before_1978 === value
+            return (
+              <button
+                key={v}
+                type="button"
+                disabled={saving}
+                onClick={() => setPre1978(value)}
+                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border transition-colors ${
+                  selected
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-ink border-gray-300 hover:border-brand-400'
+                }`}
+              >
+                {v === 'yes' ? 'Yes — built before 1978' : 'No — built 1978 or later'}
+              </button>
+            )
+          })}
+        </div>
+        {row.property_built_before_1978 == null && (
+          <p className="text-[11px] text-amber-700 mt-2">
+            Set this before sending the lease — it determines whether the LBP disclosure is required.
+          </p>
+        )}
+      </div>
+
+      {/* Status rows */}
+      <div className="space-y-2">
+        <ComplianceLine
+          Icon={ShieldCheck}
+          label="Fair Housing Notice"
+          status={fairHousingOk ? 'ok' : 'pending'}
+          sub={fairHousingOk ? 'Acknowledged by tenant' : 'Awaiting tenant acknowledgment'}
+        />
+        {row.property_built_before_1978 && (
+          <ComplianceLine
+            Icon={FileText}
+            label="Lead-Based Paint Disclosure"
+            status={
+              row.lead_disclosure_state === 'signed'           ? 'ok' :
+              row.lead_disclosure_state === 'landlord_pending' ? 'action' :
+              row.lead_disclosure_state === 'tenant_pending'   ? 'pending' :
+                                                                  'pending'
+            }
+            sub={
+              row.lead_disclosure_state === 'signed'           ? 'Both parties signed' :
+              row.lead_disclosure_state === 'landlord_pending' ? 'Your signature required' :
+              row.lead_disclosure_state === 'tenant_pending'   ? 'Awaiting tenant signature' :
+                                                                  'Not yet started'
+            }
+            to={`/legal/lead-disclosure/${row.lease_id}`}
+          />
+        )}
+        <ComplianceLine
+          Icon={ShieldCheck}
+          label="Renter's Insurance"
+          status={
+            row.insurance_state === 'uploaded'      ? 'ok' :
+            row.insurance_state === 'not_required'  ? 'ok' :
+            row.insurance_state === 'expired'       ? 'pending' :
+            row.insurance_state === 'overdue'       ? 'pending' :
+                                                       'pending'
+          }
+          sub={
+            row.insurance_state === 'uploaded'
+              ? `On file${row.insurance_expires_at ? ` · expires ${new Date(row.insurance_expires_at).toLocaleDateString()}` : ''}`
+              : row.insurance_state === 'expired'
+                ? 'Expired — tenant must re-upload'
+                : row.insurance_state === 'overdue'
+                  ? `Overdue — was due ${new Date(row.insurance_due_date).toLocaleDateString()}`
+                  : `Due by ${new Date(row.insurance_due_date).toLocaleDateString()} (${row.insurance_days_remaining}d remaining)`
+          }
+          onClick={row.insurance_state === 'uploaded' ? openInsurance : undefined}
+        />
+      </div>
+    </section>
+  )
+}
+
+function ComplianceLine({ Icon, label, status, sub, to, onClick }: {
+  Icon: typeof ShieldCheck
+  label: string
+  status: 'ok' | 'pending' | 'action'
+  sub: string
+  to?: string
+  onClick?: () => void
+}) {
+  const cls =
+    status === 'ok'      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+    status === 'action'  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            'bg-gray-50 text-gray-600 border-gray-200'
+  const labelText =
+    status === 'ok'      ? 'Complete' :
+    status === 'action'  ? 'Action required' :
+                            'Pending'
+
+  const Body = (
+    <div className="flex items-center gap-3 bg-white rounded-lg px-3 py-2.5 border border-gray-200">
+      <div className="w-8 h-8 rounded-md bg-brand-50 text-brand-700 inline-flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4" strokeWidth={1.75} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-ink">{label}</p>
+        <p className="text-xs text-mute mt-0.5 truncate">{sub}</p>
+      </div>
+      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+        {labelText}
+      </span>
+    </div>
+  )
+
+  if (to) return <Link to={to}>{Body}</Link>
+  if (onClick) return <button type="button" onClick={onClick} className="w-full text-left">{Body}</button>
+  return Body
 }

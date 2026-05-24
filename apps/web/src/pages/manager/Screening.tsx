@@ -1,13 +1,13 @@
 // Manager screening dashboard.
 // Lists every screening_order on the manager's properties with the
-// applicant's rentability score, verification chips, and a "Request full
+// applicant's Tenability™, verification chips, and a "Request full
 // report" CTA (stubbed for now — full report tier ships in a follow-up).
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShieldCheck, Loader2, CheckCircle2, AlertTriangle, Clock,
-  IdCard, FileText, Hourglass, XCircle,
+  IdCard, FileText, Hourglass, XCircle, CreditCard, ExternalLink, Info,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -23,6 +23,7 @@ interface OrderRow {
   addon_credit_check: boolean
   addon_criminal_check: boolean
   addon_eviction_check: boolean
+  addon_credit_self_disclosed: boolean
   rentability_score: number | null
   rentability_summary: string | null
   rentability_flags: Record<string, unknown> | null
@@ -32,6 +33,13 @@ interface OrderRow {
   array_data: Record<string, unknown> | null
   vergent_data: Record<string, unknown> | null
   lexisnexis_data: Record<string, unknown> | null
+  credit_self_pdf_url: string | null
+  credit_self_bureau: string | null
+  credit_self_report_date: string | null
+  credit_self_extracted: Record<string, unknown> | null
+  credit_self_authenticity_score: number | null
+  credit_self_authenticity_flags: { flags?: Array<{ severity: string; code: string; message: string }>; summary?: string } | null
+  credit_self_processed_at: string | null
   created_at: string
   completed_at: string | null
   application?: {
@@ -54,7 +62,7 @@ const STATE_PILL: Record<OrderRow['state'], { label: string; cls: string; Icon: 
 }
 
 function scoreColor(score: number | null): string {
-  if (score == null) return 'text-gray-400 bg-gray-50 border-gray-200'
+  if (score == null) return 'text-gray-500 bg-gray-50 border-gray-200'
   if (score >= 90) return 'text-emerald-700 bg-emerald-50 border-emerald-200'
   if (score >= 70) return 'text-blue-700   bg-blue-50    border-blue-200'
   if (score >= 50) return 'text-amber-700  bg-amber-50   border-amber-200'
@@ -76,10 +84,13 @@ export default function Screening() {
         .from('screening_orders')
         .select(`
           id, application_id, tier, state, payment_status,
-          addon_selfie_match, addon_credit_check, addon_criminal_check, addon_eviction_check,
+          addon_selfie_match, addon_credit_check, addon_criminal_check, addon_eviction_check, addon_credit_self_disclosed,
           rentability_score, rentability_summary, rentability_flags,
           dl_match_score, dl_flags, income_flags,
           array_data, vergent_data, lexisnexis_data,
+          credit_self_pdf_url, credit_self_bureau, credit_self_report_date,
+          credit_self_extracted, credit_self_authenticity_score,
+          credit_self_authenticity_flags, credit_self_processed_at,
           created_at, completed_at,
           application:applications!screening_orders_application_id_fkey (
             first_name, last_name, email, employer, job_title, monthly_income,
@@ -109,7 +120,7 @@ export default function Screening() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Screening</h1>
         <p className="text-sm text-mute mt-1">
-          Applicants who completed pre-qualification — verified income, ID, and a private rentability score.
+          Applicants who completed pre-qualification — verified income, ID, and a private Tenability™.
         </p>
       </header>
 
@@ -143,7 +154,7 @@ export default function Screening() {
           </div>
           <h2 className="text-lg font-semibold text-ink">Nothing here yet</h2>
           <p className="text-sm text-mute mt-2 max-w-md mx-auto">
-            Once applicants finish pre-qualification, their verified income and rentability scores show up here.
+            Once applicants finish pre-qualification, their verified income and Tenability™ show up here.
           </p>
         </div>
       ) : (
@@ -220,6 +231,11 @@ function OrderCard({ order }: { order: OrderRow }) {
             {!!idFlags.tamper_suspected && <Chip Icon={AlertTriangle} label="DL tamper suspected" ok={false} warn />}
             {!!idFlags.expired && <Chip Icon={AlertTriangle} label="License expired" ok={false} warn />}
           </div>
+
+          {/* Applicant-provided credit report card */}
+          {order.addon_credit_self_disclosed && (
+            <CreditSelfPanel order={order} />
+          )}
         </div>
 
         <div className="shrink-0 flex flex-col items-end gap-2">
@@ -246,5 +262,132 @@ function Chip({ Icon, label, ok, warn }: { Icon: typeof IdCard; label: string; o
       <Icon className="w-3 h-3" strokeWidth={2} />
       {label}
     </span>
+  )
+}
+
+// ── Applicant-provided credit report card ──────────────────────────────
+// Shows the OCR'd facts + AI authenticity check on the PDF the applicant
+// uploaded from AnnualCreditReport.gov. This is NOT a bureau-pulled report —
+// the panel surfaces that distinction prominently so the landlord sets
+// expectations correctly.
+function CreditSelfPanel({ order }: { order: OrderRow }) {
+  const extracted = order.credit_self_extracted as {
+    score?: number | null
+    score_model?: string | null
+    consumer_name?: string
+    account_count?: number
+    open_account_count?: number
+    derogatory_count?: number
+    collection_count?: number
+    bankruptcy_count?: number
+    total_balance?: number
+  } | null
+  const flagList = order.credit_self_authenticity_flags?.flags ?? []
+  const summary = order.credit_self_authenticity_flags?.summary
+
+  if (!order.credit_self_pdf_url) {
+    // Add-on selected but no upload yet.
+    return (
+      <div className="mt-4 rounded-xl border border-dashed border-gray-300 p-4 text-sm text-mute">
+        Applicant has not uploaded their credit report yet.
+      </div>
+    )
+  }
+
+  const authScore = order.credit_self_authenticity_score
+  const authCls =
+    authScore == null      ? 'text-gray-700 bg-gray-50 border-gray-200' :
+    authScore >= 90        ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
+    authScore >= 70        ? 'text-blue-700 bg-blue-50 border-blue-200' :
+    authScore >= 50        ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                              'text-red-700 bg-red-50 border-red-200'
+
+  const openPdf = async () => {
+    if (!order.credit_self_pdf_url) return
+    const { data, error } = await supabase.storage
+      .from('screening-docs')
+      .createSignedUrl(order.credit_self_pdf_url, 600)
+    if (error || !data?.signedUrl) {
+      toast.error('Could not open PDF — try again.')
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  return (
+    <section className="mt-4 rounded-xl border border-gray-200 bg-gray-50/40">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-white rounded-t-xl">
+        <CreditCard className="w-4 h-4 text-brand-700" strokeWidth={1.75} />
+        <p className="text-sm font-semibold text-ink flex-1">Applicant-provided credit report</p>
+        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${authCls}`}>
+          <ShieldCheck className="w-3 h-3" strokeWidth={2} />
+          {authScore != null ? `${authScore} authenticity` : 'Not yet analyzed'}
+        </span>
+      </div>
+
+      <div className="px-4 py-3 space-y-2.5">
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" strokeWidth={1.75} />
+          <p className="text-[11px] text-amber-900 leading-relaxed">
+            This is the applicant's own copy of their AnnualCreditReport.gov report — not a bureau-pulled report.
+            Cross-check the PDF against the authenticity score and flags below before relying on the numbers.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <Stat label="Bureau" value={order.credit_self_bureau ?? '—'} />
+          <Stat label="Report date" value={order.credit_self_report_date ?? '—'} />
+          <Stat
+            label={extracted?.score_model ? extracted.score_model : 'Score'}
+            value={extracted?.score != null ? String(extracted.score) : 'Not on report'}
+          />
+          <Stat label="Total balance" value={extracted?.total_balance != null ? `$${Number(extracted.total_balance).toLocaleString()}` : '—'} />
+          <Stat label="Open accts" value={extracted?.open_account_count != null ? String(extracted.open_account_count) : '—'} />
+          <Stat label="Derogatory" value={extracted?.derogatory_count != null ? String(extracted.derogatory_count) : '—'} />
+          <Stat label="Collections" value={extracted?.collection_count != null ? String(extracted.collection_count) : '—'} />
+          <Stat label="Bankruptcies" value={extracted?.bankruptcy_count != null ? String(extracted.bankruptcy_count) : '—'} />
+        </div>
+
+        {summary && (
+          <p className="text-xs text-ink italic leading-relaxed">{summary}</p>
+        )}
+
+        {flagList.length > 0 && (
+          <ul className="space-y-1">
+            {flagList.map((f, i) => {
+              const cls =
+                f.severity === 'high'   ? 'text-red-700 bg-red-50 border-red-200' :
+                f.severity === 'medium' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                f.severity === 'low'    ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                                          'text-gray-700 bg-gray-50 border-gray-200'
+              return (
+                <li key={i} className={`text-[11px] px-2 py-1.5 rounded border ${cls}`}>
+                  <span className="font-semibold uppercase tracking-wide text-[10px] mr-1.5">{f.severity}</span>
+                  {f.message}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <button
+          type="button"
+          onClick={openPdf}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 hover:text-brand-800"
+        >
+          Open uploaded PDF
+          <ExternalLink className="w-3 h-3" strokeWidth={2} />
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">{label}</p>
+      <p className="text-sm font-semibold text-ink mt-0.5">{value}</p>
+    </div>
   )
 }

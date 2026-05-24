@@ -66,7 +66,11 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await admin
       .from('screening_orders')
-      .select('id, application_id, dl_extracted, dl_match_score, dl_flags, income_extracted, income_flags')
+      .select(`
+        id, application_id, dl_extracted, dl_match_score, dl_flags, income_extracted, income_flags,
+        addon_credit_self_disclosed, credit_self_bureau, credit_self_report_date,
+        credit_self_extracted, credit_self_authenticity_score, credit_self_authenticity_flags
+      `)
       .eq('id', orderId)
       .single()
     if (orderErr || !order) return json({ error: 'Order not found' }, { status: 404 })
@@ -112,6 +116,29 @@ Deno.serve(async (req) => {
     const documentsConsistent = !!incomeFlags.name_match_dl
     const evictionFlagged = !!app.eviction_history && app.eviction_history.toLowerCase() !== 'no' && app.eviction_history.toLowerCase() !== 'none'
 
+    // Credit self-disclosure context — only included if the applicant
+    // uploaded a report AND the authenticity check has run. We give the
+    // model the bureau + report date + structured facts + the
+    // authenticity score / flags from credit-report-ocr's Sonnet pass, so
+    // it can weight the credit signal appropriately (a 750 score with an
+    // authenticity score of 30 should be discounted heavily).
+    const creditExtracted = order.credit_self_extracted as Record<string, unknown> | null
+    const creditAuth = order.credit_self_authenticity_flags as { flags?: unknown[]; summary?: string } | null
+    const creditContext = order.addon_credit_self_disclosed && creditExtracted ? {
+      bureau:                order.credit_self_bureau,
+      report_date:           order.credit_self_report_date,
+      score:                 (creditExtracted as { score?: number | null }).score ?? null,
+      score_model:           (creditExtracted as { score_model?: string | null }).score_model ?? null,
+      open_account_count:    (creditExtracted as { open_account_count?: number | null }).open_account_count ?? null,
+      derogatory_count:      (creditExtracted as { derogatory_count?: number | null }).derogatory_count ?? null,
+      collection_count:      (creditExtracted as { collection_count?: number | null }).collection_count ?? null,
+      bankruptcy_count:      (creditExtracted as { bankruptcy_count?: number | null }).bankruptcy_count ?? null,
+      total_balance:         (creditExtracted as { total_balance?: number | null }).total_balance ?? null,
+      authenticity_score:    order.credit_self_authenticity_score,
+      authenticity_summary:  creditAuth?.summary ?? null,
+      authenticity_flags:    creditAuth?.flags ?? [],
+    } : null
+
     const scoringContext = {
       unit: { monthly_rent: rent, bedrooms: unit?.bedrooms, bathrooms: unit?.bathrooms },
       applicant: {
@@ -138,6 +165,7 @@ Deno.serve(async (req) => {
         dl_flags: dlFlags,
         selfie_match_score: order.dl_match_score,
       },
+      credit_self_disclosed: creditContext,
     }
 
     const sysPrompt = `You produce a private internal "rentability" assessment for a property manager evaluating a rental application. This is NOT an FCRA consumer report — it is a privately-shared signal scoped to this one leasing decision.
@@ -147,15 +175,22 @@ You MUST NOT consider, mention, or be influenced by any protected class — race
   2. employment/income document authenticity and consistency
   3. identity verification — does the DL match the application, did selfie pass
   4. self-reported history — current landlord, reason for leaving, evictions, background
+  5. applicant-provided credit context (only when the credit_self_disclosed block is non-null):
+       • bureau, report date, score (often null on AnnualCreditReport.gov pulls)
+       • derogatory/collection/bankruptcy counts and total reported balance
+       • authenticity_score 0-100 from our cross-doc check — this is a TRUST signal
+         on the PDF itself, NOT creditworthiness. Discount the credit facts in
+         proportion to (100 - authenticity_score). Below 50 = ignore the numbers.
+  Where credit_self_disclosed is null, do not penalize the applicant for the absence.
 
-Return ONLY a single JSON object: {"score": <int 0-100>, "summary": "<2-3 sentences>", "flags": {"income_to_rent_ratio": <number>, "income_verified": <bool>, "identity_verified": <bool>, "documents_consistent": <bool>, "eviction_self_reported": <bool>, "rationale_bullets": [<string>, ...]}}
+Return ONLY a single JSON object: {"score": <int 0-100>, "summary": "<2-3 sentences>", "flags": {"income_to_rent_ratio": <number>, "income_verified": <bool>, "identity_verified": <bool>, "documents_consistent": <bool>, "eviction_self_reported": <bool>, "credit_self_present": <bool>, "credit_self_trusted": <bool>, "rationale_bullets": [<string>, ...]}}
 
 Score ranges:
-  90–100: strong income (3x+), all docs verified, clean self-reported history
+  90–100: strong income (3x+), all docs verified, clean self-reported history, credit (if provided) trusted and clean
   70–89:  adequate income (2.5–3x), docs verified, minor concerns
   50–69:  marginal income (2–2.5x) OR documents partially verified
   30–49:  weak income (under 2x) OR significant verification gaps
-  0–29:   failed verification (tamper detected, identity mismatch, etc.)`
+  0–29:   failed verification (tamper detected, identity mismatch, credit authenticity < 50, etc.)`
 
     const { result: scoreResp, latency_ms: scoreLatency } = await timed(() => anthropic.messages.create({
       model: MODEL_SCORE,
@@ -182,6 +217,7 @@ Score ranges:
     }
 
     // Stamp pre-computed flags onto the output for the UI.
+    const creditTrusted = creditContext != null && (creditContext.authenticity_score ?? 0) >= 70
     parsed.flags = {
       ...parsed.flags,
       income_to_rent_ratio: Number(ratio.toFixed(2)),
@@ -189,6 +225,8 @@ Score ranges:
       identity_verified: identityVerified,
       documents_consistent: documentsConsistent,
       eviction_self_reported: evictionFlagged,
+      credit_self_present: creditContext != null,
+      credit_self_trusted: creditTrusted,
     }
 
     await admin.from('screening_orders').update({
@@ -198,6 +236,14 @@ Score ranges:
       state: 'complete',
       completed_at: new Date().toISOString(),
     }).eq('id', orderId)
+
+    // Mirror the now-complete screening into the anonymized analytics layer.
+    // Idempotent — merges with any earlier partial extraction.
+    try {
+      await admin.rpc('extract_application_analytics', { p_application_id: order.application_id })
+    } catch {
+      // Analytics extraction failures must never block scoring.
+    }
 
     return json(parsed)
   } catch (err) {

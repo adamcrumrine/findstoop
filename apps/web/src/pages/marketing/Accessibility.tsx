@@ -80,7 +80,7 @@ export default function Accessibility() {
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} Hawk Pig LLC, d/b/a FindStoop.
+        © {new Date().getFullYear()} FindStoop.
       </p>
     </div>
   )

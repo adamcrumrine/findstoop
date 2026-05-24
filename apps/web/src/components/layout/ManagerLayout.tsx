@@ -113,6 +113,12 @@ export default function ManagerLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
 
       {/* ── Sidebar — desktop ─────────────────────────────────────────── */}
       <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 shrink-0">
@@ -125,7 +131,7 @@ export default function ManagerLayout() {
         </div>
 
         {/* Nav — grouped by landlord lifecycle stage */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
+        <nav aria-label="Manager primary navigation" className="flex-1 overflow-y-auto px-2 py-3">
           {(['manage', 'find', 'operate', 'insights', 'account'] as const).map((group, gi) => {
             const items = navItems.filter((n) => n.group === group)
             if (!items.length) return null
@@ -185,7 +191,7 @@ export default function ManagerLayout() {
         </header>
 
         {/* Page */}
-        <main className="relative flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 lg:pr-24 xl:pr-40">
+        <main id="main-content" className="relative flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 lg:pr-24 xl:pr-40">
           {/* Ambient background illustration — shifted to the RIGHT of the
               centered content column because the left side is occupied by
               the sidebar. xPct values come from PAGE_BG. */}
@@ -212,7 +218,7 @@ export default function ManagerLayout() {
         </main>
 
         {/* ── Bottom nav — mobile ──────────────────────────────────────── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
+        <nav aria-label="Manager mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
           <div className="flex">
             {primaryNav.map(({ to, label, Icon }) => (
               <NavLink

@@ -204,7 +204,7 @@ function PaymentRow({ payment, tenantName, tenantAutopay, onMarkPaid, onApplyCre
             <RefreshCw className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.75} aria-label="Tenant auto-pay" />
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">{tenantName} · {new Date(anchor).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{tenantName} · {new Date(anchor).toLocaleDateString()}</p>
         {payment.memo && (
           <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
         )}
@@ -473,7 +473,7 @@ export default function ManagerPayments() {
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <CreditCard className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
           <p className="font-semibold text-gray-700">{payments.length === 0 ? 'No payments yet' : 'No payments match filters'}</p>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 mt-1">
             {payments.length === 0 ? 'Record your first payment to get started' : 'Try adjusting the filters'}
           </p>
         </div>

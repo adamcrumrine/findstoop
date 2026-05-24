@@ -40,7 +40,7 @@ function StatCard({ label, value, sub, accent = 'none', loading }: StatCardProps
       ) : (
         <p className={`text-2xl font-bold mt-1 ${valueCls}`}>{value}</p>
       )}
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
     </div>
   )
 }
@@ -54,7 +54,7 @@ function PaymentRow({ payment }: { payment: Payment }) {
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
       <div>
         <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
-        <p className="text-xs text-gray-400">{new Date(anchor).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500">{new Date(anchor).toLocaleDateString()}</p>
       </div>
       <div className="flex items-center gap-3">
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
@@ -82,7 +82,7 @@ function MaintenanceRow({ request }: { request: MaintenanceRequest }) {
     <div className="flex items-start justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-800 truncate">{request.title}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{new Date(request.created_at).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{new Date(request.created_at).toLocaleDateString()}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor}`}>
@@ -107,7 +107,7 @@ function RenewalRow({ lease }: { lease: Lease }) {
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
       <div>
         <p className="text-sm font-medium text-gray-800">Lease ending {new Date(lease.end_date).toLocaleDateString()}</p>
-        <p className="text-xs text-gray-400">${Number(lease.rent_amount).toFixed(0)}/mo</p>
+        <p className="text-xs text-gray-500">${Number(lease.rent_amount).toFixed(0)}/mo</p>
       </div>
       <span className={`text-sm font-semibold ${urgency}`}>{daysLeft}d left</span>
     </div>
@@ -135,7 +135,7 @@ function Section({ title, children, loading, empty, emptyText }: {
             <Skeleton className="h-12 w-full" />
           </div>
         ) : empty ? (
-          <p className="text-sm text-gray-400 py-6 text-center">{emptyText}</p>
+          <p className="text-sm text-gray-500 py-6 text-center">{emptyText}</p>
         ) : children}
       </div>
     </div>
@@ -153,10 +153,9 @@ export default function ManagerDashboard() {
   // Time-of-day greeting in the user's local timezone.
   const hour = new Date().getHours()
   const greeting =
-    hour < 5  ? 'Up late' :
     hour < 12 ? 'Good morning' :
     hour < 17 ? 'Good afternoon' :
-    hour < 22 ? 'Good evening' : 'Good night'
+                'Good evening'
 
   // Outstanding for the current month = pending payments that aren't paid
   // and haven't been scheduled (the tenant hasn't picked a pay-on date yet).

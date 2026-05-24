@@ -107,7 +107,7 @@ export default function AdminScreening() {
         <Kpi Icon={CheckCircle2}   label="Paid"              value={summary.paid.toLocaleString()}   sub={pct(summary.paid, summary.total)} />
         <Kpi Icon={CheckCircle2}   label="Scored"            value={summary.scored.toLocaleString()} sub={pct(summary.scored, summary.paid)} />
         <Kpi Icon={XCircle}        label="Failed"            value={summary.failed.toLocaleString()} />
-        <Kpi Icon={ShieldCheck}    label="Avg rentability"   value={summary.avg_score ? String(summary.avg_score) : '—'} />
+        <Kpi Icon={ShieldCheck}    label="Avg Tenability™"   value={summary.avg_score ? String(summary.avg_score) : '—'} />
       </div>
 
       {/* Flags */}

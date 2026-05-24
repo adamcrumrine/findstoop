@@ -27,7 +27,7 @@ export default function Privacy() {
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
 
         <Sec title="Who we are">
-          FindStoop is operated by Hawk Pig LLC ("we", "us"), an Ohio limited liability company. We provide property
+          FindStoop ("we", "us") provides property
           management software for residential landlords and tenants. This policy explains what data we collect,
           how we use it, and the rights you have over it.
         </Sec>
@@ -36,7 +36,7 @@ export default function Privacy() {
           <ul className="list-disc pl-5 space-y-1.5 mt-1">
             <li><strong>Account data</strong> — name, email, phone, password (stored hashed), role (landlord/tenant/admin)</li>
             <li><strong>Property + lease data</strong> — addresses, unit details, rent amounts, lease terms, tenant assignments</li>
-            <li><strong>Application + screening data</strong> — rental applications, uploaded driver's licenses, paystubs, optional selfies, AI-generated rentability summaries</li>
+            <li><strong>Application + screening data</strong> — rental applications, uploaded driver's licenses, paystubs, optional selfies, AI-generated Tenability™ summaries</li>
             <li><strong>Payment data</strong> — bank account or card details (tokenized through Stripe — we never store full numbers), payment history, surcharges</li>
             <li><strong>Communication data</strong> — in-app messages, support requests, feedback submissions</li>
             <li><strong>Device + usage data</strong> — IP address, browser type, pages viewed, clicks, session timestamps</li>
@@ -85,10 +85,28 @@ export default function Privacy() {
         <Sec title="Use of automated tools, including artificial intelligence">
           <p className="mt-1">
             FindStoop uses automated software, including AI, to read documents (driver's licenses, paystubs), check
-            for tampering, and produce a private "rentability" summary for the landlord. A human landlord — not the
+            for tampering, and produce a private Tenability™ summary for the landlord. A human landlord — not the
             software — makes the final rental decision. Our AI is configured to ignore protected-class signals
             under the Fair Housing Act and applicable state law. If you'd like to learn more, see our{' '}
             <Link to="/screening-terms" className="text-brand-600 hover:underline">Screening Terms</Link>.
+          </p>
+        </Sec>
+
+        <Sec title="Analytics &amp; product improvement">
+          <p className="mt-1">
+            We keep a separate, pseudonymized copy of your application + screening data — bucketed into ranges
+            (e.g. "income $4,000–$5,000," "age 25–34") and keyed by a one-way cryptographic hash — for two
+            purposes: improving our AI scoring models and detecting fraud patterns across our user base. The
+            pseudonymized store does not contain your name, email, phone, exact date of birth, Social Security
+            number, exact address, or any uploaded document.
+          </p>
+          <p className="mt-2">
+            The hash function uses a secret we hold under restricted access; nobody with database access alone
+            can reverse it back to your identity. We do not sell or share this data with third parties for
+            their own use. To opt out of analytics extraction entirely, set the "Analytics opt-out" toggle in
+            your account settings, or email{' '}
+            <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>.
+            Opting out also deletes any prior pseudonymized rows we had for you.
           </p>
         </Sec>
 
@@ -165,7 +183,7 @@ export default function Privacy() {
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} Hawk Pig LLC, d/b/a FindStoop.
+        © {new Date().getFullYear()} FindStoop.
       </p>
     </div>
   )

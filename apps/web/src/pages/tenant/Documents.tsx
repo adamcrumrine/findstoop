@@ -6,8 +6,10 @@ import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
+import ComplianceWidget from '../../components/tenant/ComplianceWidget'
+import { Link } from 'react-router-dom'
 import {
-  ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder,
+  ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder, ExternalLink,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -77,9 +79,9 @@ function DocCard({ doc, onDownload }: { doc: Document; onDownload: (doc: Documen
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-900 text-sm truncate">{doc.name}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-gray-400">{DOC_TYPE_LABEL[doc.type]}</span>
+          <span className="text-xs text-gray-500">{DOC_TYPE_LABEL[doc.type]}</span>
           <span className="text-gray-200">·</span>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500">
             {new Date(doc.created_at).toLocaleDateString('en-US', {
               month: 'short', day: 'numeric', year: 'numeric',
             })}
@@ -89,7 +91,7 @@ function DocCard({ doc, onDownload }: { doc: Document; onDownload: (doc: Documen
       <button
         onClick={handleClick}
         disabled={loading}
-        className="p-2 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-40"
+        className="p-2 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-40"
         title="Download"
       >
         {loading ? (
@@ -213,6 +215,13 @@ export default function TenantDocuments() {
         </div>
       )}
 
+      {/* Federally / state-required disclosures + renter's insurance. */}
+      {lease?.id && <ComplianceWidget leaseId={lease.id} />}
+
+      {/* Move-in / move-out checklists the manager has started or completed
+          for this tenant. Lives in the inspections table, not documents. */}
+      {lease?.id && <TenantInspections leaseId={lease.id} />}
+
       {/* List */}
       {loading ? (
         <Skeleton />
@@ -231,5 +240,92 @@ export default function TenantDocuments() {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Inspections panel ─────────────────────────────────────────────────
+// Pulls any inspections the manager has started for this tenant's lease.
+// Drafts and partial-sign rows need the tenant to act, so we surface them
+// even before they're "finalised."
+interface InspectionRow {
+  id: string
+  type: 'move_in' | 'move_out'
+  state: 'draft' | 'manager_signed' | 'tenant_signed' | 'both_signed'
+  updated_at: string
+}
+
+function TenantInspections({ leaseId }: { leaseId: string }) {
+  const [rows, setRows] = useState<InspectionRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('inspections')
+        .select('id, type, state, updated_at')
+        .eq('lease_id', leaseId)
+        .order('updated_at', { ascending: false })
+      if (!cancelled) {
+        setRows((data ?? []) as InspectionRow[])
+        setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [leaseId])
+
+  if (loading || rows.length === 0) return null
+
+  return (
+    <section>
+      <h2 className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">
+        Move-in / move-out checklists
+      </h2>
+      <div className="space-y-2">
+        {rows.map((r) => {
+          const cfg =
+            r.state === 'both_signed'                                     ? { label: 'Signed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' } :
+            r.state === 'manager_signed'                                  ? { label: 'Your signature needed', cls: 'bg-amber-50 text-amber-700 border-amber-200' } :
+            r.state === 'tenant_signed'                                   ? { label: 'Awaiting landlord', cls: 'bg-amber-50 text-amber-700 border-amber-200' } :
+                                                                            { label: 'In progress', cls: 'bg-blue-50 text-blue-700 border-blue-200' }
+          return (
+            <div key={r.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 border border-gray-100 shadow-sm">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 inline-flex items-center justify-center shrink-0">
+                <ClipboardList className="w-5 h-5" strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900">
+                  {r.type === 'move_in' ? 'Move-in checklist' : 'Move-out checklist'}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.cls}`}>
+                    {cfg.label}
+                  </span>
+                  <span className="text-[10px] text-gray-500">
+                    {new Date(r.updated_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+              <Link
+                to={`/tenant/lease/${leaseId}/inspection/${r.type}`}
+                className="text-xs font-medium text-brand-700 hover:text-brand-800 hover:underline shrink-0"
+              >
+                {r.state === 'both_signed' ? 'View' : 'Open'}
+              </Link>
+              {r.state === 'both_signed' && (
+                <Link
+                  to={`/inspection-pdf/${r.id}`}
+                  target="_blank"
+                  className="text-gray-500 hover:text-gray-600 shrink-0"
+                  title="Open PDF"
+                >
+                  <ExternalLink className="w-4 h-4" strokeWidth={1.75} />
+                </Link>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }

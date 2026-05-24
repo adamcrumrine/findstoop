@@ -2,7 +2,7 @@
 // 6-char ref. Shows what's happening on the platform without any PII.
 
 import { useEffect, useState } from 'react'
-import { Loader2, FileText, LogIn, UserPlus, Eye, AlertCircle, MousePointerClick } from 'lucide-react'
+import { Loader2, FileText, LogIn, UserPlus, Eye, AlertCircle, MousePointerClick, MapPin } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 interface EventRow {
@@ -14,6 +14,9 @@ interface EventRow {
   event_type: string
   page_path: string | null
   metadata: Record<string, unknown> | null
+  country_code: string | null
+  region: string | null
+  city: string | null
 }
 
 const ICON: Record<string, typeof FileText> = {
@@ -109,6 +112,7 @@ export default function AdminActivity() {
                 <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">When</th>
                 <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Type</th>
                 <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Who</th>
+                <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Location</th>
                 <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Path / detail</th>
               </tr>
             </thead>
@@ -138,6 +142,19 @@ export default function AdminActivity() {
                         </span>
                       ) : (
                         <span className="text-slate-400 text-xs italic">anon</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-slate-600 text-xs whitespace-nowrap">
+                      {e.city || e.region || e.country_code ? (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                          {[e.city, e.region].filter(Boolean).join(', ') || e.country_code}
+                          {e.city && e.country_code && e.country_code !== 'US' && (
+                            <span className="text-slate-400">· {e.country_code}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
                       )}
                     </td>
                     <td className="px-4 py-2 text-slate-600 truncate max-w-md">

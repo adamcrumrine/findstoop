@@ -90,7 +90,10 @@ export default function Home() {
       <section className="border-y border-gray-100 py-8 bg-white">
         <div className="max-w-6xl mx-auto px-5 lg:px-8">
           <p className="text-center text-xs uppercase tracking-wider text-mute font-semibold mb-5">
-            Built for the 73% of rentals owned by individuals, not institutions
+            Built for the 73% of US rental properties owned by individuals, not institutions
+            <span className="block mt-1 text-[10px] tracking-normal normal-case font-normal text-mute/70">
+              Source: US Census Bureau, Rental Housing Finance Survey
+            </span>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
             <Stat number="$5" label="verified pre-qualification per applicant" />

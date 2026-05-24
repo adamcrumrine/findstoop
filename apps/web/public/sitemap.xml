@@ -36,6 +36,26 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://findstoop.com/education/how-to-screen-tenants</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://findstoop.com/education/fair-housing-act-guide</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://findstoop.com/education/lead-based-paint-disclosure</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://findstoop.com/education/move-in-checklist-guide</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://findstoop.com/screening-terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

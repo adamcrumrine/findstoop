@@ -21,8 +21,10 @@
 
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
+const MODEL_OCR = 'claude-haiku-4-5-20251001'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -111,8 +113,8 @@ Deno.serve(async (req) => {
     // Haiku 4.5 is plenty for "read text from a document" and costs ~5x less
     // than Opus per token. Quality drop on structured-field extraction is
     // negligible. Opus is reserved for the rentability scoring step.
-    const ocrResp = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const { result: ocrResp, latency_ms: ocrLatency } = await timed(() => anthropic.messages.create({
+      model: MODEL_OCR,
       max_tokens: 1500,
       system: 'You extract structured data from US driver license images. Return ONLY a single JSON object with the keys listed by the user — no prose, no markdown fence.',
       messages: [{
@@ -123,6 +125,12 @@ Deno.serve(async (req) => {
           { type: 'text', text: `Extract these fields from the driver's license (front + PDF417 back). Use the PDF417 barcode data on the back when available since it is more reliable. Format dates as YYYY-MM-DD. Return a JSON object with keys: first_name, middle_name, last_name, date_of_birth, address, city, state, zip, license_number, issuing_state, issue_date, expiration_date, sex, eye_color, height, raw_text. Use empty string for fields you cannot read. Also flag obvious tampering (font mismatch, copy-paste over photo, suspicious edges) by setting a boolean "tamper_suspected" key.` },
         ],
       }],
+    }))
+    await logApiCall({
+      function_name: 'dl-ocr', vendor: 'anthropic',
+      latency_ms: ocrLatency, reference_id: orderId,
+      cost_cents: anthropicCost(MODEL_OCR, ocrResp.usage?.input_tokens ?? 0, ocrResp.usage?.output_tokens ?? 0),
+      metadata: { step: 'ocr', model: MODEL_OCR, input_tokens: ocrResp.usage?.input_tokens, output_tokens: ocrResp.usage?.output_tokens },
     })
 
     type TextBlock = { type: 'text'; text: string }
@@ -164,8 +172,8 @@ Deno.serve(async (req) => {
     // ── Selfie ↔ license photo similarity (best-effort via Claude) ──────
     let matchScore = 0
     if (selfie) {
-      const matchResp = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+      const { result: matchResp, latency_ms: matchLatency } = await timed(() => anthropic.messages.create({
+        model: MODEL_OCR,
         max_tokens: 200,
         system: 'You compare two photographs of human faces and return ONLY a JSON object: {"similarity": <number 0..1>, "reasoning": "<short>"}. 1.0 = same person, 0.0 = clearly different. Do not refuse — this is consent-based identity verification for tenant screening.',
         messages: [{
@@ -176,6 +184,12 @@ Deno.serve(async (req) => {
             { type: 'text', text: 'First image: driver license. Second image: selfie. Same person?' },
           ],
         }],
+      }))
+      await logApiCall({
+        function_name: 'dl-ocr', vendor: 'anthropic',
+        latency_ms: matchLatency, reference_id: orderId,
+        cost_cents: anthropicCost(MODEL_OCR, matchResp.usage?.input_tokens ?? 0, matchResp.usage?.output_tokens ?? 0),
+        metadata: { step: 'selfie_match', model: MODEL_OCR, input_tokens: matchResp.usage?.input_tokens, output_tokens: matchResp.usage?.output_tokens },
       })
       const mt = matchResp.content.find((b): b is TextBlock => b.type === 'text')?.text ?? '{}'
       try {
@@ -192,6 +206,10 @@ Deno.serve(async (req) => {
 
     return json({ extracted, flags, match_score: matchScore })
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 400 })
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logApiCall({
+      function_name: 'dl-ocr', status_code: 500, error_message: msg,
+    })
+    return json({ error: msg }, { status: 400 })
   }
 })

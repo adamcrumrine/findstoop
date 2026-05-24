@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import {
   LayoutGrid, Building2, Megaphone, ClipboardList, ShieldCheck,
@@ -88,7 +88,6 @@ const moreNav = navItems.filter((n) => !primaryNav.includes(n))
 
 export default function ManagerLayout() {
   const { signOut, profile } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -98,7 +97,11 @@ export default function ManagerLayout() {
 
   const handleSignOut = async () => {
     await signOut()
-    navigate('/login')
+    // Hard-redirect — React-Router navigate() can race with AuthProvider's
+    // listener and leave stale profile state hanging around, which then
+    // gets caught by ProtectedRoute on the next render and bounces the
+    // user right back to a protected route.
+    window.location.href = '/login'
   }
 
   const desktopLink = ({ isActive }: { isActive: boolean }) =>

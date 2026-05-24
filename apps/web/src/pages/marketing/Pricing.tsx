@@ -8,9 +8,10 @@ const PER_UNIT_ANNUAL  = 90 // effective $7.50/mo, 16.7% discount, non-refundabl
 
 const includedAtThisPrice = [
   'Unlimited properties and units',
+  'Verified pre-qualification on every applicant (applicant pays $5)',
+  'AI rentability score with Fair-Housing-safe scoring',
   'Online rent collection — ACH free for your tenants',
   '50-state lease templates with e-sign',
-  'Tenant screening review and decisions',
   'Maintenance tracking with photos',
   '24/7 tenant portal access',
   'Income & expense tracking with CSV export',
@@ -19,9 +20,10 @@ const includedAtThisPrice = [
 ]
 
 const tenantCosts = [
-  { label: 'ACH rent payment', price: 'Free', sub: 'covered by the landlord' },
-  { label: 'Card rent payment', price: '3.5%', sub: 'paid by the renter at checkout' },
-  { label: 'Screening report', price: '$55', sub: 'paid once per applicant' },
+  { label: 'ACH rent payment',              price: 'Free', sub: 'covered by the landlord' },
+  { label: 'Card rent payment',             price: '3.5%', sub: 'paid by the renter at checkout' },
+  { label: 'Verified pre-qualification',    price: '$5',   sub: 'paystubs + ID + AI rentability score' },
+  { label: 'Pre-qual + selfie ID match',    price: '$7',   sub: 'opt-in when the landlord requires it' },
 ]
 
 const billingExamples = [
@@ -36,7 +38,7 @@ const billingExamples = [
 export default function Pricing() {
   useSeo({
     title: 'Pricing — $9 per unit per month',
-    description: 'Simple per-unit pricing — $9 per unit per month, $90 per unit per year. Every feature included. Applicants pay for their own screening. No setup fees, no upsells.',
+    description: 'Simple per-unit pricing — $9 per unit per month, $90 per unit per year. Every feature included. Applicants pay $5 for verified pre-qualification. No setup fees, no upsells.',
     path: '/pricing',
   })
   return (

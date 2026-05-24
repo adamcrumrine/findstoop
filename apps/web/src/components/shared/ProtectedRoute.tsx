@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import LoadingSpinner from './LoadingSpinner'
+import { defaultPathForRole, loginPathForRole } from '../../lib/roleRouting'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -13,22 +14,33 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   if (loading) return <LoadingSpinner />
 
   if (!user) {
-    return <Navigate to={requiredRole === 'tenant' ? '/login/renter' : '/login'} replace />
+    return <Navigate to={loginPathForRole(requiredRole)} replace />
   }
 
   // Admin-required routes — only the admin role passes.
   if (requiredRole === 'admin') {
     if (profile?.role !== 'admin') {
-      return <Navigate to={profile?.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard'} replace />
+      return <Navigate to={defaultPathForRole(profile?.role)} replace />
     }
+    // NOTE: admin MFA enforcement was removed pending working Twilio setup.
+    // To re-enable in production:
+    //   1. Verify Twilio Verify Service SID is active + phone is allowed
+    //   2. Re-add: if (!profile.mfa_enabled && !window.location.pathname.startsWith('/admin/mfa-setup'))
+    //       return <Navigate to="/admin/mfa-setup" replace />
+    //   3. Optionally gate the redirect on import.meta.env.PROD so dev never forces MFA
     return <>{children}</>
   }
 
-  // Manager/tenant routes — admin always allowed, otherwise role must match.
-  if (profile?.role === 'admin') return <>{children}</>
+  // Admin trying to enter manager/tenant surfaces — bounce them back to
+  // admin-land. Admin doesn't need the property-management or tenant UX.
+  // (If we add "view as" / impersonation later, that'll be a deliberate
+  // admin-side action that creates a real manager/tenant session.)
+  if (profile?.role === 'admin') {
+    return <Navigate to="/admin/dashboard" replace />
+  }
 
   if (profile?.role !== requiredRole) {
-    return <Navigate to={profile?.role === 'manager' ? '/manager/dashboard' : '/tenant/dashboard'} replace />
+    return <Navigate to={defaultPathForRole(profile?.role)} replace />
   }
 
   return <>{children}</>

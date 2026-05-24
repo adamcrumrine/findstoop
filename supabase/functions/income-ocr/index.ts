@@ -24,8 +24,10 @@
 
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
+const MODEL_OCR = 'claude-haiku-4-5-20251001'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -123,8 +125,8 @@ Deno.serve(async (req) => {
     // ── OCR pass ─────────────────────────────────────────────────────────
     // Haiku 4.5 for OCR — much cheaper than Opus with negligible quality drop
     // on structured-field extraction from paystubs / W-2s / 1099s.
-    const ocrResp = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const { result: ocrResp, latency_ms: ocrLatency } = await timed(() => anthropic.messages.create({
+      model: MODEL_OCR,
       max_tokens: 2000,
       system: 'You extract structured employment + income data from US payroll documents. Return ONLY a single JSON object with the keys requested — no prose, no markdown fence. Use numbers (not strings) for monetary amounts. Use YYYY-MM-DD for dates.',
       messages: [{
@@ -141,6 +143,12 @@ employer_name, employer_address, employee_name, employee_last4_ssn (just the las
 Return empty string / 0 / [] for fields you cannot determine.` },
         ],
       }],
+    }))
+    await logApiCall({
+      function_name: 'income-ocr', vendor: 'anthropic',
+      latency_ms: ocrLatency, reference_id: orderId,
+      cost_cents: anthropicCost(MODEL_OCR, ocrResp.usage?.input_tokens ?? 0, ocrResp.usage?.output_tokens ?? 0),
+      metadata: { step: 'ocr', model: MODEL_OCR, input_tokens: ocrResp.usage?.input_tokens, output_tokens: ocrResp.usage?.output_tokens, doc_count: images.length },
     })
 
     type TextBlock = { type: 'text'; text: string }
@@ -208,6 +216,8 @@ Return empty string / 0 / [] for fields you cannot determine.` },
 
     return json({ extracted, flags })
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 400 })
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    await logApiCall({ function_name: 'income-ocr', status_code: 500, error_message: msg })
+    return json({ error: msg }, { status: 400 })
   }
 })

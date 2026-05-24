@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
+import { trackAuth } from '../../lib/analytics'
+import { defaultPathForRole } from '../../lib/roleRouting'
+import { supabase } from '../../lib/supabase'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -48,7 +51,7 @@ export default function Login({ role }: Props) {
         />
       )
     }
-    return <Navigate to={profile.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard'} replace />
+    return <Navigate to={defaultPathForRole(profile.role)} replace />
   }
 
   const isRenter = role === 'tenant'
@@ -58,13 +61,38 @@ export default function Login({ role }: Props) {
     e.preventDefault()
     setWrongRoleError(null)
     setLoading(true)
+
+    // Account-lockout precheck — block before the Supabase Auth call so
+    // brute-force attackers can't even attempt a password once they're locked.
+    try {
+      const { data: lockCheck } = await supabase.functions.invoke('auth-guard', {
+        body: { action: 'check', email },
+      })
+      if (lockCheck?.locked) {
+        toast.error('Too many failed attempts. Account locked for 15 minutes — try again later or reset your password.')
+        setLoading(false)
+        return
+      }
+    } catch {
+      // Fail open — don't block users if the security service is down
+    }
+
     try {
       const p = await signIn(email, password)
       // Admin can sign in from either login page; everyone else must match
       if (p.role !== 'admin' && p.role !== role) {
         setWrongRoleError({ actual: p.role as 'manager' | 'tenant' })
+        // Report the wrong-role attempt for audit, but not as a "real" failure
+        void supabase.functions.invoke('auth-guard', {
+          body: { action: 'report', email, success: false, reason: 'wrong_role' },
+        })
         return
       }
+      trackAuth('sign_in')
+      // Report success + fingerprint device + send new-device alert (async, non-blocking)
+      void supabase.functions.invoke('auth-guard', {
+        body: { action: 'report', email, success: true, user_id: p.id },
+      })
       if (p.mfa_enabled) {
         const target = p.mfa_method === 'totp' ? '/verify/totp' : '/verify'
         navigate(target, {
@@ -75,9 +103,13 @@ export default function Login({ role }: Props) {
           },
         })
       } else {
-        navigate(p.role === 'tenant' ? '/tenant/dashboard' : '/manager/dashboard')
+        navigate(defaultPathForRole(p.role))
       }
     } catch (err) {
+      // Record the failed attempt for lockout accounting
+      void supabase.functions.invoke('auth-guard', {
+        body: { action: 'report', email, success: false, reason: 'invalid_credentials' },
+      })
       toast.error(err instanceof Error ? err.message : 'Invalid credentials')
     } finally {
       setLoading(false)

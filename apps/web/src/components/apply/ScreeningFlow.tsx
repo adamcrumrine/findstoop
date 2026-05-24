@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { verifyDocMagicBytes } from '../../lib/fileValidation'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe() {
@@ -416,6 +417,17 @@ function IdStep({ orderId, showSelfie, onContinue }: { orderId: string; showSelf
     setUploading(true)
     setErr(null)
     try {
+      // Magic-byte check on every uploaded file — reject anything that isn't
+      // really an image (renamed scripts, etc.).
+      for (const [label, f] of [['DL front', dlFront], ['DL back', dlBack], ['Selfie', selfie]] as const) {
+        if (!f) continue
+        const mime = await verifyDocMagicBytes(f)
+        if (!mime || mime === 'application/pdf') {
+          setErr(`${label} must be a real image (JPEG, PNG, HEIC). PDFs aren't allowed for identity uploads.`)
+          setUploading(false)
+          return
+        }
+      }
       const frontPath  = `${orderId}/dl-front.${dlFront.name.split('.').pop() || 'jpg'}`
       const backPath   = `${orderId}/dl-back.${dlBack.name.split('.').pop() || 'jpg'}`
       const selfiePath = selfie ? `${orderId}/dl-selfie.${selfie.name.split('.').pop() || 'jpg'}` : null
@@ -487,6 +499,16 @@ function IncomeStep({ orderId, onContinue }: { orderId: string; onContinue: () =
     setUploading(true)
     setErr(null)
     try {
+      // Magic-byte check on every income doc — image OR PDF is fine here
+      // (paystubs / 1099s / tax returns often arrive as PDFs).
+      for (const f of filled) {
+        const mime = await verifyDocMagicBytes(f)
+        if (!mime) {
+          setErr(`"${f.name}" isn't a recognized image or PDF.`)
+          setUploading(false)
+          return
+        }
+      }
       const urls: string[] = []
       const kinds: DocKind[] = []
       for (let i = 0; i < filled.length; i++) {

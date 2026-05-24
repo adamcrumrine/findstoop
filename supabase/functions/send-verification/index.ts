@@ -57,10 +57,24 @@ Deno.serve(async (req) => {
 
     if (!twilioRes.ok) {
       const err = await twilioRes.json()
-      throw new Error(err.message ?? 'Twilio error')
+      // Bubble Twilio's diagnostic up to the UI — Twilio returns
+      // human-readable messages like "Phone number ... is not a valid
+      // mobile phone number" or "Max send attempts reached".
+      return new Response(
+        JSON.stringify({
+          error: err.message ?? 'Twilio error',
+          twilio_code:    err.code ?? null,
+          http_status:    twilioRes.status,
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    const sent = await twilioRes.json()
+    return new Response(
+      JSON.stringify({ success: true, sid: sent.sid, status: sent.status, channel: sent.channel }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),

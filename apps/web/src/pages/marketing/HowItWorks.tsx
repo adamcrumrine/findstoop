@@ -39,12 +39,12 @@ const steps: Step[] = [
   {
     number: '03',
     Icon: ShieldCheck,
-    title: 'Get verified applicants — for $5, in minutes',
-    body: 'Every applicant fills out one standardized form, then completes a $5 verified pre-qualification: paystubs, driver\'s license, and an AI-generated Tenability™ the manager sees alongside the income-to-rent ratio. No employer phone calls, no 3–7 day Truework waits. Full credit + criminal + eviction reports coming as an opt-in add-on.',
+    title: 'Get verified applicants with a Tenability™ — for $5, in minutes',
+    body: 'Every applicant fills out one standardized form, then completes a $5 verified pre-qualification with our proprietary AI signal pipeline. Income, identity, and a Tenability™ — our private 0–100 rentability score — land on the manager\'s screen in minutes. Optional add-ons: selfie ID match ($2) and applicant-provided credit history ($20, selfie included). Bureau-pulled reports coming as an opt-in add-on.',
     detail: [
-      'Verified income via paystub OCR (or 1099 / bank statement / tax return)',
-      'Verified ID via driver\'s license OCR + optional selfie match',
-      'AI Tenability™ 0–100, Fair-Housing-safe, no protected-class signals',
+      'AI-verified income, no employer phone calls',
+      'AI-verified ID with optional selfie match',
+      'Tenability™ 0–100 — Fair-Housing-safe scoring',
     ],
   },
   {

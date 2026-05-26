@@ -23,6 +23,7 @@ import {
   coerceMoney, coerceInt, coerceDateISO, normalizeState,
   type PropertyCsvKey, type TenantCsvKey,
 } from '../../lib/csvParser'
+import ImportAvail from './ImportAvail'
 
 type Step = 'source' | 'properties' | 'tenants' | 'review' | 'done'
 type Source = 'avail' | 'buildium' | 'doorloop' | 'tenantcloud' | 'appfolio' | 'turbotenant' | 'csv'
@@ -346,6 +347,14 @@ export default function Import() {
   // ── Render ──────────────────────────────────────────────────────────────
   if (!profile) {
     return <div className="p-8 text-mute">Loading…</div>
+  }
+
+  // Avail has its own deeper flow (two-file join + city/state/zip step +
+  // multi-tenant per lease). Hand off entirely once the user has confirmed
+  // Avail on the source picker. Coming back uses ImportAvail's own "Different
+  // platform" link, which routes back to /manager/import (this page).
+  if (step !== 'source' && source === 'avail') {
+    return <ImportAvail />
   }
 
   return (

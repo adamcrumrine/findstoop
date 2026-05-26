@@ -136,6 +136,14 @@ export default function TenantDocuments() {
       window.open(`/lease-pdf/${doc.lease_id}`, '_blank', 'noopener,noreferrer')
       return
     }
+    // Standard legal docs (Ohio Tenant Rights, Fair Housing, EPA pamphlet,
+    // Lead Disclosure) store an `app://...` route instead of a storage path.
+    // Open these in-app rather than trying to download a non-existent file.
+    if (doc.storage_url?.startsWith('app://')) {
+      const route = '/' + doc.storage_url.slice('app://'.length)
+      window.open(route, '_blank', 'noopener,noreferrer')
+      return
+    }
     try {
       const url = await getDownloadUrl(doc)
       window.open(url, '_blank')

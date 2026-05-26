@@ -46,24 +46,62 @@ interface UnitInput {
   bathrooms?: number | null
 }
 
+// Single-tenant input — legacy shape (used by generic CSV imports that
+// don't have co-tenants). Each row becomes one lease with one tenant.
 interface TenantInput {
-  property_index: number       // which property the tenant belongs to
-  unit_number: string          // matches a unit by (property_index, unit_number)
+  property_index: number
+  unit_number: string
   first_name: string
   last_name: string
   email: string
   phone?: string | null
   rent_amount: number
   security_deposit?: number | null
-  lease_start: string          // YYYY-MM-DD
-  lease_end: string            // YYYY-MM-DD
+  lease_start: string
+  lease_end: string
+}
+
+// Multi-tenant input — new shape for Avail-style imports where co-tenants
+// share a single lease. Each LeaseInput creates ONE lease + N tenants
+// linked via the lease_tenants join table.
+interface LeaseTenantInput {
+  first_name: string
+  last_name: string
+  email: string
+  phone?: string | null
+}
+interface LeaseInput {
+  property_index: number
+  unit_number: string
+  rent_amount: number
+  security_deposit?: number | null
+  lease_start: string                // YYYY-MM-DD
+  lease_end: string                  // YYYY-MM-DD
+  bedrooms?: number | null
+  bathrooms?: number | null
+  tenants: LeaseTenantInput[]        // primary = tenants[0]
+  // If the manager attached an existing signed lease PDF, the client uploads
+  // it to `lease-documents` first and passes the storage path here. We then
+  // mark the lease status='active' (no need to re-sign) and insert a
+  // documents row pointing at the PDF.
+  existing_lease_path?: string | null
+  existing_lease_filename?: string | null
+  // TRUE when the rent roll's lease_end is in the past — the tenant has
+  // rolled past their fixed term onto a month-to-month tenancy. The lease
+  // still imports as active (the tenancy is ongoing) regardless of whether
+  // a PDF was attached.
+  month_to_month?: boolean
 }
 
 interface ImportPayload {
-  source: string               // 'avail' | 'turbotenant' | 'csv' — for telemetry
+  source: string                     // 'avail' | 'turbotenant' | 'csv' — for telemetry
   properties: PropertyInput[]
   units: UnitInput[]
-  tenants: TenantInput[]
+  // One of these two will be set. `leases` is the new canonical shape;
+  // `tenants` is the legacy single-tenant-per-row shape that we normalize
+  // into `leases` at the top of the handler.
+  leases?: LeaseInput[]
+  tenants?: TenantInput[]
 }
 
 interface RowError {
@@ -127,6 +165,8 @@ Deno.serve(async (req) => {
     let tenantsInvited = 0
     let tenantsLinked = 0   // already had a profile
     let leasesCreated = 0
+    let leasesActivated = 0    // imported with executed PDF → status='active'
+    let leasesUpcoming = 0     // future-dated start + executed PDF → status='upcoming'
 
     // ── 1. Properties — dedupe by (manager_id, address) ─────────────────
     // Map: payload index → property_id
@@ -213,113 +253,201 @@ Deno.serve(async (req) => {
       unitsCreated++
     }
 
-    // ── 3. Tenants — invite via existing edge function ──────────────────
-    // We invoke invite-tenant rather than re-implementing the auth-link
-    // generation, so the email + audit trail stay consistent.
-    // Map: tenant payload index → { tenantId, email }
-    const tenantIdByIndex: Array<{ tenantId: string | null; email: string }> = []
+    // ── 3 + 4. Tenants + Leases — one lease, N co-tenants ──────────────
+    // Normalize legacy single-tenant payload into the new multi-tenant
+    // shape so the rest of this function only has to handle one path.
+    const normalizedLeases: LeaseInput[] = payload.leases ?? (payload.tenants ?? []).map((t) => ({
+      property_index: t.property_index,
+      unit_number: t.unit_number,
+      rent_amount: t.rent_amount,
+      security_deposit: t.security_deposit,
+      lease_start: t.lease_start,
+      lease_end: t.lease_end,
+      tenants: [{ first_name: t.first_name, last_name: t.last_name, email: t.email, phone: t.phone }],
+    }))
 
-    for (let i = 0; i < payload.tenants.length; i++) {
-      const t = payload.tenants[i]
-      const email = t.email.trim().toLowerCase()
-      if (!email) {
-        tenantIdByIndex[i] = { tenantId: null, email }
-        errors.push({ scope: 'tenant', index: i, message: 'Missing email' })
-        continue
-      }
-      // Vendor display labels — used in the migration email subject + body
-      // so the tenant knows where the move came from.
-      const vendorLabel: Record<string, string> = {
-        avail: 'Avail', buildium: 'Buildium', doorloop: 'DoorLoop',
-        tenantcloud: 'TenantCloud', appfolio: 'AppFolio',
-        turbotenant: 'TurboTenant', csv: 'your previous platform',
-      }
-      const { data: inviteResp, error: invErr } = await admin.functions.invoke('invite-tenant', {
-        body: {
-          email,
-          full_name: `${t.first_name} ${t.last_name}`.trim(),
-          phone: t.phone ?? null,
-          // Branded migration-style email instead of cold invite copy.
-          migrationFrom: vendorLabel[payload.source] ?? 'your previous platform',
-        },
-        headers: { Authorization: authHeader },
-      })
-      if (invErr || !inviteResp?.tenantId) {
-        tenantIdByIndex[i] = { tenantId: null, email }
-        errors.push({ scope: 'tenant', index: i, message: invErr?.message ?? 'Invite failed' })
-        continue
-      }
-      tenantIdByIndex[i] = { tenantId: inviteResp.tenantId, email }
-      if (inviteResp.alreadyExists) tenantsLinked++
-      else tenantsInvited++
+    // Vendor display label for the migration email
+    const vendorLabel: Record<string, string> = {
+      avail: 'Avail', buildium: 'Buildium', doorloop: 'DoorLoop',
+      tenantcloud: 'TenantCloud', appfolio: 'AppFolio',
+      turbotenant: 'TurboTenant', csv: 'your previous platform',
     }
+    const migrationFromLabel = vendorLabel[payload.source] ?? 'your previous platform'
 
-    // ── 4. Leases — one per tenant row, status='pending' ────────────────
-    for (let i = 0; i < payload.tenants.length; i++) {
-      const t = payload.tenants[i]
-      const tenantRef = tenantIdByIndex[i]
-      if (!tenantRef?.tenantId) continue  // already errored
-      const unitKey = `${t.property_index}|${t.unit_number.trim().toLowerCase()}`
+    // Cache to avoid re-inviting the same email if it appears across
+    // multiple leases (rare, but possible for landlords with same-person
+    // tenants on multiple units).
+    const tenantIdByEmail = new Map<string, string>()
+
+    for (let leaseIdx = 0; leaseIdx < normalizedLeases.length; leaseIdx++) {
+      const lease = normalizedLeases[leaseIdx]
+      const unitKey = `${lease.property_index}|${lease.unit_number.trim().toLowerCase()}`
       const unitId = unitIdByKey.get(unitKey)
       if (!unitId) {
-        errors.push({ scope: 'lease', index: i, message: `Unit ${t.unit_number} not found` })
+        errors.push({ scope: 'lease', index: leaseIdx, message: `Unit ${lease.unit_number} not found` })
         continue
       }
 
-      // Avoid duplicate lease — same tenant + unit + start date
+      // Invite every tenant on this lease. Skip rows with missing email
+      // but continue with the rest — a lease with at least one valid
+      // tenant still creates correctly.
+      const resolvedTenants: Array<{ tenantId: string; email: string }> = []
+      for (let tIdx = 0; tIdx < lease.tenants.length; tIdx++) {
+        const t = lease.tenants[tIdx]
+        const email = (t.email ?? '').trim().toLowerCase()
+        if (!email) {
+          errors.push({ scope: 'tenant', index: leaseIdx, message: `Lease ${leaseIdx + 1} tenant #${tIdx + 1}: missing email` })
+          continue
+        }
+        // Dedupe — if we already invited this email on a prior lease, reuse.
+        if (tenantIdByEmail.has(email)) {
+          resolvedTenants.push({ tenantId: tenantIdByEmail.get(email)!, email })
+          continue
+        }
+        const { data: inviteResp, error: invErr } = await admin.functions.invoke('invite-tenant', {
+          body: {
+            email,
+            full_name: `${t.first_name} ${t.last_name}`.trim(),
+            phone: t.phone ?? null,
+            migrationFrom: migrationFromLabel,
+          },
+          headers: { Authorization: authHeader },
+        })
+        if (invErr || !inviteResp?.tenantId) {
+          errors.push({ scope: 'tenant', index: leaseIdx, message: `${email}: ${invErr?.message ?? 'invite failed'}` })
+          continue
+        }
+        tenantIdByEmail.set(email, inviteResp.tenantId)
+        resolvedTenants.push({ tenantId: inviteResp.tenantId, email })
+        if (inviteResp.alreadyExists) tenantsLinked++
+        else tenantsInvited++
+      }
+
+      if (resolvedTenants.length === 0) {
+        errors.push({ scope: 'lease', index: leaseIdx, message: 'No valid tenants on this lease — skipped' })
+        continue
+      }
+
+      const primaryTenantId = resolvedTenants[0].tenantId
+
+      // Idempotency — skip if a lease with this primary tenant + unit + start already exists
       const { data: dup } = await admin
         .from('leases')
         .select('id')
-        .eq('tenant_id', tenantRef.tenantId)
+        .eq('tenant_id', primaryTenantId)
         .eq('unit_id', unitId)
-        .eq('start_date', t.lease_start)
+        .eq('start_date', lease.lease_start)
         .maybeSingle()
       if (dup) continue
 
+      // Lease status logic — covers four real-world states:
+      //   1. month_to_month=true → 'active'
+      //      Tenancy continuing past its term by statute. PDF optional.
+      //   2. start_date > today + PDF attached → 'upcoming'
+      //      Contract is signed, tenant hasn't moved in yet.
+      //   3. PDF attached (current term) → 'active'
+      //      Executed agreement on file, tenant is in the unit.
+      //   4. No PDF → 'pending'
+      //      Needs a FindStoop agreement before activation.
+      const hasExistingLease = !!lease.existing_lease_path
+      const isM2M = lease.month_to_month === true
+      const todayIso = new Date().toISOString().slice(0, 10)
+      const startsFuture = lease.lease_start > todayIso
+      let leaseStatus: 'active' | 'upcoming' | 'pending'
+      if (isM2M) leaseStatus = 'active'
+      else if (startsFuture && hasExistingLease) leaseStatus = 'upcoming'
+      else if (hasExistingLease) leaseStatus = 'active'
+      else leaseStatus = 'pending'
       const { data: insertedLease, error: leaseErr } = await admin.from('leases').insert({
         unit_id: unitId,
-        tenant_id: tenantRef.tenantId,
-        start_date: t.lease_start,
-        end_date: t.lease_end,
-        rent_amount: t.rent_amount,
-        security_deposit: t.security_deposit ?? null,
-        status: 'pending',
+        tenant_id: primaryTenantId,
+        start_date: lease.lease_start,
+        end_date: lease.lease_end,
+        rent_amount: lease.rent_amount,
+        security_deposit: lease.security_deposit ?? null,
+        status: leaseStatus,
+        month_to_month: isM2M,
       }).select('id').single()
       if (leaseErr || !insertedLease) {
-        errors.push({ scope: 'lease', index: i, message: leaseErr?.message ?? 'Insert failed' })
+        errors.push({ scope: 'lease', index: leaseIdx, message: leaseErr?.message ?? 'Lease insert failed' })
         continue
       }
       leasesCreated++
+      if (leaseStatus === 'active') leasesActivated++
+      else if (leaseStatus === 'upcoming') leasesUpcoming++
 
-      // Mirror the primary tenant into lease_tenants for co-tenant support.
-      // Best-effort — failure here doesn't fail the import.
-      try {
-        await admin.from('lease_tenants').upsert({
-          lease_id: insertedLease.id,
-          tenant_id: tenantRef.tenantId,
-          is_primary: true,
-          sort_order: 0,
-        }, { onConflict: 'lease_id,tenant_id' })
-      } catch { /* non-fatal */ }
+      // Set unit to occupied only for currently-active tenancies. Upcoming
+      // leases haven't moved in yet — unit stays vacant until move-in.
+      if (leaseStatus === 'active') {
+        try {
+          await admin.from('units').update({ status: 'occupied' }).eq('id', unitId)
+        } catch { /* non-fatal */ }
+      }
+
+      // All tenants on this lease land in lease_tenants. Primary = first.
+      for (let i = 0; i < resolvedTenants.length; i++) {
+        try {
+          await admin.from('lease_tenants').upsert({
+            lease_id: insertedLease.id,
+            tenant_id: resolvedTenants[i].tenantId,
+            is_primary: i === 0,
+            sort_order: i,
+          }, { onConflict: 'lease_id,tenant_id' })
+        } catch { /* non-fatal — primary tenant is on leases.tenant_id either way */ }
+      }
+
+      // Record the executed PDF in documents so it shows up under the lease.
+      if (hasExistingLease && lease.existing_lease_path) {
+        try {
+          await admin.from('documents').insert({
+            lease_id: insertedLease.id,
+            uploaded_by: managerId,
+            name: lease.existing_lease_filename || 'Signed lease (imported)',
+            type: 'lease',
+            storage_url: lease.existing_lease_path,
+          })
+        } catch (e) {
+          // Non-fatal — the lease is still created and active. We log it
+          // so the manager can attach the doc manually if needed.
+          errors.push({
+            scope: 'lease',
+            index: leaseIdx,
+            message: `Lease imported but PDF link failed: ${e instanceof Error ? e.message : 'unknown'}`,
+          })
+        }
+      }
     }
 
-    // ── 5. Bump Stripe subscription quantity ────────────────────────────
-    // Imported leases land in 'pending' — they won't count toward the
-    // manager's subscription until the manager activates them. So we don't
-    // need to call stripe-sync-quantity right now. (Sync happens on lease
-    // activation via the existing manager-side flow.)
-    // Kept here as a comment so a future change to default-active imports
-    // doesn't forget the sync step.
+    // ── 5. Bump Stripe subscription quantity for newly-active leases ────
+    // Pending leases stay off the bill until the manager activates them.
+    // Active leases (those that came in with an executed PDF) DO count
+    // immediately — invoke stripe-sync-quantity once after all inserts.
+    if (leasesActivated > 0 && profile.stripe_subscription_item_id) {
+      try {
+        await admin.functions.invoke('stripe-sync-quantity', {
+          body: { manager_id: managerId },
+          headers: { Authorization: authHeader },
+        })
+      } catch {
+        // Non-fatal — sync can be retried via the next manager-side
+        // activation. The leases themselves are correctly active.
+      }
+    }
 
     // Record the import for telemetry + feedback. The wizard hands the
     // returned import_id back to the manager so they can submit a rating
     // and free-text feedback from the "Done" step.
+    // Roll up counts using the normalized lease shape (works for both
+    // legacy single-tenant and new multi-tenant payloads).
+    const tenantsInPayload = normalizedLeases.reduce((sum, l) => sum + l.tenants.length, 0)
+    const leasesInPayload = normalizedLeases.length
+
     const { data: importRow } = await admin.from('portfolio_imports').insert({
       manager_id: managerId,
       source: payload.source,
       properties_in: payload.properties.length,
       units_in: payload.units.length,
-      tenants_in: payload.tenants.length,
+      tenants_in: tenantsInPayload,
       properties_created: propertiesCreated,
       units_created: unitsCreated,
       tenants_invited: tenantsInvited,
@@ -335,7 +463,8 @@ Deno.serve(async (req) => {
         source: payload.source,
         properties_in: payload.properties.length,
         units_in: payload.units.length,
-        tenants_in: payload.tenants.length,
+        tenants_in: tenantsInPayload,
+        leases_in: leasesInPayload,
         properties_created: propertiesCreated,
         units_created: unitsCreated,
         tenants_invited: tenantsInvited,
@@ -356,7 +485,9 @@ Deno.serve(async (req) => {
         tenants_invited: tenantsInvited,
         tenants_linked: tenantsLinked,
         leases_created: leasesCreated,
-        leases_total: payload.tenants.length,
+        leases_activated: leasesActivated,
+        leases_upcoming: leasesUpcoming,
+        leases_total: leasesInPayload,
       },
       errors,
     })

@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getAllPayments, createPayment, markPaymentPaid } from '../api/payments'
+import {
+  getAllPayments, createPayment, markPaymentPaid,
+  updatePayment, regenerateRentSchedule,
+} from '../api/payments'
 import type { Payment, PaymentType, PaymentStatus } from '../types/payment'
 
 export interface PaymentFilters {
@@ -44,6 +47,20 @@ export function usePayments(leaseIds: string[]) {
     return payment
   }
 
+  const update = async (id: string, patch: Partial<Pick<Payment, 'amount' | 'due_date' | 'status' | 'type'>>) => {
+    const payment = await updatePayment(id, patch)
+    setPayments((prev) => prev.map((p) => (p.id === id ? payment : p)))
+    return payment
+  }
+
+  // Calls the regenerate_rent_schedule RPC and reloads payments so the
+  // grouped Payments view picks up the new tenant rows immediately.
+  const regenerateSchedule = async (leaseId: string) => {
+    const result = await regenerateRentSchedule(leaseId)
+    await load()
+    return result
+  }
+
   const filterPayments = (filters: PaymentFilters) =>
     payments.filter((p) => {
       if (filters.status !== 'all' && p.status !== filters.status) return false
@@ -59,5 +76,5 @@ export function usePayments(leaseIds: string[]) {
     .filter((p) => p.status === 'pending')
     .reduce((sum, p) => sum + Number(p.amount), 0)
 
-  return { payments, loading, error, add, markPaid, filterPayments, totalCollected, totalOutstanding, reload: load }
+  return { payments, loading, error, add, markPaid, update, regenerateSchedule, filterPayments, totalCollected, totalOutstanding, reload: load }
 }

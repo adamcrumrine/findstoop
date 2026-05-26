@@ -1,4 +1,4 @@
-export type LeaseStatus = 'pending' | 'active' | 'expired' | 'terminated'
+export type LeaseStatus = 'pending' | 'active' | 'upcoming' | 'expired' | 'terminated'
 
 export interface Lease {
   id: string
@@ -11,6 +11,15 @@ export interface Lease {
   pet_deposit: number | null
   utility_notes: string | null
   status: LeaseStatus
+  // TRUE when the tenancy has rolled past its end_date and continues on a
+  // month-to-month basis (status stays 'active'). Set during portfolio
+  // import; toggled at renewal/end-of-term workflows.
+  month_to_month?: boolean
+  // For month-to-month leases: when the manager records a tentative move-out
+  // date (verbal notice from tenant, planned vacate, etc.). The lifecycle
+  // cron fires move-out reminders based on this date, since the lease's
+  // original end_date is in the past for any M2M tenancy.
+  tentative_move_out_date?: string | null
   signed_at: string | null
   document_url: string | null
   sent_for_signature_at: string | null

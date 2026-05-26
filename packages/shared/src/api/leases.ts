@@ -44,6 +44,52 @@ export async function getLeases(unitIds: string[]): Promise<Lease[]> {
   return data ?? []
 }
 
+// Returns every (lease_id, tenant_id) pair from lease_tenants for the
+// given lease ids — used to resolve which tenants are on which leases
+// when one tenant might be a co-tenant rather than the primary on
+// leases.tenant_id.
+export async function getLeaseTenantsForLeaseIds(leaseIds: string[]): Promise<{ data: Array<{ lease_id: string; tenant_id: string }> }> {
+  if (leaseIds.length === 0) return { data: [] }
+  const { data } = await supabase
+    .from('lease_tenants')
+    .select('lease_id, tenant_id')
+    .in('lease_id', leaseIds)
+  return { data: (data ?? []) as Array<{ lease_id: string; tenant_id: string }> }
+}
+
+// Returns every tenant_id appearing on any lease in the given unit list,
+// across BOTH leases.tenant_id (the legacy primary tenant column) and the
+// lease_tenants junction table (where co-tenants/roommates live). Use this
+// when surfacing tenants — otherwise the Tenants page only shows the
+// primary on each lease and co-tenants get hidden.
+export async function getAllLeaseTenantIds(unitIds: string[]): Promise<string[]> {
+  if (unitIds.length === 0) return []
+  const ids = new Set<string>()
+  // Primary tenant_id from each lease (covers legacy single-tenant leases).
+  const { data: leaseRows } = await supabase
+    .from('leases')
+    .select('id, tenant_id')
+    .in('unit_id', unitIds)
+  const leaseIds: string[] = []
+  for (const row of (leaseRows ?? []) as Array<{ id: string; tenant_id: string }>) {
+    if (row.tenant_id) ids.add(row.tenant_id)
+    leaseIds.push(row.id)
+  }
+  // Co-tenants via the join table — picks up roommates added during import
+  // or via the manual flows. Includes the primary too (idempotent dedupe
+  // via the Set).
+  if (leaseIds.length > 0) {
+    const { data: ltRows } = await supabase
+      .from('lease_tenants')
+      .select('tenant_id')
+      .in('lease_id', leaseIds)
+    for (const row of (ltRows ?? []) as Array<{ tenant_id: string }>) {
+      if (row.tenant_id) ids.add(row.tenant_id)
+    }
+  }
+  return Array.from(ids)
+}
+
 export async function getUpcomingLeaseRenewals(unitIds: string[]): Promise<Lease[]> {
   if (unitIds.length === 0) return []
   const now = new Date()

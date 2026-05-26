@@ -527,11 +527,92 @@ Deno.serve(async (req) => {
     imagesPurged = typeof data === 'number' ? data : Number(data ?? 0)
   } catch { /* swallow — cron tolerates one-off failures */ }
 
+  // ── Month-to-month lifecycle ────────────────────────────────────────────
+  // Two sweeps, both keyed on leases.auto_renew_month_to_month = true:
+  //   A. Activation: leases whose end_date has just passed but haven't been
+  //      flipped to M2M yet → set month_to_month=true.
+  //   B. Payment topup: for every active+M2M lease (whether just-flipped or
+  //      already rolling), make sure the next 2 monthly rent payments are
+  //      queued in `payments`. Idempotent — ON CONFLICT (lease_id, due_date)
+  //      keeps duplicates from being created.
+  const todayIso = new Date().toISOString().slice(0, 10)
+  let m2mActivated = 0
+  let m2mPaymentsQueued = 0
+  try {
+    // Sweep A — flip to M2M
+    const { data: toFlip } = await admin
+      .from('leases')
+      .select('id')
+      .eq('status', 'active')
+      .eq('auto_renew_month_to_month', true)
+      .eq('month_to_month', false)
+      .lt('end_date', todayIso)
+    for (const row of (toFlip ?? []) as Array<{ id: string }>) {
+      const { error: flipErr } = await admin
+        .from('leases')
+        .update({ month_to_month: true })
+        .eq('id', row.id)
+      if (!flipErr) m2mActivated++
+    }
+
+    // Sweep B — top up next 2 months of rent payments for any active M2M
+    // lease with auto_renew on. Limit to a sensible batch so a single cron
+    // run can't go runaway if the user has thousands of these.
+    const { data: m2mLeases } = await admin
+      .from('leases')
+      .select('id, tenant_id, rent_amount, payment_due_day, end_date')
+      .eq('status', 'active')
+      .eq('auto_renew_month_to_month', true)
+      .eq('month_to_month', true)
+      .limit(500)
+
+    for (const lease of (m2mLeases ?? []) as Array<{
+      id: string; tenant_id: string; rent_amount: number;
+      payment_due_day: number | null; end_date: string
+    }>) {
+      // Find the most-recent due_date on this lease so we know where to
+      // continue from. If somehow none exists, start at the original end_date.
+      const { data: latest } = await admin
+        .from('payments')
+        .select('due_date')
+        .eq('lease_id', lease.id)
+        .eq('type', 'rent')
+        .order('due_date', { ascending: false })
+        .limit(1)
+      const lastDueIso = (latest?.[0]?.due_date as string | undefined) ?? lease.end_date
+      const dueDay = Math.min(28, Math.max(1, lease.payment_due_day ?? 1))
+
+      // Queue up the next two months from lastDue, but cap at 60 days ahead
+      // of today so we don't pre-generate years of payments on a long-lived
+      // M2M tenancy.
+      const horizon = new Date(); horizon.setUTCDate(horizon.getUTCDate() + 60)
+      let cursor = new Date(lastDueIso + 'T00:00:00Z')
+      for (let i = 0; i < 2; i++) {
+        cursor.setUTCMonth(cursor.getUTCMonth() + 1)
+        cursor.setUTCDate(dueDay)
+        if (cursor > horizon) break
+        const dueIso = cursor.toISOString().slice(0, 10)
+        const { error: insErr } = await admin.from('payments').insert({
+          lease_id: lease.id,
+          tenant_id: lease.tenant_id,
+          amount: lease.rent_amount,
+          type: 'rent',
+          status: 'pending',
+          due_date: dueIso,
+        })
+        // Unique constraint (lease_id, due_date) WHERE type='rent' silently
+        // rejects duplicates — only count true new inserts.
+        if (!insErr) m2mPaymentsQueued++
+      }
+    }
+  } catch { /* swallow — cron tolerates one-off failures */ }
+
   return new Response(JSON.stringify({
     ok: true,
     totals,
     imagesPurged,
     autopay: { attempted: autopayAttempted, initiated: autopayInitiated, skipped: autopaySkipped, failed: autopayFailed },
+    monthToMonth: { activated: m2mActivated, payments_queued: m2mPaymentsQueued },
     ran_at: new Date().toISOString(),
   }), {
     status: 200,

@@ -49,6 +49,26 @@ export default function LeadPaintPamphlet() {
             </p>
           </div>
 
+          {/* Pointer to the authoritative EPA-issued PDF. The summary below
+              is FindStoop's plain-language rendering of the same content,
+              but the EPA copy at the link is the document of record. */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm print:hidden">
+            <p className="font-semibold text-blue-900 mb-1">Official EPA pamphlet</p>
+            <p className="text-blue-900/90 leading-relaxed">
+              This page is FindStoop's plain-language summary of the EPA / HUD / CPSC pamphlet titled
+              <em> "Protect Your Family From Lead in Your Home" </em>(September 2013, EPA-747-K-12-001).
+              The authoritative federal version is hosted at:
+            </p>
+            <a
+              href="https://www.epa.gov/sites/default/files/2020-10/documents/lead-in-your-home-portrait-color-2020-508.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-2 font-medium text-blue-700 hover:text-blue-800 underline"
+            >
+              View official EPA PDF →
+            </a>
+          </div>
+
           <h2 className="text-lg font-semibold mt-6">Why is lead a problem?</h2>
           <p>
             Lead exposure can cause permanent damage — especially to children under six and pregnant women.

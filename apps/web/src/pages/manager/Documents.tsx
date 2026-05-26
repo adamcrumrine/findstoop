@@ -99,6 +99,13 @@ export default function ManagerDocuments() {
   }
 
   const handleDownload = async (doc: Document) => {
+    // Standard legal docs auto-attached to Ohio leases store an `app://...`
+    // route instead of a storage path. Open these in-app.
+    if (doc.storage_url?.startsWith('app://')) {
+      const route = '/' + doc.storage_url.slice('app://'.length)
+      window.open(route, '_blank', 'noopener,noreferrer')
+      return
+    }
     try {
       const url = await getDownloadUrl(doc)
       window.open(url, '_blank')

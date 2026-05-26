@@ -16,3 +16,17 @@ export function formatUsdCents(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(Number(value))) return '$0.00'
   return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
+
+// US phone formatter. Strips non-digits, then renders as (###) ###-####.
+// 11-digit numbers starting with "1" are treated as US country-coded and
+// the leading 1 is dropped. Anything that isn't 10 digits after stripping
+// is returned as-is so we don't silently mangle international numbers.
+//   formatPhone("6144004091")    -> "(614) 400-4091"
+//   formatPhone("+1 614-400-4091") -> "(614) 400-4091"
+export function formatPhone(value: string | null | undefined): string {
+  if (!value) return ''
+  let digits = String(value).replace(/\D/g, '')
+  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1)
+  if (digits.length !== 10) return String(value)
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}

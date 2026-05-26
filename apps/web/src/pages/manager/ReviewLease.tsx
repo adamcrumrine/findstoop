@@ -28,6 +28,7 @@ import {
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import { useInspection } from '@findstoop/shared/hooks/useInspection'
+import { formatUsdCents } from '@findstoop/shared/lib/format'
 
 interface LeaseWithRefs extends Lease {
   payment_due_day?: number | null
@@ -45,6 +46,14 @@ interface MergeFields {
   payment_due_day: string
   pets_allowed: boolean
   collect_last_months_rent: boolean
+  /** When true, the daily cron will auto-extend this lease to month-to-month
+   *  when end_date passes, keep generating monthly rent payments, and the
+   *  lease template renders explicit auto-rollover language in Section 26. */
+  auto_renew_month_to_month: boolean
+  /** For month-to-month leases: tentative date the tenant has indicated
+   *  they plan to move out. Used by the lifecycle cron to fire move-out
+   *  reminders for M2M tenancies (whose original end_date is in the past). */
+  tentative_move_out_date: string
   /** null = not yet decided; true/false = manager's choice. Set when end-date
    *  is adjusted to a non-standard term (anything other than 12 months). */
   prorate_rent: boolean | null
@@ -80,18 +89,35 @@ export default function ReviewLease() {
   const { profile } = useAuth()
 
   const [lease, setLease] = useState<LeaseWithRefs | null>(null)
-  const [allTenants, setAllTenants] = useState<Profile[]>([])
+  // Auto-save status — null = nothing saved this session; otherwise the
+  // timestamp of the last successful save. Used by the passive footer tag.
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  // Tenants on this lease, with the is_primary flag from lease_tenants so
+  // the UI can show multi-primary state + toggle it. Multiple tenants can
+  // be primary simultaneously (the trigger no longer enforces single).
+  const [allTenants, setAllTenants] = useState<Array<Profile & { is_primary: boolean }>>([])
   const [addTenantEmail, setAddTenantEmail] = useState('')
   const [addingTenant, setAddingTenant] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
+  // Set when this lease has a `documents` row of type='lease' (i.e. an
+  // externally-signed PDF was attached during portfolio import or via
+  // /manager/leases/attach). When present AND lease.document_url is null
+  // (no FindStoop-drafted body), we treat the lease as ALREADY EXECUTED
+  // and skip the draft/send/sign workflow.
+  const [attachedSignedDoc, setAttachedSignedDoc] = useState<{ id: string; name: string; storage_url: string } | null>(null)
+  const [attachedDocUrl, setAttachedDocUrl] = useState<string | null>(null)
+  // "Replace signed PDF" modal — single-PDF drop with auto-extract + confirm.
+  const [replaceModalOpen, setReplaceModalOpen] = useState(false)
 
   // Editable structured fields
   const [fields, setFields] = useState<MergeFields>({
     start_date: '', end_date: '', rent_amount: '', security_deposit: '',
     pet_deposit: '', utility_notes: '', payment_due_day: '1', pets_allowed: false,
     collect_last_months_rent: false,
+    auto_renew_month_to_month: false,
+    tentative_move_out_date: '',
     prorate_rent: null,
     landlord_name: '', landlord_company: '',
   })
@@ -133,15 +159,17 @@ export default function ReviewLease() {
           .order('sort_order', { ascending: true })
           .order('added_at', { ascending: true })
         if (!cancelled) {
-          const profiles = ((ltRows ?? []) as unknown as Array<{ profile?: Profile | null }>)
-            .map((r) => r.profile)
-            .filter((p): p is Profile => !!p)
-          // Fallback: if join table is somehow empty (shouldn't happen post-backfill),
-          // fall back to the single primary tenant on the lease row.
-          if (profiles.length === 0 && l.tenant) {
-            setAllTenants([l.tenant])
+          const rows = (ltRows ?? []) as unknown as Array<{ is_primary: boolean; profile?: Profile | null }>
+          const enriched = rows
+            .filter((r) => !!r.profile)
+            .map((r) => ({ ...(r.profile as Profile), is_primary: !!r.is_primary }))
+          // Fallback: if join table is somehow empty (shouldn't happen
+          // post-backfill), fall back to the single primary tenant on the
+          // lease row and treat them as primary.
+          if (enriched.length === 0 && l.tenant) {
+            setAllTenants([{ ...l.tenant, is_primary: true }])
           } else {
-            setAllTenants(profiles)
+            setAllTenants(enriched)
           }
         }
         const f: MergeFields = {
@@ -154,12 +182,40 @@ export default function ReviewLease() {
           payment_due_day: String(l.payment_due_day ?? 1),
           pets_allowed: Boolean(l.pet_deposit && l.pet_deposit > 0),
           collect_last_months_rent: Boolean((l as { collect_last_months_rent?: boolean }).collect_last_months_rent),
+          auto_renew_month_to_month: Boolean((l as { auto_renew_month_to_month?: boolean }).auto_renew_month_to_month),
+          tentative_move_out_date: (l as { tentative_move_out_date?: string | null }).tentative_move_out_date ?? '',
           prorate_rent: ((l as { prorate_rent?: boolean | null }).prorate_rent ?? null),
           landlord_name: profile?.full_name ?? '',
           landlord_company: profile?.company_name ?? '',
         }
         setFields(f)
         setInitialFields(f)
+
+        // Look up the attached signed-lease document (if any). Only consider
+        // the most recent type='lease' doc. We surface this so the page can
+        // skip the draft/sign workflow when an executed PDF is on file.
+        const { data: docRows } = await supabase
+          .from('documents')
+          .select('id, name, storage_url')
+          .eq('lease_id', l.id)
+          .eq('type', 'lease')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (!cancelled) {
+          const doc = (docRows ?? [])[0] as { id: string; name: string; storage_url: string } | undefined
+          if (doc) {
+            setAttachedSignedDoc(doc)
+            // Resolve a signed URL once for viewing/downloading. 1 hour TTL is
+            // plenty for a manager who just clicked into this page.
+            const { data: signed } = await supabase.storage
+              .from('lease-documents')
+              .createSignedUrl(doc.storage_url, 3600)
+            if (!cancelled && signed?.signedUrl) setAttachedDocUrl(signed.signedUrl)
+          } else {
+            setAttachedSignedDoc(null)
+            setAttachedDocUrl(null)
+          }
+        }
       }
       setLoading(false)
     })()
@@ -167,9 +223,34 @@ export default function ReviewLease() {
   }, [id, profile?.full_name, profile?.company_name])
 
   const dirty = JSON.stringify(fields) !== JSON.stringify(initialFields)
+
+  // Auto-save: when fields differ from last-saved snapshot AND the form is
+  // valid AND no blocking modal (prorate prompt) is open, schedule a save
+  // ~800ms after the last change. Validation is duplicated lightly here so
+  // we don't fire saves with bad values; handleSave does the strict check.
+  useEffect(() => {
+    if (loading || !lease || !profile) return
+    if (!dirty) return
+    if (saving) return
+    if (showProratePrompt) return
+    if (!fields.start_date || !fields.end_date || fields.end_date <= fields.start_date) return
+    if (!fields.rent_amount || Number(fields.rent_amount) <= 0) return
+    if (!fields.landlord_name.trim()) return
+    const t = window.setTimeout(() => { void handleSave({ silent: true }) }, 800)
+    return () => window.clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, fields, loading, saving, showProratePrompt])
+
   const stateCode = lease?.unit?.property?.state ?? ''
   const stateNotes = getStateNotes(stateCode.toLowerCase())
   const fullySigned = !!lease?.signed_at
+  // External signed PDF on file AND no FindStoop-drafted body. This is the
+  // "migrated lease" case — the agreement is already executed off-platform,
+  // we just store the PDF and skip the FindStoop draft/sign workflow.
+  const hasExternalSignedPdf = !!attachedSignedDoc && !lease?.document_url
+  // Either kind of "lease is executed" — both gate the inspections /
+  // compliance checklists and the resend buttons.
+  const leaseExecuted = fullySigned || hasExternalSignedPdf
 
   // Required fields gate the live preview. End date and rent must be present
   // and valid; landlord name + unit + property must exist (lease has them).
@@ -250,6 +331,7 @@ export default function ReviewLease() {
       utility_notes: fields.utility_notes || null,
       pets_allowed: fields.pets_allowed,
       last_months_prepayment: fields.collect_last_months_rent ? rentNum : 0,
+      auto_renew_month_to_month: fields.auto_renew_month_to_month,
     })
   }
 
@@ -268,7 +350,7 @@ export default function ReviewLease() {
     return pub?.publicUrl ?? null
   }
 
-  const handleSave = async () => {
+  const handleSave = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!lease || !profile || !dirty) return
     if (!fields.start_date || !fields.end_date) {
       toast.error('Start and end dates are required')
@@ -294,18 +376,28 @@ export default function ReviewLease() {
       utility_notes: fields.utility_notes.trim() || null,
       payment_due_day: Math.min(28, Math.max(1, Number(fields.payment_due_day) || 1)),
       collect_last_months_rent: fields.collect_last_months_rent,
+      auto_renew_month_to_month: fields.auto_renew_month_to_month,
+      tentative_move_out_date: fields.tentative_move_out_date || null,
       prorate_rent: fields.prorate_rent,
     }
 
-    // 2) Always re-render the document from the merge fields and upload.
-    //    The boilerplate body never changes; only the merge values do.
+    // 2) Re-render the FindStoop-templated document from the merge fields
+    //    — BUT ONLY for leases that are using the FindStoop draft as the
+    //    authoritative document. For externally-executed leases (an
+    //    imported signed PDF lives in the documents table), we must NOT
+    //    touch document_url — doing so erases the connection to the
+    //    executed PDF and the UI starts showing the FindStoop boilerplate
+    //    instead of the actual signed lease. The signed PDF stays as the
+    //    document of record.
     let newDocUrl: string | undefined
-    const text = renderDocumentText(lease)
-    if (text) {
-      const url = await uploadDocument(text)
-      if (url) newDocUrl = url
+    if (!hasExternalSignedPdf) {
+      const text = renderDocumentText(lease)
+      if (text) {
+        const url = await uploadDocument(text)
+        if (url) newDocUrl = url
+      }
+      if (newDocUrl) leaseUpdate.document_url = newDocUrl
     }
-    if (newDocUrl) leaseUpdate.document_url = newDocUrl
 
     // 3) Update landlord profile fields if changed (name + company).
     const profileUpdates: Record<string, unknown> = {}
@@ -334,12 +426,95 @@ export default function ReviewLease() {
 
     setLease((prev) => prev ? { ...prev, ...leaseUpdate, document_url: newDocUrl ?? prev.document_url } as LeaseWithRefs : prev)
     setInitialFields(fields)
-    toast.success('Lease saved')
+    setLastSavedAt(new Date())
+    // Quick confirmation toast on every save — silent auto-saves get a
+    // short-duration green check so the user has a visual cue without it
+    // lingering. Manual saves use the normal duration.
+    if (silent) {
+      toast.success('Saved', { duration: 1200, icon: '✓' })
+    } else {
+      toast.success('Lease saved')
+    }
   }
 
   const openFormattedLease = () => {
     if (!lease) return
     window.open(`/lease-pdf/${lease.id}`, '_blank', 'noopener,noreferrer')
+  }
+
+  // Two-mode add: first try to attach by email alone (fast path for tenants
+  // already in FindStoop). If no profile is found, expand the form to ask
+  // for a name + phone and auto-invite via the invite-tenant edge function.
+  // The new profile is attached to the lease in the same submit.
+  const [addTenantStep, setAddTenantStep] = useState<'email' | 'invite'>('email')
+  const [addTenantFirstName, setAddTenantFirstName] = useState('')
+  const [addTenantLastName, setAddTenantLastName] = useState('')
+  const [addTenantPhone, setAddTenantPhone] = useState('')
+
+  // Live preview of the rent split across primary tenants. Mirrors the SQL
+  // trigger's penny-exact math (cents-int division with remainder going to
+  // the first primary) so what's shown here is exactly what the DB will
+  // bill. Empty list when there's no rent yet or zero primaries.
+  const splitPreview: Array<{ tenantId: string; name: string; amount: number }> = (() => {
+    const rent = Number(fields.rent_amount || 0)
+    if (!rent || rent <= 0) return []
+    const primaries = allTenants.filter((t) => t.is_primary)
+    if (primaries.length === 0) return []
+    const totalCents = Math.round(rent * 100)
+    const n = primaries.length
+    const baseCents = Math.floor(totalCents / n)
+    const remainderCents = totalCents - baseCents * n
+    return primaries.map((t, i) => ({
+      tenantId: t.id,
+      name: t.full_name ?? t.email ?? 'Tenant',
+      amount: (baseCents + (i === 0 ? remainderCents : 0)) / 100,
+    }))
+  })()
+
+  // Toggle a tenant's is_primary flag on this lease. Allows multiple
+  // primaries simultaneously — the DB trigger keeps leases.tenant_id in
+  // sync with whichever primary sorts first.
+  const togglePrimary = async (tenantId: string) => {
+    if (!lease) return
+    const current = allTenants.find((t) => t.id === tenantId)
+    if (!current) return
+    const next = !current.is_primary
+    const { error } = await supabase
+      .from('lease_tenants')
+      .update({ is_primary: next })
+      .eq('lease_id', lease.id)
+      .eq('tenant_id', tenantId)
+    if (error) { toast.error(error.message); return }
+    setAllTenants((arr) => arr.map((t) => t.id === tenantId ? { ...t, is_primary: next } : t))
+    toast.success(next ? 'Marked as primary' : 'Removed primary status')
+  }
+
+  const attachExistingTenant = async (tenantProfile: Profile) => {
+    if (!lease) return false
+    const { error } = await supabase.from('lease_tenants').insert({
+      lease_id: lease.id,
+      tenant_id: tenantProfile.id,
+      is_primary: false,
+      sort_order: allTenants.length,
+    })
+    if (error) {
+      if (/active or pending lease at a different property/i.test(error.message)) {
+        toast.error('That tenant is already on an active lease at a different property.')
+      } else {
+        toast.error(error.message)
+      }
+      return false
+    }
+    setAllTenants((arr) => [...arr, { ...tenantProfile, is_primary: false }])
+    return true
+  }
+
+  const resetAddTenantForm = () => {
+    setAddTenantStep('email')
+    setAddTenantEmail('')
+    setAddTenantFirstName('')
+    setAddTenantLastName('')
+    setAddTenantPhone('')
   }
 
   const handleAddTenant = async () => {
@@ -357,26 +532,53 @@ export default function ReviewLease() {
     try {
       const tenantProfile = await (await import('@findstoop/shared/api/profiles')).getProfileByEmail(email)
       if (!tenantProfile) {
-        toast.error("Tenant isn't in FindStoop yet — invite them from Tenants first.")
+        // Not in FindStoop yet — expand to invite form.
+        setAddTenantStep('invite')
+        toast(`${email} isn't in FindStoop yet — add their name to send an invite.`, { icon: 'ℹ️' })
         return
       }
-      const { error } = await supabase.from('lease_tenants').insert({
-        lease_id: lease.id,
-        tenant_id: tenantProfile.id,
-        is_primary: false,
-        sort_order: allTenants.length,
+      const ok = await attachExistingTenant(tenantProfile)
+      if (ok) {
+        toast.success(`Added ${tenantProfile.full_name ?? email} to this lease`)
+        resetAddTenantForm()
+      }
+    } finally {
+      setAddingTenant(false)
+    }
+  }
+
+  const handleInviteAndAdd = async () => {
+    if (!lease) return
+    const email = addTenantEmail.trim().toLowerCase()
+    const first = addTenantFirstName.trim()
+    const last = addTenantLastName.trim()
+    if (!first || !last) { toast.error('Enter first and last name'); return }
+    setAddingTenant(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('invite-tenant', {
+        body: {
+          email,
+          full_name: `${first} ${last}`.trim(),
+          phone: addTenantPhone.replace(/\D/g, '') || null,
+        },
       })
-      if (error) {
-        if (/active or pending lease at a different property/i.test(error.message)) {
-          toast.error('That tenant is already on an active lease at a different property.')
-        } else {
-          toast.error(error.message)
-        }
+      if (error || !data?.tenantId) {
+        toast.error(error?.message ?? data?.error ?? 'Could not send invite')
         return
       }
-      setAllTenants((arr) => [...arr, tenantProfile])
-      setAddTenantEmail('')
-      toast.success(`Added ${tenantProfile.full_name ?? email} to this lease`)
+      // Build a minimal Profile to attach + display optimistically. We
+      // refetch on next reload anyway.
+      const newProfile: Profile = {
+        id: data.tenantId,
+        email,
+        full_name: `${first} ${last}`.trim(),
+        phone: addTenantPhone.replace(/\D/g, '') || null,
+      } as unknown as Profile
+      const ok = await attachExistingTenant(newProfile)
+      if (ok) {
+        toast.success(`Invited ${first} ${last} and added them to this lease`)
+        resetAddTenantForm()
+      }
     } finally {
       setAddingTenant(false)
     }
@@ -476,7 +678,12 @@ export default function ReviewLease() {
               Fully signed
             </span>
           )}
-          {!lease.document_url && (
+          {hasExternalSignedPdf ? (
+            <span className="inline-flex items-center gap-1 text-emerald-700">
+              <CheckCircle2 className="w-3 h-3" strokeWidth={1.75} />
+              Signed lease on file (imported)
+            </span>
+          ) : !lease.document_url && (
             <span className="text-mute italic">No document saved yet</span>
           )}
         </div>
@@ -527,7 +734,7 @@ export default function ReviewLease() {
                     <p className="text-xs text-mute italic">No tenants on this lease.</p>
                   )}
                   {allTenants.map((t) => {
-                    const isPrimary = lease.tenant_id === t.id
+                    const isPrimary = t.is_primary
                     return (
                       <div key={t.id} className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded px-2 py-1">
                         <div className="min-w-0 flex-1">
@@ -537,39 +744,107 @@ export default function ReviewLease() {
                           </p>
                           <p className="text-[10px] text-mute truncate">{t.email ?? '—'}</p>
                         </div>
-                        {!isPrimary && !fullySigned && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTenant(t.id)}
-                            className="text-[10px] text-red-600 hover:text-red-700 font-medium shrink-0"
-                            title="Remove this tenant from the lease"
-                          >
-                            Remove
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!fullySigned && (
+                            <button
+                              type="button"
+                              onClick={() => togglePrimary(t.id)}
+                              className={`text-[10px] font-medium ${
+                                isPrimary ? 'text-mute hover:text-ink' : 'text-brand-700 hover:text-brand-800'
+                              }`}
+                              title={isPrimary ? 'Remove primary status (lease will still be associated with this tenant)' : 'Mark this tenant as a primary signer on the lease'}
+                            >
+                              {isPrimary ? 'Unmark primary' : 'Mark primary'}
+                            </button>
+                          )}
+                          {!isPrimary && !fullySigned && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTenant(t.id)}
+                              className="text-[10px] text-red-600 hover:text-red-700 font-medium"
+                              title="Remove this tenant from the lease"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
                 </div>
                 {!fullySigned && (
-                  <div className="flex gap-1.5 mt-2">
-                    <input
-                      type="email"
-                      placeholder="add@example.com"
-                      value={addTenantEmail}
-                      onChange={(e) => setAddTenantEmail(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTenant() } }}
-                      disabled={addingTenant}
-                      className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddTenant}
-                      disabled={addingTenant || !addTenantEmail.trim()}
-                      className="text-xs font-medium text-brand-700 border border-brand-300 hover:bg-brand-50 px-2 rounded disabled:opacity-50"
-                    >
-                      {addingTenant ? '…' : '+ Add'}
-                    </button>
+                  <div className="mt-2 space-y-1.5">
+                    <div className="flex gap-1.5">
+                      <input
+                        type="email"
+                        placeholder="add@example.com"
+                        value={addTenantEmail}
+                        onChange={(e) => setAddTenantEmail(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && addTenantStep === 'email') { e.preventDefault(); handleAddTenant() } }}
+                        disabled={addingTenant || addTenantStep === 'invite'}
+                        className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-gray-50"
+                      />
+                      {addTenantStep === 'email' ? (
+                        <button
+                          type="button"
+                          onClick={handleAddTenant}
+                          disabled={addingTenant || !addTenantEmail.trim()}
+                          className="text-xs font-medium text-brand-700 border border-brand-300 hover:bg-brand-50 px-2 rounded disabled:opacity-50"
+                        >
+                          {addingTenant ? '…' : '+ Add'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={resetAddTenantForm}
+                          disabled={addingTenant}
+                          className="text-xs text-mute hover:text-ink px-2"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                    {addTenantStep === 'invite' && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2 space-y-1.5">
+                        <p className="text-[11px] text-blue-900">
+                          <strong>{addTenantEmail}</strong> isn't on FindStoop yet — add their name and we'll send an invite email + add them to this lease.
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="First name"
+                            value={addTenantFirstName}
+                            onChange={(e) => setAddTenantFirstName(e.target.value)}
+                            disabled={addingTenant}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Last name"
+                            value={addTenantLastName}
+                            onChange={(e) => setAddTenantLastName(e.target.value)}
+                            disabled={addingTenant}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500"
+                          />
+                        </div>
+                        <input
+                          type="tel"
+                          placeholder="Phone (optional)"
+                          value={addTenantPhone}
+                          onChange={(e) => setAddTenantPhone(e.target.value)}
+                          disabled={addingTenant}
+                          className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleInviteAndAdd}
+                          disabled={addingTenant || !addTenantFirstName.trim() || !addTenantLastName.trim()}
+                          className="w-full text-xs font-medium bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white px-2 py-1.5 rounded"
+                        >
+                          {addingTenant ? 'Inviting…' : 'Send invite + add to lease'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -581,6 +856,58 @@ export default function ReviewLease() {
                 <p className="text-xs text-mute truncate">{property ? `${property.address}, ${property.city}, ${property.state} ${property.zip}` : '—'}</p>
               </div>
             </div>
+
+            {/* ── Rent split preview ──────────────────────────────────
+                Driven by allTenants[].is_primary + fields.rent_amount.
+                Mirrors the DB trigger's per-cent math so what's shown
+                here is exactly what gets billed when the lease activates
+                (or after Apply primary split on Payments). */}
+            {(() => {
+              const primaries = allTenants.filter((t) => t.is_primary)
+              if (!fields.rent_amount || Number(fields.rent_amount) <= 0) return null
+              if (primaries.length === 0) {
+                return (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-5 -mt-2">
+                    <p className="text-xs font-semibold text-red-800">No primary tenants selected</p>
+                    <p className="text-[11px] text-red-700 mt-0.5">
+                      Mark at least one tenant as primary — only primaries are billed for rent.
+                    </p>
+                  </div>
+                )
+              }
+              if (primaries.length === 1) {
+                return (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mb-5 -mt-2">
+                    <p className="text-[11px] text-mute">
+                      <span className="font-semibold text-ink">{splitPreview[0]?.name}</span>{' '}
+                      will be billed the full {formatUsdCents(Number(fields.rent_amount))}/mo.
+                    </p>
+                  </div>
+                )
+              }
+              return (
+                <div className="bg-brand-50 border border-brand-200 rounded-lg px-3 py-2.5 mb-5 -mt-2">
+                  <p className="text-[11px] uppercase tracking-wider text-brand-800 font-semibold mb-1.5">
+                    Rent split — {primaries.length} primaries
+                  </p>
+                  <div className="space-y-1">
+                    {splitPreview.map((s) => (
+                      <div key={s.tenantId} className="flex items-center justify-between text-xs">
+                        <span className="text-ink truncate">{s.name}</span>
+                        <span className="font-semibold text-ink">{formatUsdCents(s.amount)}/mo</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-brand-700 mt-1.5 pt-1.5 border-t border-brand-200">
+                    Total: {formatUsdCents(Number(fields.rent_amount))}/mo
+                    {splitPreview.length > 1 && ' · uneven cents go to the first primary'}
+                    {lease.status === 'active' && (
+                      <> · changes apply to future months — use <strong>Apply primary split</strong> on Payments after saving</>
+                    )}
+                  </p>
+                </div>
+              )
+            })()}
 
             {/* ── Term & rent ───────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">Term &amp; Rent</p>
@@ -647,6 +974,52 @@ export default function ReviewLease() {
               </div>
             </div>
 
+            {/* ── End-of-term behavior ────────────────────────────────── */}
+            <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">End of term</p>
+            <div className="mb-5">
+              <label
+                className="flex items-start gap-2.5 cursor-pointer text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5"
+                title="When the lease ends, automatically continue month-to-month at the same rent. The system keeps generating monthly rent payments until you change the lease status."
+              >
+                <input
+                  type="checkbox"
+                  checked={fields.auto_renew_month_to_month}
+                  onChange={(e) => set('auto_renew_month_to_month', e.target.checked)}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0">
+                  <p className="font-medium text-ink">Auto-extend to month-to-month at end of term</p>
+                  <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
+                    On the day after <strong>{fields.end_date || 'the lease end date'}</strong>, the lease automatically rolls month-to-month at the same rent.
+                    Monthly rent payments keep generating until you mark the lease expired or terminated. Section 26 of the lease document
+                    reflects this when checked.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Tentative move-out date for month-to-month tenancies — the
+                lifecycle cron fires move-out reminders off this when the
+                tenant has given soft notice. Only shown for M2M leases
+                since for fixed-term leases, end_date already does the job. */}
+            {lease.month_to_month && (
+              <div className="mb-5">
+                <FormField label="Tentative move-out date (optional)">
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={fields.tentative_move_out_date}
+                    onChange={(e) => set('tentative_move_out_date', e.target.value)}
+                  />
+                </FormField>
+                <p className="text-[11px] text-mute mt-1 leading-relaxed">
+                  If your tenant has given notice they plan to move out, set the date here. We'll fire
+                  the same move-out reminders we use for fixed-term leases (deposit return prep,
+                  move-out inspection scheduling, etc.).
+                </p>
+              </div>
+            )}
+
             {/* ── Notes ─────────────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">Notes</p>
             <FormField label="Utility notes (optional)">
@@ -655,79 +1028,134 @@ export default function ReviewLease() {
           </fieldset>
         </section>
 
-        {/* Live-rendered lease document preview — full width */}
+        {/* Lease document — either the externally-imported signed PDF (if
+            this lease was migrated in with an executed agreement), or the
+            live-rendered FindStoop template preview. */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-            <div className="inline-flex items-center gap-2">
-              <FileText className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Lease document</h2>
-              {dirty && requiredFilled && (
-                <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                  Will save on next click
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={openFormattedLease}
-              disabled={!requiredFilled || !fullySigned}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 border border-brand-200 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-              title={fullySigned ? 'Open the finalized lease (printable)' : 'Available once both parties have signed and billing is active'}
-            >
-              <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} />
-              View finalized lease
-            </button>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3 text-[11px] text-amber-900 flex items-start gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.75} />
-            <span>
-              Boilerplate is verbatim from FindStoop's lease template — not edited here. The document below re-renders live as you change fields above.
-            </span>
-          </div>
-
-          {requiredFilled ? (
-            <pre className="bg-gray-50 border border-gray-200 rounded-lg p-5 text-xs font-mono text-ink whitespace-pre-wrap leading-relaxed max-h-[80vh] overflow-y-auto">
-{renderDocumentText(lease)}
-            </pre>
+          {hasExternalSignedPdf ? (
+            <>
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <div className="inline-flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Executed lease — on file</h2>
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                    Confirmed
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {attachedDocUrl && (
+                    <a
+                      href={attachedDocUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 border border-brand-200 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      View PDF
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setReplaceModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-mute hover:text-ink border border-gray-300 hover:border-gray-400 hover:bg-gray-50 px-2.5 py-1.5 rounded-lg"
+                    title="Replace this PDF and update the tenant list"
+                  >
+                    Replace signed PDF
+                  </button>
+                </div>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-700" strokeWidth={1.75} />
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    {attachedSignedDoc?.name ?? 'Signed lease.pdf'}
+                  </p>
+                  <p className="mt-1 text-emerald-900/80 leading-relaxed">
+                    This lease was already executed before migrating to FindStoop. The signed PDF is stored in
+                    {' '}
+                    <Link to="/manager/documents" className="underline font-medium">Documents</Link>
+                    {' '}as the authoritative agreement. No FindStoop draft or e-signature step is required —
+                    when this term ends (or at renewal), you'll generate a new FindStoop lease.
+                  </p>
+                </div>
+              </div>
+            </>
           ) : (
-            <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-8 text-sm text-mute text-center">
-              <p className="font-medium text-ink">Fill in the required fields above to preview the lease</p>
-              <p className="text-xs mt-1.5">
-                Landlord name, start date, end date, and monthly rent are required.
-                As soon as they're filled, the lease will render here.
-              </p>
-            </div>
+            <>
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <div className="inline-flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Lease document</h2>
+                  {dirty && requiredFilled && (
+                    <span className="text-[10px] uppercase tracking-wider text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                      Will save on next click
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={openFormattedLease}
+                  disabled={!requiredFilled || !fullySigned}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 border border-brand-200 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={fullySigned ? 'Open the finalized lease (printable)' : 'Available once both parties have signed and billing is active'}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  View finalized lease
+                </button>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3 text-[11px] text-amber-900 flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.75} />
+                <span>
+                  Boilerplate is verbatim from FindStoop's lease template — not edited here. The document below re-renders live as you change fields above.
+                </span>
+              </div>
+
+              {requiredFilled ? (
+                <pre className="bg-gray-50 border border-gray-200 rounded-lg p-5 text-xs font-mono text-ink whitespace-pre-wrap leading-relaxed max-h-[80vh] overflow-y-auto">
+{renderDocumentText(lease)}
+                </pre>
+              ) : (
+                <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-8 text-sm text-mute text-center">
+                  <p className="font-medium text-ink">Fill in the required fields above to preview the lease</p>
+                  <p className="text-xs mt-1.5">
+                    Landlord name, start date, end date, and monthly rent are required.
+                    As soon as they're filled, the lease will render here.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
 
-      {/* Inspections — move-in + move-out checklists */}
-      <InspectionsPanel leaseId={lease.id} fullySigned={fullySigned} />
+      {/* Inspections — move-in + move-out checklists. Available as soon as
+          the lease is executed (FindStoop-signed OR externally-signed). */}
+      <InspectionsPanel leaseId={lease.id} fullySigned={leaseExecuted} />
 
       {/* Federal compliance — built-before-1978 toggle + disclosure / insurance status */}
-      <CompliancePanel leaseId={lease.id} fullySigned={fullySigned} />
+      <CompliancePanel leaseId={lease.id} fullySigned={leaseExecuted} hasExternalSignedPdf={hasExternalSignedPdf} />
 
-      {/* Action footer */}
+      {/* Action footer — Save is automatic now (~0.8s debounce). The
+          passive indicator on the left reflects current state; the
+          right side only renders the e-sign actions for FindStoop-drafted
+          leases that still need to be sent. */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5 mt-4 flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-mute">
-          {dirty
-            ? 'You have unsaved edits — saving stores the current document text and merge fields.'
-            : lease.sent_for_signature_at
-              ? 'Already sent to the tenant. Re-send to nudge them again.'
-              : 'When the lease is ready, send it to the tenant for review and signature.'}
-        </p>
+        <div className="text-xs text-mute inline-flex items-center gap-2">
+          {saving ? (
+            <><Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} /> Saving…</>
+          ) : dirty ? (
+            <><Save className="w-3.5 h-3.5" strokeWidth={1.75} /> Unsaved — will save in a moment</>
+          ) : lastSavedAt ? (
+            <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} /> All changes saved at {lastSavedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</>
+          ) : hasExternalSignedPdf ? (
+            <>This lease was executed before migration — no draft or signature required. Edits save automatically.</>
+          ) : (
+            <>Edits save automatically.</>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!dirty || saving || fullySigned}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-ink bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 px-3 py-2 rounded-lg disabled:opacity-40"
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} /> : <Save className="w-3.5 h-3.5" strokeWidth={1.75} />}
-            Save changes
-          </button>
-          {!fullySigned && (
+          {!leaseExecuted && (
             <button
               type="button"
               onClick={handleSendForSignature}
@@ -739,7 +1167,7 @@ export default function ReviewLease() {
               {lease.sent_for_signature_at ? 'Re-send for signature' : 'Send for signature'}
             </button>
           )}
-          {!fullySigned && (
+          {!leaseExecuted && (
             <button
               type="button"
               onClick={() => navigate(`/manager/sign-lease/${lease.id}`)}
@@ -756,6 +1184,23 @@ export default function ReviewLease() {
           if the manager adjusts the end-date to anything else, we ask whether
           they intend to prorate the first/last rent. The answer is saved on
           the lease and used by the Payments screen. */}
+      {replaceModalOpen && (
+        <ReplacePdfModal
+          leaseId={lease.id}
+          managerId={profile.id}
+          currentTenants={allTenants.map((t) => ({
+            email: t.email ?? '', name: t.full_name ?? t.email ?? '',
+          }))}
+          onClose={() => setReplaceModalOpen(false)}
+          onReplaced={() => {
+            setReplaceModalOpen(false)
+            toast.success('Lease PDF and tenants updated')
+            // Refresh the page so the new doc + tenants render.
+            window.location.reload()
+          }}
+        />
+      )}
+
       {showProratePrompt && (() => {
         const months = monthsBetween(fields.start_date, fields.end_date)
         return (
@@ -931,7 +1376,7 @@ interface ComplianceStatusRow {
   insurance_days_remaining: number
 }
 
-function CompliancePanel({ leaseId, fullySigned: _fullySigned }: { leaseId: string; fullySigned: boolean }) {
+function CompliancePanel({ leaseId, fullySigned: _fullySigned, hasExternalSignedPdf = false }: { leaseId: string; fullySigned: boolean; hasExternalSignedPdf?: boolean }) {
   const [row, setRow] = useState<ComplianceStatusRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -973,8 +1418,14 @@ function CompliancePanel({ leaseId, fullySigned: _fullySigned }: { leaseId: stri
 
   if (loading || !row) return null
 
-  const fairHousingOk  = row.fair_housing_state === 'acknowledged'
-  const leadOk         = row.lead_disclosure_state === 'signed' || row.lead_disclosure_state === 'not_required'
+  // For externally-executed leases (PDF uploaded as the lease), the Fair
+  // Housing notice + Lead Disclosure are auto-attached to the documents
+  // folder by the trigger and don't need a separate acknowledgment flow —
+  // the lease was already executed and the disclosures came with it.
+  // Renter's insurance is still tracked separately because the tenant
+  // hasn't uploaded a certificate yet regardless of the lease's signed state.
+  const fairHousingOk  = row.fair_housing_state === 'acknowledged' || hasExternalSignedPdf
+  const leadOk         = row.lead_disclosure_state === 'signed' || row.lead_disclosure_state === 'not_required' || hasExternalSignedPdf
   const insuranceOk    = row.insurance_state === 'uploaded' || row.insurance_state === 'not_required'
 
   return (
@@ -1024,25 +1475,37 @@ function CompliancePanel({ leaseId, fullySigned: _fullySigned }: { leaseId: stri
           Icon={ShieldCheck}
           label="Fair Housing Notice"
           status={fairHousingOk ? 'ok' : 'pending'}
-          sub={fairHousingOk ? 'Acknowledged by tenant' : 'Awaiting tenant acknowledgment'}
+          sub={
+            hasExternalSignedPdf
+              ? 'Previously disclosed with imported lease'
+              : fairHousingOk
+                ? 'Acknowledged by tenant'
+                : 'Awaiting tenant acknowledgment'
+          }
         />
         {row.property_built_before_1978 && (
           <ComplianceLine
             Icon={FileText}
             label="Lead-Based Paint Disclosure"
             status={
+              // Imported / externally-executed leases came with the
+              // disclosure as part of the signed packet — no FindStoop
+              // signature flow is required. Otherwise fall back to the
+              // standard lifecycle states.
+              hasExternalSignedPdf                              ? 'ok' :
               row.lead_disclosure_state === 'signed'           ? 'ok' :
               row.lead_disclosure_state === 'landlord_pending' ? 'action' :
               row.lead_disclosure_state === 'tenant_pending'   ? 'pending' :
                                                                   'pending'
             }
             sub={
+              hasExternalSignedPdf                              ? 'Previously disclosed with imported lease' :
               row.lead_disclosure_state === 'signed'           ? 'Both parties signed' :
               row.lead_disclosure_state === 'landlord_pending' ? 'Your signature required' :
               row.lead_disclosure_state === 'tenant_pending'   ? 'Awaiting tenant signature' :
                                                                   'Not yet started'
             }
-            to={`/legal/lead-disclosure/${row.lease_id}`}
+            to={hasExternalSignedPdf ? undefined : `/legal/lead-disclosure/${row.lease_id}`}
           />
         )}
         <ComplianceLine
@@ -1106,4 +1569,196 @@ function ComplianceLine({ Icon, label, status, sub, to, onClick }: {
   if (to) return <Link to={to}>{Body}</Link>
   if (onClick) return <button type="button" onClick={onClick} className="w-full text-left">{Body}</button>
   return Body
+}
+
+// ── Replace signed PDF modal ──────────────────────────────────────────────
+// Drop a new PDF → extract-lease-fields runs → show extracted tenants for
+// confirmation → on confirm, replace-lease-pdf swaps the documents row +
+// tenant list atomically. The OLD storage object is left in place as an
+// audit trail (orphaned but recoverable from the bucket).
+interface ExtractedTenantRow {
+  first_name: string | null; last_name: string | null;
+  email: string | null; phone: string | null
+}
+
+function ReplacePdfModal({ leaseId, managerId, currentTenants, onClose, onReplaced }: {
+  leaseId: string
+  managerId: string
+  currentTenants: Array<{ email: string; name: string }>
+  onClose: () => void
+  onReplaced: () => void
+}) {
+  const [pdf, setPdf] = useState<File | null>(null)
+  const [extracting, setExtracting] = useState(false)
+  const [extractedPath, setExtractedPath] = useState<string | null>(null)
+  const [extractedTenants, setExtractedTenants] = useState<ExtractedTenantRow[] | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const onPickFile = async (file: File | null) => {
+    setPdf(file)
+    setExtractedTenants(null)
+    setExtractedPath(null)
+    setError(null)
+    if (!file) return
+    setExtracting(true)
+    try {
+      // Upload to a temp path under the manager's folder.
+      const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80)
+      const path = `${managerId}/replace/${stamp}-${safeName}`
+      const { error: upErr } = await supabase.storage.from('lease-documents').upload(path, file, {
+        contentType: 'application/pdf', upsert: false,
+      })
+      if (upErr) { setError(`Upload failed: ${upErr.message}`); return }
+      setExtractedPath(path)
+      // Extract.
+      const { data, error: exErr } = await supabase.functions.invoke('extract-lease-fields', {
+        body: { storage_path: path },
+      })
+      if (exErr || !data?.ok || !data?.extracted) {
+        setError(exErr?.message ?? data?.message ?? 'Could not read the lease — try a clearer PDF.')
+        return
+      }
+      const ex = data.extracted as { tenants?: ExtractedTenantRow[] }
+      const list = (ex.tenants ?? []).filter((t) => t.first_name && t.last_name && t.email)
+      if (list.length === 0) {
+        setError("No tenant info found in the PDF. Make sure it's a typed (not scanned) lease document.")
+        return
+      }
+      setExtractedTenants(list)
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const submit = async () => {
+    if (!pdf || !extractedPath || !extractedTenants || extractedTenants.length === 0) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const { data, error: err } = await supabase.functions.invoke('replace-lease-pdf', {
+        body: {
+          lease_id: leaseId,
+          new_storage_path: extractedPath,
+          new_filename: pdf.name,
+          tenants: extractedTenants.map((t) => ({
+            email: (t.email ?? '').trim().toLowerCase(),
+            first_name: t.first_name ?? '',
+            last_name: t.last_name ?? '',
+            phone: t.phone ?? null,
+          })),
+        },
+      })
+      if (err || !data?.ok) {
+        setError(err?.message ?? data?.message ?? 'Replacement failed')
+        return
+      }
+      onReplaced()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Tenant-diff highlighting: which extracted emails are NOT already on
+  // the lease (to surface "we'll add these") vs. which currentTenants are
+  // missing from the extraction (to surface "these will be removed").
+  const currentEmails = new Set(currentTenants.map((t) => t.email.toLowerCase()).filter(Boolean))
+  const extractedEmails = new Set((extractedTenants ?? []).map((t) => (t.email ?? '').toLowerCase()))
+  const willAdd = (extractedTenants ?? []).filter((t) => !currentEmails.has((t.email ?? '').toLowerCase()))
+  const willRemove = currentTenants.filter((t) => t.email && !extractedEmails.has(t.email.toLowerCase()))
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <header className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-ink">Replace signed lease PDF</h2>
+          <button type="button" onClick={onClose} disabled={submitting} className="text-mute hover:text-ink text-xl leading-none">×</button>
+        </header>
+
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-mute leading-relaxed">
+            Drop the correct signed lease PDF here. We'll read the tenant list out of it and replace both the PDF
+            and the tenant list on this lease in one step. The previous PDF is detached but kept in your storage
+            bucket as an audit trail.
+          </p>
+
+          {/* File picker */}
+          <label className="block w-full rounded-lg border-2 border-dashed border-gray-300 p-6 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/40">
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+              className="sr-only"
+            />
+            {pdf ? (
+              <div className="text-sm font-medium text-ink">{pdf.name}</div>
+            ) : (
+              <div className="text-sm text-mute">Click to pick a PDF</div>
+            )}
+            {extracting && (
+              <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-brand-700">
+                <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+                Reading lease — extracting tenants…
+              </div>
+            )}
+          </label>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg p-3">
+              {error}
+            </div>
+          )}
+
+          {/* Extracted preview + diff */}
+          {extractedTenants && extractedTenants.length > 0 && (
+            <div className="bg-emerald-50/40 border border-emerald-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-emerald-900 mb-2">
+                Extracted {extractedTenants.length} tenant{extractedTenants.length === 1 ? '' : 's'} from the PDF — review before confirming
+              </p>
+              <ul className="space-y-1 text-xs">
+                {extractedTenants.map((t, i) => {
+                  const isNew = !currentEmails.has((t.email ?? '').toLowerCase())
+                  return (
+                    <li key={i} className="flex items-center gap-2">
+                      <span className={`inline-block w-2 h-2 rounded-full ${isNew ? 'bg-emerald-500' : 'bg-gray-400'}`} title={isNew ? 'New on this lease' : 'Already on this lease'} />
+                      <span className="font-medium text-ink">{t.first_name} {t.last_name}</span>
+                      <span className="text-mute">·</span>
+                      <span className="text-mute">{t.email}</span>
+                      {t.phone && <><span className="text-mute">·</span><span className="text-mute">{t.phone}</span></>}
+                    </li>
+                  )
+                })}
+              </ul>
+              {willRemove.length > 0 && (
+                <p className="mt-2 pt-2 border-t border-emerald-200 text-[11px] text-amber-900">
+                  <strong>Will be removed:</strong> {willRemove.map((t) => t.name).join(', ')}
+                </p>
+              )}
+              {willAdd.length > 0 && (
+                <p className="text-[11px] text-emerald-900">
+                  <strong>Will be added:</strong> {willAdd.map((t) => `${t.first_name} ${t.last_name}`).join(', ')} (no invite email sent)
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <footer className="px-5 py-3 border-t border-gray-200 flex justify-between items-center gap-2">
+          <button type="button" onClick={onClose} disabled={submitting} className="text-sm text-mute hover:text-ink px-3">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!extractedTenants || extractedTenants.length === 0 || submitting || extracting}
+            className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-lg text-sm"
+          >
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            {submitting ? 'Replacing…' : 'Confirm replacement'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  )
 }

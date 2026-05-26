@@ -6,8 +6,9 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useTenants } from '@findstoop/shared/hooks/useLeases'
 import { inviteTenant } from '@findstoop/shared/api/profiles'
+import { formatPhone } from '@findstoop/shared/lib/format'
 import type { Profile } from '@findstoop/shared/types/profile'
-import type { Lease } from '@findstoop/shared/types/lease'
+import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import Avatar from '../../components/shared/Avatar'
@@ -29,13 +30,27 @@ function Skeleton() {
 
 interface TenantCardProps {
   tenant: Profile
-  activeLease: Lease | null
+  lease: Lease | null
   unitNumber: string | undefined
   propertyName: string | undefined
 }
 
-function TenantCard({ tenant, activeLease, unitNumber, propertyName }: TenantCardProps) {
+// Status pill colors for every lease status the Tenants list might surface.
+// "No lease" gets a neutral gray so tenants without a lease still get a
+// uniform card layout — same grid, same pill slot — instead of looking
+// like a different card variant.
+const STATUS_PILL: Record<LeaseStatus | 'no_lease', { label: string; cls: string }> = {
+  active:     { label: 'Active',       cls: 'bg-green-100 text-green-700' },
+  upcoming:   { label: 'Upcoming',     cls: 'bg-blue-100 text-blue-700' },
+  pending:    { label: 'Pending',      cls: 'bg-yellow-100 text-yellow-700' },
+  expired:    { label: 'Expired',      cls: 'bg-gray-100 text-gray-600' },
+  terminated: { label: 'Terminated',   cls: 'bg-red-100 text-red-700' },
+  no_lease:   { label: 'No lease',     cls: 'bg-gray-100 text-gray-600' },
+}
+
+function TenantCard({ tenant, lease, unitNumber, propertyName }: TenantCardProps) {
   const name = tenant.full_name ?? tenant.email ?? 'Unknown'
+  const pill = STATUS_PILL[lease?.status ?? 'no_lease']
   return (
     <Link to={`/manager/tenants/${tenant.id}`} className="block bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition-all">
       <div className="flex items-center gap-3">
@@ -43,32 +58,47 @@ function TenantCard({ tenant, activeLease, unitNumber, propertyName }: TenantCar
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 truncate">{name}</p>
           <p className="text-sm text-gray-500 truncate">{tenant.email}</p>
-          {tenant.phone && <p className="text-sm text-gray-500">{tenant.phone}</p>}
         </div>
-        {activeLease && (
-          <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full shrink-0">
-            Active
+        {tenant.phone && (
+          <span className="text-sm text-gray-500 shrink-0 hidden sm:inline">
+            {formatPhone(tenant.phone)}
           </span>
         )}
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>
+          {pill.label}
+        </span>
       </div>
-      {activeLease && (
-        <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-xs text-gray-500">
-          <div>
-            <p className="text-gray-500 uppercase tracking-wide">Unit</p>
-            <p className="font-medium text-gray-700 mt-0.5">{unitNumber ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 uppercase tracking-wide">Property</p>
-            <p className="font-medium text-gray-700 mt-0.5 truncate">{propertyName ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 uppercase tracking-wide">Rent</p>
-            <p className="font-medium text-gray-700 mt-0.5">${Number(activeLease.rent_amount).toLocaleString()}/mo</p>
-          </div>
+      <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-xs text-gray-500">
+        <div>
+          <p className="text-gray-500 uppercase tracking-wide">Unit</p>
+          <p className="font-medium text-gray-700 mt-0.5">{unitNumber ?? '—'}</p>
         </div>
-      )}
+        <div>
+          <p className="text-gray-500 uppercase tracking-wide">Property</p>
+          <p className="font-medium text-gray-700 mt-0.5 truncate">{propertyName ?? '—'}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 uppercase tracking-wide">Rent</p>
+          <p className="font-medium text-gray-700 mt-0.5">
+            {lease ? `$${Number(lease.rent_amount).toLocaleString()}/mo` : '—'}
+          </p>
+        </div>
+      </div>
     </Link>
   )
+}
+
+// Pick the "best" lease to display per tenant: active first, then upcoming,
+// then pending, then most-recently-created. Keeps the card consistent for
+// tenants whose only lease is future-dated or still in draft.
+function pickPrimaryLease(leases: Lease[]): Lease | null {
+  if (leases.length === 0) return null
+  const order: LeaseStatus[] = ['active', 'upcoming', 'pending', 'expired', 'terminated']
+  for (const s of order) {
+    const hit = leases.find((l) => l.status === s)
+    if (hit) return hit
+  }
+  return leases[0] ?? null
 }
 
 interface InviteFormData { email: string; fullName: string; applyUnitId: string }
@@ -78,7 +108,7 @@ export default function ManagerTenants() {
   const { properties } = useProperties(profile?.id)
   const propertyIds = useMemo(() => properties.map((p) => p.id), [properties])
   const { units } = useUnits(propertyIds)
-  const { tenants, leases, loading, getActiveLease } = useTenants(
+  const { tenants, leases, loading, getLeasesForTenant } = useTenants(
     useMemo(() => units.map((u) => u.id), [units])
   )
 
@@ -86,12 +116,54 @@ export default function ManagerTenants() {
   const [inviteForm, setInviteForm] = useState<InviteFormData>({ email: '', fullName: '', applyUnitId: '' })
   const [inviteErrors, setInviteErrors] = useState<Partial<InviteFormData>>({})
   const [inviting, setInviting] = useState(false)
+  // Filter state: property dropdown + lease-status dropdown + free-text
+  // search across name/email/phone.
+  const [filterPropertyId, setFilterPropertyId] = useState<'all' | string>('all')
+  // Default to "active" — landlords almost always want to see current
+  // renters on first load. They can switch to "Any" to see upcoming/expired.
+  const [filterStatus, setFilterStatus] = useState<'all' | LeaseStatus | 'no_lease'>('active')
+  const [filterQuery, setFilterQuery] = useState('')
 
   const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
   const propertyMap = useMemo(() => Object.fromEntries(properties.map((p) => [p.id, p])), [properties])
 
-  // suppress unused variable warning — leases is used via getActiveLease
+  // suppress unused variable warning — leases isn't read directly here,
+  // but useTenants returns it for callers that need the raw list
   void leases
+
+  // Apply property + status + text filters. Property match resolves via
+  // any lease the tenant is on → its unit → property, so tenants on
+  // upcoming/pending leases still match the property filter.
+  const filteredTenants = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase()
+    return tenants.filter((t) => {
+      const tenantLeases = getLeasesForTenant(t.id)
+      // Property filter — tenant matches if any of their leases is on
+      // a unit at the selected property.
+      if (filterPropertyId !== 'all') {
+        const anyLeaseAtProp = tenantLeases.some((l) => {
+          const unit = unitMap[l.unit_id]
+          return unit && unit.property_id === filterPropertyId
+        })
+        if (!anyLeaseAtProp) return false
+      }
+      // Status filter — "no_lease" means tenant exists but has zero leases
+      // (e.g., invited but never assigned). Otherwise match if any lease
+      // on the tenant has the selected status.
+      if (filterStatus !== 'all') {
+        if (filterStatus === 'no_lease') {
+          if (tenantLeases.length > 0) return false
+        } else {
+          if (!tenantLeases.some((l) => l.status === filterStatus)) return false
+        }
+      }
+      if (q) {
+        const hay = `${t.full_name ?? ''} ${t.email ?? ''} ${t.phone ?? ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [tenants, filterPropertyId, filterStatus, filterQuery, getLeasesForTenant, unitMap])
 
   const validateInvite = () => {
     const e: Partial<InviteFormData> = {}
@@ -127,18 +199,68 @@ export default function ManagerTenants() {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tenants</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{tenants.length} tenant{tenants.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {filteredTenants.length === tenants.length
+              ? `${tenants.length} tenant${tenants.length !== 1 ? 's' : ''}`
+              : `${filteredTenants.length} of ${tenants.length} tenant${tenants.length !== 1 ? 's' : ''}`}
+          </p>
         </div>
         <button
           onClick={() => setInviteOpen(true)}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
+          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors shrink-0"
         >
           + Invite Tenant
         </button>
       </div>
+
+      {/* Filters — property dropdown + name/email search. Hide when the
+          tenant list is empty so the empty state isn't cluttered. */}
+      {!loading && tenants.length > 0 && (
+        <div className="flex gap-2 flex-wrap items-center bg-white border border-gray-200 rounded-xl p-2.5">
+          <select
+            value={filterPropertyId}
+            onChange={(e) => setFilterPropertyId(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">All properties</option>
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>{p.name ?? p.address}</option>
+            ))}
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as 'all' | LeaseStatus | 'no_lease')}
+            className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">Any lease status</option>
+            <option value="active">Active</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="pending">Pending</option>
+            <option value="expired">Expired</option>
+            <option value="terminated">Terminated</option>
+            <option value="no_lease">No lease yet</option>
+          </select>
+          <input
+            type="search"
+            placeholder="Search by name, email, or phone…"
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            className="flex-1 min-w-[200px] text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          {(filterPropertyId !== 'all' || filterStatus !== 'all' || filterQuery) && (
+            <button
+              type="button"
+              onClick={() => { setFilterPropertyId('all'); setFilterStatus('all'); setFilterQuery('') }}
+              className="text-xs text-mute hover:text-ink px-2"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3"><Skeleton /><Skeleton /><Skeleton /></div>
@@ -154,17 +276,28 @@ export default function ManagerTenants() {
             Invite Tenant
           </button>
         </div>
+      ) : filteredTenants.length === 0 ? (
+        <div className="text-center py-10 bg-white rounded-xl border border-gray-200">
+          <p className="text-sm text-gray-500">No tenants match the current filter.</p>
+          <button
+            type="button"
+            onClick={() => { setFilterPropertyId('all'); setFilterStatus('all'); setFilterQuery('') }}
+            className="mt-2 text-sm font-medium text-brand-700 hover:text-brand-800"
+          >
+            Clear filter
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
-          {tenants.map((tenant) => {
-            const activeLease = getActiveLease(tenant.id)
-            const unit = activeLease ? unitMap[activeLease.unit_id] : undefined
+          {filteredTenants.map((tenant) => {
+            const lease = pickPrimaryLease(getLeasesForTenant(tenant.id))
+            const unit = lease ? unitMap[lease.unit_id] : undefined
             const property = unit ? propertyMap[unit.property_id] : undefined
             return (
               <TenantCard
                 key={tenant.id}
                 tenant={tenant}
-                activeLease={activeLease}
+                lease={lease}
                 unitNumber={unit?.unit_number}
                 propertyName={property?.name}
               />

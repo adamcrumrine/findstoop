@@ -6,8 +6,10 @@ import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseStatus } from '@findstoop/shared/types/lease'
+import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
-import { FileText, FileSignature, Send, Loader2 } from 'lucide-react'
+import { FileText, FileSignature, Send, Loader2, CheckCircle2 } from 'lucide-react'
+import Avatar from '../../components/shared/Avatar'
 import { Link } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
 
@@ -23,6 +25,7 @@ function Skeleton() {
 
 const statusColors: Record<LeaseStatus, string> = {
   active:     'bg-green-100 text-green-700',
+  upcoming:   'bg-blue-100 text-blue-700',
   pending:    'bg-yellow-100 text-yellow-700',
   expired:    'bg-gray-100 text-gray-600',
   terminated: 'bg-red-100 text-red-700',
@@ -40,35 +43,126 @@ interface LeaseCardProps {
 }
 
 function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId }: LeaseCardProps) {
-  const tenantName = lease.profile?.full_name ?? lease.profile?.email ?? 'Unknown tenant'
-  const daysLeft = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const startDate = new Date(lease.start_date); startDate.setHours(0, 0, 0, 0)
+  const daysLeft = Math.ceil((new Date(lease.end_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  // Derived display states:
+  //   isUpcoming:     status is 'upcoming' (signed lease, hasn't started yet)
+  //   isMonthToMonth: active lease whose original term has lapsed
+  //   daysUntilMoveOut: M2M-only — count down to the manager-entered
+  //                     tentative_move_out_date when the tenant gives soft
+  //                     notice they're moving out.
+  const isUpcoming     = lease.status === 'upcoming'
+  const isMonthToMonth = !!lease.month_to_month || (lease.status === 'active' && daysLeft <= 0)
+  const moveOutDate    = lease.tentative_move_out_date
+    ? (() => { const d = new Date(lease.tentative_move_out_date); d.setHours(0, 0, 0, 0); return d })()
+    : null
+  const daysUntilMoveOut = moveOutDate
+    ? Math.ceil((moveOutDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : null
   const sending = sendingId === lease.id
   const sentLabel = lease.sent_for_signature_at
     ? `Sent ${new Date(lease.sent_for_signature_at).toLocaleDateString()}`
     : null
   const tenantSigned = !!signedRoles?.has('tenant')
   const managerSigned = !!(signedRoles?.has('manager') || signedRoles?.has('admin'))
+  // All tenants for the avatar stack (primary + co-tenants). Falls back to
+  // just the legacy primary if the hook didn't populate all_tenants.
+  const tenants: Profile[] = (lease.all_tenants && lease.all_tenants.length > 0)
+    ? lease.all_tenants
+    : (lease.profile ? [lease.profile] : [])
+  // Display label for the lease — first primary's name, falling back to
+  // the first tenant if no primary is set in the join table.
+  const primaryName = lease.profile?.full_name ?? lease.profile?.email ?? tenants[0]?.full_name ?? tenants[0]?.email ?? 'Unknown tenant'
+  // "Executed externally" means: the lease has been recorded as active but
+  // FindStoop's e-sign flow never ran. We can't always distinguish from
+  // here without fetching documents, so we approximate: status='active'
+  // and no signed_at means the lease was either imported, M2M, or had its
+  // PDF attached out-of-band. All cases should NOT read "Draft — not yet
+  // sent." We use the more accurate "Signed lease on file" label.
+  const looksExecutedExternally =
+    (lease.status === 'active' || lease.status === 'upcoming'
+      || lease.status === 'expired' || lease.status === 'terminated')
+    && !lease.signed_at && !tenantSigned && !managerSigned && !sentLabel
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-gray-900">{tenantName}</h3>
+            {/* Avatar stack — every named tenant on the lease. Hover each
+                avatar for the full name. Falls back to primary name as
+                the card title if there's only one tenant. */}
+            {tenants.length > 0 ? (
+              <div className="flex -space-x-2 mr-1">
+                {tenants.slice(0, 5).map((t) => (
+                  <span
+                    key={t.id}
+                    title={t.full_name ?? t.email ?? 'Tenant'}
+                    className="inline-block ring-2 ring-white rounded-full"
+                  >
+                    <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={28} />
+                  </span>
+                ))}
+                {tenants.length > 5 && (
+                  <span
+                    title={tenants.slice(5).map((t) => t.full_name ?? t.email).join(', ')}
+                    className="inline-flex items-center justify-center w-7 h-7 ring-2 ring-white rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700"
+                  >
+                    +{tenants.length - 5}
+                  </span>
+                )}
+              </div>
+            ) : null}
+            <h3 className="font-semibold text-gray-900 truncate">
+              {tenants.length > 1 ? `${primaryName} +${tenants.length - 1}` : primaryName}
+            </h3>
+            {/* Status pill — the enum value renders "upcoming" itself so
+                there's no separate derived pill for it. */}
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[lease.status]}`}>
               {lease.status}
             </span>
+            {/* Derived month-to-month pill — only appears for active leases
+                whose original term has lapsed. Lowercase to match the
+                style of the other status pills. */}
+            {isMonthToMonth && (
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded-full text-amber-800 bg-amber-100"
+                title={`Original term ended ${new Date(lease.end_date).toLocaleDateString()} — now month-to-month`}
+              >
+                month-to-month
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500 mt-0.5">{propertyName} — Unit {unitNumber}</p>
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-gray-500">
             <div><span className="text-gray-500">Start:</span> {new Date(lease.start_date).toLocaleDateString()}</div>
             <div><span className="text-gray-500">End:</span> {new Date(lease.end_date).toLocaleDateString()}</div>
             <div><span className="text-gray-500">Rent:</span> ${Number(lease.rent_amount).toLocaleString()}/mo</div>
-            {lease.status === 'active' && (
-              <div className={daysLeft < 30 ? 'text-yellow-600 font-medium' : ''}>
-                {daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}
-              </div>
-            )}
+            {(lease.status === 'active' || lease.status === 'upcoming') && (() => {
+              // Upcoming → countdown to lease START (when it becomes active).
+              // M2M with tentative move-out date → countdown to that date.
+              // M2M without a date → "Month-to-month" label.
+              // Active fixed-term → countdown to lease END.
+              if (isUpcoming) {
+                const d = Math.max(0, daysUntilStart)
+                return <div className={d < 30 ? 'text-yellow-600 font-medium' : ''}>Starts in {d}d</div>
+              }
+              if (isMonthToMonth) {
+                if (daysUntilMoveOut != null) {
+                  const d = daysUntilMoveOut
+                  if (d < 0)  return <div className="text-red-600 font-medium" title={`Tentative move-out was ${moveOutDate?.toLocaleDateString()}`}>{Math.abs(d)}d past move-out</div>
+                  if (d === 0) return <div className="text-red-600 font-medium">Move-out today</div>
+                  return <div className={d < 30 ? 'text-yellow-600 font-medium' : ''} title={`Tentative move-out: ${moveOutDate?.toLocaleDateString()}`}>{d}d until move-out</div>
+                }
+                return <div>M2M</div>
+              }
+              if (daysLeft > 0) {
+                return <div className={daysLeft < 30 ? 'text-yellow-600 font-medium' : ''}>{daysLeft}d left</div>
+              }
+              return null
+            })()}
           </div>
         </div>
         <select
@@ -77,6 +171,7 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
           className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white shrink-0 focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           <option value="pending">Pending</option>
+          <option value="upcoming">Upcoming</option>
           <option value="active">Active</option>
           <option value="expired">Expired</option>
           <option value="terminated">Terminated</option>
@@ -98,6 +193,11 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
             <>
               <Send className="w-3.5 h-3.5 text-brand-600" strokeWidth={1.75} />
               {sentLabel} · awaiting tenant signature
+            </>
+          ) : looksExecutedExternally ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
+              Signed lease on file
             </>
           ) : (
             <>
@@ -204,23 +304,33 @@ export default function ManagerLeases() {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leases</h1>
           <p className="text-sm text-gray-500 mt-0.5">{filtered.length} lease{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setWizardOpen(true)}
-          disabled={units.length === 0}
-          className="inline-flex items-center gap-1.5 bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
-        >
-          + Add
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/manager/leases/attach"
+            className="inline-flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 text-ink px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+            title="Attach signed-lease PDFs to existing leases"
+          >
+            <FileText className="w-4 h-4" strokeWidth={1.75} />
+            Attach signed leases
+          </Link>
+          <button
+            onClick={() => setWizardOpen(true)}
+            disabled={units.length === 0}
+            className="inline-flex items-center gap-1.5 bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
+          >
+            + Add
+          </button>
+        </div>
       </div>
 
       {!loading && leases.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {(['all', 'active', 'pending', 'expired', 'terminated'] as const).map((s) => (
+          {(['all', 'active', 'upcoming', 'pending', 'expired', 'terminated'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}

@@ -41,6 +41,12 @@ export interface LeaseInputs {
   payment_due_day: number    // 1..28
   utility_notes?: string | null
   pets_allowed?: boolean
+  /** When true, section 26 (Notice to Vacate and Holdover) renders the
+   *  explicit auto-rollover language: the tenancy AUTOMATICALLY continues
+   *  on a month-to-month basis at the same rent unless either party gives
+   *  30 days' written notice or signs a new fixed-term lease. When false
+   *  (default), the lease falls back to standard statutory holdover terms. */
+  auto_renew_month_to_month?: boolean
   /** Generation date for the document header. Defaults to today. */
   signing_date?: string
 }
@@ -475,11 +481,13 @@ The Lessee may not assign this Lease or sublet the Property, in whole or in part
 
 If the Property is rendered uninhabitable by fire, flood, storm, or other casualty not caused by the Lessee, the Lessor and the Lessee retain all rights provided under Ohio Revised Code § 5321.07 and other applicable Ohio law. The Lessor will make a good-faith effort to restore the Property within a reasonable time or, at the Lessor's option, terminate the Lease; rent abates for any period the Property is uninhabitable.
 
-26. Notice to Vacate and Holdover
+26. Notice to Vacate and Holdover; Automatic Month-to-Month Continuation
 
-This Lease ends on its stated termination date. If neither party gives at least 30 days' written notice before the end of the term, the tenancy continues month-to-month on the same terms, terminable by either party on 30 days' written notice given before the end of a rental month.
+${inputs.auto_renew_month_to_month
+  ? `Unless the Lessor and Lessee have signed a new written fixed-term lease before this Lease ends, this Lease will AUTOMATICALLY continue on a month-to-month basis at the same monthly rent and on the same terms, beginning the day after the stated termination date. Either party may end the month-to-month tenancy at any time on 30 days' written notice given before the start of a rental month. To enter into a new fixed-term lease, both parties must sign a new written lease before the current term ends; otherwise the month-to-month continuation takes effect by default.`
+  : `This Lease ends on its stated termination date. If neither party gives at least 30 days' written notice before the end of the term, the tenancy continues month-to-month on the same terms, terminable by either party on 30 days' written notice given before the end of a rental month.`}
 
-If the Lessee remains in possession after the Lease ends or after a valid notice period without the Lessor's written consent, the Lessee will owe prorated daily rent plus a $100.00 daily holdover charge, and the Lessor may begin eviction proceedings and recover any additional damages.
+If the Lessee remains in possession after the Lease (and any month-to-month continuation) ends, or after a valid notice period, without the Lessor's written consent, the Lessee will owe prorated daily rent plus a $100.00 daily holdover charge, and the Lessor may begin eviction proceedings and recover any additional damages.
 
 27. Early Termination by the Lessee
 

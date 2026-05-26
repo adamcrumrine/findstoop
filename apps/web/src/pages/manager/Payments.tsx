@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
@@ -13,7 +13,7 @@ import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
-import { CreditCard, CalendarClock, RefreshCw } from 'lucide-react'
+import { CreditCard, CalendarClock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 
@@ -171,17 +171,28 @@ interface PaymentRowProps {
   // on Upcoming / Scheduled rows so the manager can tell at a glance that
   // a future charge is set up to run automatically.
   tenantAutopay: boolean
+  // Soft sum-mismatch warning, shown only when this row participates in a
+  // multi-primary rent split whose group total no longer equals lease.rent.
+  // Computed by the parent across (lease_id, due_date) groups.
+  splitMismatch: { groupSum: number; expected: number } | null
   onMarkPaid: (id: string) => void
   onApplyCredit: (payment: Payment) => void
+  onUpdateAmount: (id: string, amount: number) => Promise<void>
 }
 
-function PaymentRow({ payment, tenantName, tenantAutopay, onMarkPaid, onApplyCredit }: PaymentRowProps) {
+function PaymentRow({ payment, tenantName, tenantAutopay, splitMismatch, onMarkPaid, onApplyCredit, onUpdateAmount }: PaymentRowProps) {
   const status = rowStatus(payment)
   // Mark Paid + Credit available on any pending row — managers regularly
   // collect off-platform (cash, check, Venmo) and need to flip future months,
   // and they may want to credit a future month for in-kind work (mulch, etc.).
   const isCreditable = payment.status === 'pending' && (payment.type === 'rent' || payment.type === 'utility' || payment.type === 'fee' || payment.type === 'fine' || payment.type === 'other')
   const showMarkPaid = payment.status === 'pending'
+  // Amount is editable only while still pending — once collected (completed,
+  // processing, failed) we'd be lying about history if we let it change.
+  const isAmountEditable = payment.status === 'pending'
+  const [editing, setEditing] = useState(false)
+  const [draftAmount, setDraftAmount] = useState(String(payment.amount))
+  const [saving, setSaving] = useState(false)
   // Status badges — monochrome icons next to the pill.
   //   • CalendarClock → tenant has explicitly scheduled this exact payment
   //   • RefreshCw    → tenant has autopay enabled (will recur automatically)
@@ -189,6 +200,23 @@ function PaymentRow({ payment, tenantName, tenantAutopay, onMarkPaid, onApplyCre
   const showScheduledIcon = isScheduled
   const showRecurringIcon = tenantAutopay && payment.status === 'pending'
   const anchor = paymentAnchor(payment)
+
+  const commitEdit = async () => {
+    const next = Number(draftAmount)
+    if (!Number.isFinite(next) || next < 0) { toast.error('Enter a non-negative amount'); return }
+    if (next === Number(payment.amount)) { setEditing(false); return }
+    setSaving(true)
+    try {
+      await onUpdateAmount(payment.id, next)
+      toast.success('Amount updated')
+      setEditing(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
       <div className="flex-1 min-w-0">
@@ -208,10 +236,57 @@ function PaymentRow({ payment, tenantName, tenantAutopay, onMarkPaid, onApplyCre
         {payment.memo && (
           <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
         )}
+        {splitMismatch && (
+          <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" strokeWidth={2} />
+            Split sum {formatUsdCents(splitMismatch.groupSum)} ≠ lease rent {formatUsdCents(splitMismatch.expected)}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <p className="text-sm font-semibold text-gray-900">{formatUsdCents(Number(payment.amount))}</p>
-        {isCreditable && (
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={draftAmount}
+              onChange={(e) => setDraftAmount(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+              autoFocus
+              disabled={saving}
+              className="w-20 text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+            <button
+              onClick={commitEdit}
+              disabled={saving}
+              className="text-xs font-medium text-brand-700 hover:text-brand-800 px-1"
+            >
+              {saving ? '…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setDraftAmount(String(payment.amount)) }}
+              disabled={saving}
+              className="text-xs text-mute hover:text-ink px-1"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-gray-900">{formatUsdCents(Number(payment.amount))}</p>
+            {isAmountEditable && (
+              <button
+                onClick={() => { setDraftAmount(String(payment.amount)); setEditing(true) }}
+                className="text-xs font-medium text-gray-600 border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors"
+                title="Override this row's amount — useful for uneven multi-primary splits"
+              >
+                Edit
+              </button>
+            )}
+          </>
+        )}
+        {isCreditable && !editing && (
           <button
             onClick={() => onApplyCredit(payment)}
             className="text-xs font-medium text-amber-700 border border-amber-200 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors"
@@ -219,7 +294,7 @@ function PaymentRow({ payment, tenantName, tenantAutopay, onMarkPaid, onApplyCre
             Credit
           </button>
         )}
-        {showMarkPaid && (
+        {showMarkPaid && !editing && (
           <button
             onClick={() => onMarkPaid(payment.id)}
             className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
@@ -241,7 +316,7 @@ export default function ManagerPayments() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
-  const { payments, loading, add, markPaid, reload } = usePayments(leaseIds)
+  const { payments, loading, add, markPaid, update, regenerateSchedule, reload } = usePayments(leaseIds)
 
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | 'all'>('all')
   const [filterType, setFilterType] = useState<PaymentType | 'all'>('all')
@@ -285,6 +360,109 @@ export default function ManagerPayments() {
     () => Object.fromEntries(units.map((u) => [u.id, u.property_id])),
     [units]
   )
+
+  // Resolve tenant name for each payment row. With multi-primary leases the
+  // legacy `lease.profile` only knows about the first primary, so we collect
+  // every distinct payment.tenant_id and look those up directly.
+  const paymentTenantIds = useMemo(
+    () => Array.from(new Set(payments.map((p) => p.tenant_id).filter(Boolean))),
+    [payments]
+  )
+  const paymentTenantIdsKey = paymentTenantIds.join(',')
+  const [tenantNameById, setTenantNameById] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (paymentTenantIds.length === 0) { setTenantNameById({}); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', paymentTenantIds)
+      if (cancelled) return
+      const map: Record<string, string> = {}
+      for (const row of (data as Array<{ id: string; full_name: string | null; email: string | null }> | null) ?? []) {
+        map[row.id] = row.full_name ?? row.email ?? '—'
+      }
+      setTenantNameById(map)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentTenantIdsKey])
+
+  // Detect leases whose current primary set on lease_tenants no longer
+  // matches the distinct tenant_ids on their future pending rent rows.
+  // Surfaces an "Apply primary split" banner so the manager can rebuild
+  // future months after toggling primaries on an active lease.
+  const [primariesByLease, setPrimariesByLease] = useState<Record<string, string[]>>({})
+  const leaseIdsKey = leaseIds.join(',')
+  useEffect(() => {
+    if (leaseIds.length === 0) { setPrimariesByLease({}); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('lease_tenants')
+        .select('lease_id, tenant_id, is_primary, sort_order, added_at')
+        .in('lease_id', leaseIds)
+        .eq('is_primary', true)
+      if (cancelled) return
+      const map: Record<string, string[]> = {}
+      for (const row of (data as Array<{ lease_id: string; tenant_id: string }> | null) ?? []) {
+        if (!map[row.lease_id]) map[row.lease_id] = []
+        map[row.lease_id].push(row.tenant_id)
+      }
+      setPrimariesByLease(map)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaseIdsKey])
+
+  // Leases whose primaries-on-lease_tenants ≠ distinct tenant_ids on their
+  // future pending rent rows. Detection runs over the data we already have.
+  const outOfSyncLeases = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const mismatches: Array<{ lease: LeaseWithTenant; primaries: string[]; current: string[] }> = []
+    for (const lease of leases) {
+      if (lease.status !== 'active') continue
+      const primaries = (primariesByLease[lease.id] ?? []).slice().sort()
+      // Fall back to leases.tenant_id for legacy leases with no primary rows
+      const effective = primaries.length === 0 ? [lease.tenant_id].sort() : primaries
+      const currentBilled = Array.from(new Set(
+        payments
+          .filter((p) => p.lease_id === lease.id && p.type === 'rent' && p.status === 'pending' && (p.due_date ?? '') > today)
+          .map((p) => p.tenant_id)
+      )).sort()
+      if (currentBilled.length === 0) continue
+      if (effective.length !== currentBilled.length || effective.some((id, i) => id !== currentBilled[i])) {
+        mismatches.push({ lease, primaries: effective, current: currentBilled })
+      }
+    }
+    return mismatches
+  }, [leases, primariesByLease, payments])
+
+  // For each (lease_id, due_date) rent group, sum the amounts. If it deviates
+  // from lease.rent_amount, the per-row mismatch indicator fires. Floats are
+  // compared in cents to avoid 0.01 phantom mismatches.
+  const splitMismatchByPaymentId = useMemo(() => {
+    const groupSums = new Map<string, { sum: number; expected: number }>()
+    for (const p of payments) {
+      if (p.type !== 'rent' || !p.due_date) continue
+      const lease = leaseMap[p.lease_id]
+      if (!lease) continue
+      const key = `${p.lease_id}|${p.due_date}`
+      const prev = groupSums.get(key)
+      const next = (prev?.sum ?? 0) + Number(p.amount)
+      groupSums.set(key, { sum: next, expected: Number(lease.rent_amount) })
+    }
+    const result: Record<string, { groupSum: number; expected: number }> = {}
+    for (const p of payments) {
+      if (p.type !== 'rent' || !p.due_date) continue
+      const g = groupSums.get(`${p.lease_id}|${p.due_date}`)
+      if (!g) continue
+      if (Math.round(g.sum * 100) === Math.round(g.expected * 100)) continue
+      result[p.id] = { groupSum: g.sum, expected: g.expected }
+    }
+    return result
+  }, [payments, leaseMap])
 
   const filtered = useMemo(() =>
     payments.filter((p) => {
@@ -356,6 +534,19 @@ export default function ManagerPayments() {
       setMarkPaidTarget(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update payment')
+    }
+  }
+
+  const handleEditAmount = async (id: string, amount: number) => {
+    await update(id, { amount })
+  }
+
+  const handleApplyPrimarySplit = async (leaseId: string) => {
+    try {
+      const result = await regenerateSchedule(leaseId)
+      toast.success(`Rebuilt ${result.created} future rent rows · kept ${result.skippedPaid} paid`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to apply primary split')
     }
   }
 
@@ -466,6 +657,36 @@ export default function ManagerPayments() {
         </div>
       )}
 
+      {/* Primary-split sync banner — surfaces when an active lease's
+          primary set has changed since the schedule was generated. */}
+      {!loading && outOfSyncLeases.length > 0 && (
+        <div className="space-y-2">
+          {outOfSyncLeases.map(({ lease }) => {
+            const propertyName = leaseMap[lease.id]?.profile?.full_name
+              ?? lease.profile?.full_name
+              ?? lease.profile?.email
+              ?? 'Lease'
+            return (
+              <div key={lease.id} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-900">Primary tenants changed on {propertyName}'s lease</p>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    Future rent rows still bill the old primary set. Apply the new split to rebuild pending months — past and paid rows are untouched.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleApplyPrimarySplit(lease.id)}
+                  className="shrink-0 text-xs font-semibold text-amber-900 border border-amber-400 bg-white px-3 py-1.5 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  Apply primary split
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* List */}
       {loading ? (
         <div className="space-y-2"><Skeleton /><Skeleton /><Skeleton /><Skeleton /><Skeleton /></div>
@@ -483,10 +704,12 @@ export default function ManagerPayments() {
             <PaymentRow
               key={p.id}
               payment={p}
-              tenantName={leaseMap[p.lease_id]?.profile?.full_name ?? leaseMap[p.lease_id]?.profile?.email ?? '—'}
+              tenantName={tenantNameById[p.tenant_id] ?? leaseMap[p.lease_id]?.profile?.full_name ?? leaseMap[p.lease_id]?.profile?.email ?? '—'}
               tenantAutopay={!!tenantAutopay[p.tenant_id]}
+              splitMismatch={splitMismatchByPaymentId[p.id] ?? null}
               onMarkPaid={(id) => setMarkPaidTarget(payments.find((pay) => pay.id === id) ?? null)}
               onApplyCredit={(payment) => setCreditTarget(payment)}
+              onUpdateAmount={handleEditAmount}
             />
           ))}
         </div>

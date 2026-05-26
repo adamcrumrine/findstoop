@@ -120,17 +120,18 @@ export type PropertyCsvKey =
 
 export const PROPERTY_SCHEMA: ColumnSchema<PropertyCsvKey>[] = [
   { key: 'name',          label: 'Property name',  synonyms: ['property name', 'property', 'name', 'building name', 'title'], required: false },
-  { key: 'address',       label: 'Street address', synonyms: ['address', 'street address', 'street', 'address line 1', 'address1'], required: true },
-  { key: 'city',          label: 'City',           synonyms: ['city'], required: true },
-  { key: 'state',         label: 'State',          synonyms: ['state', 'province', 'st'], required: true },
-  { key: 'zip',           label: 'ZIP code',       synonyms: ['zip', 'zip code', 'postal code', 'postcode'], required: true },
+  // Avail uses `street_address` literally (snake_case) — keep that as a first-class synonym.
+  { key: 'address',       label: 'Street address', synonyms: ['address', 'street address', 'street_address', 'street', 'address line 1', 'address1'], required: true },
+  { key: 'city',          label: 'City',           synonyms: ['city'], required: false },   // Avail exports do NOT include city/state/zip — wizard collects these in a separate step
+  { key: 'state',         label: 'State',          synonyms: ['state', 'province', 'st'], required: false },
+  { key: 'zip',           label: 'ZIP code',       synonyms: ['zip', 'zip code', 'postal code', 'postcode'], required: false },
   { key: 'property_type', label: 'Property type',  synonyms: ['property type', 'type', 'building type'] },
   { key: 'unit_count',    label: 'Unit count',     synonyms: ['units', 'unit count', 'number of units', 'total units'] },
 ]
 
 export type TenantCsvKey =
-  | 'first_name' | 'last_name' | 'full_name' | 'email' | 'phone'
-  | 'property_match' | 'unit_number'
+  | 'first_name' | 'last_name' | 'full_name' | 'tenant_last_names' | 'email' | 'phone'
+  | 'property_match' | 'unit_number' | 'full_unit_address'
   | 'rent_amount' | 'security_deposit' | 'lease_start' | 'lease_end'
   | 'bedrooms' | 'bathrooms'
 
@@ -138,20 +139,52 @@ export const TENANT_SCHEMA: ColumnSchema<TenantCsvKey>[] = [
   { key: 'first_name',       label: 'First name',      synonyms: ['first name', 'firstname', 'given name'], required: false },
   { key: 'last_name',        label: 'Last name',       synonyms: ['last name', 'lastname', 'surname', 'family name'], required: false },
   // Combined-name fallback for vendors that ship a single "Resident Name"
-  // column (AppFolio, Buildium, DoorLoop). The wizard splits on the last
-  // space when first/last aren't present.
+  // or "Name" column (AppFolio, Buildium, DoorLoop, Avail). The wizard
+  // calls splitFullName() when only this is present.
   { key: 'full_name',        label: 'Full name',       synonyms: ['name', 'tenant name', 'resident name', 'full name', 'resident'], required: false },
-  { key: 'email',            label: 'Email',           synonyms: ['email', 'email address', 'e-mail', 'tenant email', 'resident email'], required: true },
+  // Avail's Rent Roll packs co-tenants into one row as comma-separated
+  // last names (e.g. "Sanchez-Cabrera, Kraniske, Foster"). When this
+  // column is present the wizard splits on comma and creates one tenant
+  // per name, all linked to the same lease via lease_tenants.
+  { key: 'tenant_last_names', label: 'Tenant last names (combined)', synonyms: ['tenant_last_names', 'tenant last names', 'tenants', 'co-tenants', 'last names'], required: false },
+  { key: 'email',            label: 'Email',           synonyms: ['email', 'email address', 'e-mail', 'tenant email', 'resident email'], required: false },
   { key: 'phone',            label: 'Phone',           synonyms: ['phone', 'phone number', 'mobile', 'cell', 'mobile phone', 'tenant phone'] },
-  { key: 'property_match',   label: 'Property',        synonyms: ['property', 'property name', 'building', 'building name', 'address', 'property address'], required: true },
-  { key: 'unit_number',      label: 'Unit number',     synonyms: ['unit', 'unit number', 'unit #', 'apt', 'apartment', 'apartment number', 'unit name'], required: true },
-  { key: 'rent_amount',      label: 'Monthly rent',    synonyms: ['rent', 'monthly rent', 'rent amount', 'lease rent', 'market rent', 'current rent'], required: true },
-  { key: 'security_deposit', label: 'Security deposit', synonyms: ['security deposit', 'deposit', 'security', 'sec deposit'] },
-  { key: 'lease_start',      label: 'Lease start',     synonyms: ['lease start', 'start date', 'lease start date', 'lease from', 'move in', 'move-in date', 'move in date'], required: true },
-  { key: 'lease_end',        label: 'Lease end',       synonyms: ['lease end', 'end date', 'lease end date', 'lease to', 'move out', 'move-out date', 'move out date', 'expiration'], required: true },
+  { key: 'property_match',   label: 'Property',        synonyms: ['property', 'property name', 'building', 'building name', 'address', 'property address', 'street_address', 'street address'], required: false },
+  { key: 'unit_number',      label: 'Unit number',     synonyms: ['unit', 'unit_number', 'unit number', 'unit #', 'apt', 'apartment', 'apartment number', 'unit name'], required: false },
+  // Avail's Tenant Roster combines street + unit into one column:
+  // "301 E 14th Ave, Unit 303" — parsed client-side via parseFullUnitAddress().
+  { key: 'full_unit_address', label: 'Full unit address (combined)', synonyms: ['current_leased_unit_full_address', 'full address', 'unit full address', 'address with unit'], required: false },
+  { key: 'rent_amount',      label: 'Monthly rent',    synonyms: ['rent', 'monthly_rent', 'monthly rent', 'rent amount', 'lease rent', 'market rent', 'current rent'], required: false },
+  { key: 'security_deposit', label: 'Security deposit', synonyms: ['security deposit', 'reporting_security_deposit', 'deposit', 'security', 'sec deposit'] },
+  { key: 'lease_start',      label: 'Lease start',     synonyms: ['lease start', 'lease_start_date', 'start date', 'lease start date', 'lease from', 'move in', 'move-in date', 'move in date'], required: false },
+  { key: 'lease_end',        label: 'Lease end',       synonyms: ['lease end', 'lease_end_date', 'end date', 'lease end date', 'lease to', 'move out', 'move-out date', 'move out date', 'expiration'], required: false },
   { key: 'bedrooms',         label: 'Bedrooms',        synonyms: ['bedrooms', 'beds', 'bed', 'br'] },
   { key: 'bathrooms',        label: 'Bathrooms',       synonyms: ['bathrooms', 'baths', 'bath', 'ba'] },
 ]
+
+// Parse Avail's combined "{street}, Unit {unit_number}" address back into
+// its components. Falls back gracefully to just the street if no unit is
+// suffixed (single-family rentals).
+//
+//   "301 E 14th Ave, Unit 303"                    → { street: "301 E 14th Ave", unit: "303" }
+//   "1387 Bluff Ave, Unit B"                      → { street: "1387 Bluff Ave", unit: "B" }
+//   "5550 Crystal Falls Street, Unit Falls at..." → { street: "5550 Crystal Falls Street", unit: "Falls at..." }
+//   "724 S Roosevelt Ave"                         → { street: "724 S Roosevelt Ave", unit: "" }
+export function parseFullUnitAddress(s: string | undefined): { street: string; unit: string } {
+  const t = (s ?? '').trim()
+  if (!t) return { street: '', unit: '' }
+  const m = t.match(/^(.+?),\s*(?:unit\s+)?(.+)$/i)
+  if (!m) return { street: t, unit: '' }
+  return { street: m[1].trim(), unit: m[2].trim() }
+}
+
+// Detect Avail's placeholder "Avail User" row — these are applicants who
+// paid a deposit but never claimed their account. Skip during migration so
+// we don't email a confused person who never agreed to anything.
+export function isAvailPlaceholderTenant(name: string | undefined): boolean {
+  const t = (name ?? '').trim().toLowerCase()
+  return t === 'avail user' || t === '' || t === 'unknown'
+}
 
 // Split a "Jane A. Smith" or "Smith, Jane" into first + last. Best-effort
 // — when in doubt we leave the input alone and let the user fix it.

@@ -107,3 +107,36 @@ export async function markPaymentPaid(id: string): Promise<Payment> {
   if (error) throw new Error(error.message)
   return data
 }
+
+// Manager-side override on a single payment row. Used when a multi-primary
+// lease's even split isn't what the parties agreed to ("Maya pays $800,
+// Savannah pays $700 this month"). Server-side RLS keeps managers scoped
+// to their own units.
+export async function updatePayment(
+  id: string,
+  patch: Partial<Pick<Payment, 'amount' | 'due_date' | 'status' | 'type'>>
+): Promise<Payment> {
+  const { data, error } = await supabase
+    .from('payments')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// Rebuilds future pending rent rows on an already-active lease after the
+// manager has toggled which tenants are primary. Past + non-pending rows
+// are preserved by the SQL function. Returns counts for the toast message.
+export async function regenerateRentSchedule(
+  leaseId: string
+): Promise<{ created: number; skippedPaid: number }> {
+  const { data, error } = await supabase.rpc('regenerate_rent_schedule', { p_lease_id: leaseId })
+  if (error) throw new Error(error.message)
+  const row = Array.isArray(data) ? data[0] : data
+  return {
+    created: Number(row?.created_count ?? 0),
+    skippedPaid: Number(row?.skipped_paid_count ?? 0),
+  }
+}

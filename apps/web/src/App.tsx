@@ -49,6 +49,7 @@ const InspectionPdf       = lazy(() => import('./pages/shared/InspectionPdf'))
 const FairHousingNotice   = lazy(() => import('./pages/legal/FairHousingNotice'))
 const LeadPaintPamphlet   = lazy(() => import('./pages/legal/LeadPaintPamphlet'))
 const LeadDisclosure      = lazy(() => import('./pages/legal/LeadDisclosure'))
+const OhioTenantRights    = lazy(() => import('./pages/legal/OhioTenantRights'))
 
 // Manager pages
 const ManagerDashboard    = lazy(() => import('./pages/manager/Dashboard'))
@@ -61,6 +62,7 @@ const ManagerScreening    = lazy(() => import('./pages/manager/Screening'))
 const ManagerTenants      = lazy(() => import('./pages/manager/Tenants'))
 const ManagerTenantDetail = lazy(() => import('./pages/manager/TenantDetail'))
 const ManagerLeases       = lazy(() => import('./pages/manager/Leases'))
+const ManagerAttachLeases = lazy(() => import('./pages/manager/AttachLeases'))
 const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
 const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
 const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
@@ -165,6 +167,7 @@ export default function App() {
           <Route path="/legal/fair-housing-notice"     element={<FairHousingNotice />} />
           <Route path="/legal/lead-paint-pamphlet"     element={<LeadPaintPamphlet />} />
           <Route path="/legal/lead-disclosure/:leaseId" element={<LeadDisclosure />} />
+          <Route path="/legal/ohio-tenant-rights"      element={<OhioTenantRights />} />
           {/* Admin MFA setup — outside AdminLayout so it renders full-screen.
               ProtectedRoute(admin) still requires the admin role to be here,
               but its MFA-required redirect explicitly exempts this path. */}
@@ -209,6 +212,7 @@ export default function App() {
             <Route path="tenants"      element={<ManagerTenants />} />
             <Route path="tenants/:id"  element={<ManagerTenantDetail />} />
             <Route path="leases"            element={<ManagerLeases />} />
+            <Route path="leases/attach"     element={<ManagerAttachLeases />} />
             <Route path="review-lease/:id"  element={<ManagerReviewLease />} />
             <Route path="payments"     element={<ManagerPayments />} />
             <Route path="maintenance"  element={<ManagerMaintenance />} />

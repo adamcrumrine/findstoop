@@ -11,8 +11,6 @@
 const ALLOWED_ORIGINS = new Set<string>([
   'https://findstoop.com',
   'https://www.findstoop.com',
-  'http://localhost:5173',
-  'http://localhost:4173',
 ])
 
 function isAllowedOrigin(origin: string | null): boolean {
@@ -20,6 +18,9 @@ function isAllowedOrigin(origin: string | null): boolean {
   if (ALLOWED_ORIGINS.has(origin)) return true
   // Vercel preview deploys
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true
+  // Local dev — Vite picks a free port (5173, 5174, …) and `npm run preview`
+  // uses 4173. Allow any localhost/127.0.0.1 port to avoid CORS pain in dev.
+  if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return true
   return false
 }
 

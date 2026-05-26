@@ -61,13 +61,15 @@ Deno.serve(async (req) => {
     // email copy from "your landlord added you" to "your landlord just
     // moved to FindStoop — your lease came with them."
     const {
-      email, fullName, full_name, applyUnitId, migrationFrom,
+      email, fullName, full_name, phone, applyUnitId, migrationFrom, skipEmail,
     } = await req.json() as {
       email?: string
       fullName?: string
       full_name?: string         // accept snake_case for callers from server-side code
+      phone?: string | null      // optional — digits only; written to profiles.phone
       applyUnitId?: string
       migrationFrom?: string     // e.g. "Avail" — display name of prior platform
+      skipEmail?: boolean        // create profile silently — manager invites later from Tenants page
     }
     const callerFullName = fullName ?? full_name
     if (!email || !email.includes('@')) {
@@ -124,6 +126,20 @@ Deno.serve(async (req) => {
     const tenantFirstName = (callerFullName?.split(' ')[0]) || 'there'
     const newTenantId = linkData.user?.id ?? null
 
+    // Persist the optional phone (and name, if not already on the profile)
+    // onto profiles. generateLink creates the auth.users row + a profiles
+    // row via the on-signup trigger, but the trigger doesn't see our
+    // caller-supplied phone. Write it explicitly.
+    if (newTenantId && (phone || callerFullName)) {
+      const cleanPhone = phone ? String(phone).replace(/\D/g, '') : null
+      const profilePatch: Record<string, unknown> = {}
+      if (cleanPhone) profilePatch.phone = cleanPhone
+      if (callerFullName) profilePatch.full_name = callerFullName
+      if (Object.keys(profilePatch).length > 0) {
+        await admin.from('profiles').update(profilePatch).eq('id', newTenantId)
+      }
+    }
+
     // ── Send branded invite email via Resend ──────────────────────────
     // Subject + headline branch on migration context — "your landlord
     // moved platforms" reads very differently from a cold invite.
@@ -177,6 +193,21 @@ Deno.serve(async (req) => {
       </div>
     `
 
+    // skipEmail: the auth user + profile are still created (so the tenant
+    // can be linked to a lease and pay rent), but no welcome email goes
+    // out. Used by the "save executed lease" flow where the manager wants
+    // to invite from the Tenants page later. The actionLink stays in the
+    // database for the future invite — no token regeneration needed.
+    if (skipEmail) {
+      return json({
+        ok: true,
+        alreadyExists: false,
+        tenantId: newTenantId,
+        emailSent: false,
+        email: cleanEmail,
+      })
+    }
+
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: `FindStoop <${RESEND_FROM}>`,
       to: cleanEmail,
@@ -193,6 +224,7 @@ Deno.serve(async (req) => {
       alreadyExists: false,
       tenantId: newTenantId,
       messageId: emailData?.id,
+      emailSent: true,
       email: cleanEmail,
     })
   } catch (err) {

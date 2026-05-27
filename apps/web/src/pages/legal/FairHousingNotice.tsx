@@ -9,7 +9,7 @@
 // Acknowledgment is a paper trail — not legally required, but useful if
 // there's ever a dispute about whether the tenant was given the notice.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer, CheckCircle2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -25,6 +25,9 @@ export default function FairHousingNotice() {
   const [acknowledgedAt, setAcknowledgedAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const isTenant = profile?.role === 'tenant'
+  // Guard against concurrent saves (manual click + scroll-to-bottom firing
+  // in the same tick) and against re-saving once we have a timestamp.
+  const persistingRef = useRef(false)
 
   useEffect(() => {
     if (!leaseId) return
@@ -36,19 +39,43 @@ export default function FairHousingNotice() {
       .then(({ data }) => setAcknowledgedAt(data?.fair_housing_acknowledged_at ?? null))
   }, [leaseId])
 
-  const handleAcknowledge = async () => {
+  // Persist the acknowledgment. Used by both the explicit button click
+  // AND the scroll-to-end auto-save below. silent=true skips the toast
+  // (used for auto-save so the tenant doesn't get a popup when they
+  // weren't actively confirming).
+  const persistAcknowledgment = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!leaseId || !isTenant) return
-    setSaving(true)
-    const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('leases')
-      .update({ fair_housing_acknowledged_at: now })
-      .eq('id', leaseId)
-    setSaving(false)
-    if (error) { toast.error('Could not save acknowledgment'); return }
-    setAcknowledgedAt(now)
-    toast.success('Thanks — notice acknowledged.')
+    if (acknowledgedAt || persistingRef.current) return
+    persistingRef.current = true
+    if (!silent) setSaving(true)
+    // RPC writes the timestamp under SECURITY DEFINER — tenants have no
+    // direct UPDATE on leases (RLS denies it), so the previous
+    // .update() call was being silently rejected.
+    const { data, error } = await supabase.rpc('tenant_acknowledge_fair_housing', { p_lease_id: leaseId })
+    persistingRef.current = false
+    if (!silent) setSaving(false)
+    if (error) {
+      if (!silent) toast.error('Could not save acknowledgment')
+      return
+    }
+    const stamped = (data as string | null) ?? new Date().toISOString()
+    setAcknowledgedAt(stamped)
+    if (!silent) toast.success('Thanks — notice acknowledged.')
   }
+
+  const handleAcknowledge = () => { void persistAcknowledgment() }
+
+  // Auto-acknowledge as soon as the tenant lands on the notice. Tenants
+  // routinely skip the explicit confirm button — opening the page is the
+  // act of receiving the notice for our purposes. We wait until the
+  // initial GET resolves (acknowledgedAt is no longer the loading
+  // sentinel) so we don't accidentally re-write a fresh ack.
+  useEffect(() => {
+    if (!leaseId || !isTenant) return
+    if (acknowledgedAt) return
+    void persistAcknowledgment({ silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaseId, isTenant, acknowledgedAt])
 
   const back = profile?.role === 'tenant' ? '/tenant/documents' : '/manager/documents'
 

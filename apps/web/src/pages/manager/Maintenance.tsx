@@ -190,37 +190,56 @@ export default function ManagerMaintenance() {
         )}
       </div>
 
-      {/* ── Stat tiles ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile
-          Icon={Wrench}
-          label="Open"
-          value={stats.open}
-          tone="amber"
-        />
-        <StatTile
-          Icon={Clock}
-          label="In progress"
-          value={stats.inProgress}
-          tone="blue"
-        />
-        <StatTile
-          Icon={AlertTriangle}
-          label="Emergency"
-          value={stats.emergency}
-          tone={stats.emergency > 0 ? 'red' : 'gray'}
-        />
-        <StatTile
-          Icon={CheckCircle2}
-          label="Resolved this month"
-          value={stats.resolvedThisMonth}
-          tone="emerald"
-        />
+      {/* ── Stat strip ──────────────────────────────────────────────
+          Compact 4-up row on mobile (much shorter than the old 2x2
+          grid), expands to a 4-col card grid at md+. Tapping a stat
+          jumps the status filter so the strip doubles as a quick
+          status chooser. */}
+      <div className="grid grid-cols-4 md:gap-3 gap-1 bg-white md:bg-transparent rounded-xl md:rounded-none border md:border-0 border-gray-100 overflow-hidden">
+        <StatTile Icon={Wrench}        label="Open"           shortLabel="Open"    value={stats.open}              tone="amber"   onClick={() => setFilterStatus('open')}        active={filterStatus === 'open'} />
+        <StatTile Icon={Clock}         label="In progress"    shortLabel="Active"  value={stats.inProgress}        tone="blue"    onClick={() => setFilterStatus('in_progress')} active={filterStatus === 'in_progress'} />
+        <StatTile Icon={AlertTriangle} label="Emergency"      shortLabel="Urgent"  value={stats.emergency}         tone={stats.emergency > 0 ? 'red' : 'gray'} onClick={() => { setFilterPriority('emergency'); setFilterStatus('active') }} active={filterPriority === 'emergency'} />
+        <StatTile Icon={CheckCircle2}  label="Resolved (mo.)" shortLabel="Done"    value={stats.resolvedThisMonth} tone="emerald" onClick={() => setFilterStatus('resolved')}    active={filterStatus === 'resolved'} />
       </div>
 
-      {/* ── Filters + search ────────────────────────────────────────── */}
+      {/* ── Filters + search ────────────────────────────────────────────
+          Mobile: two compact native <select>s side-by-side + a full-width
+          search input. Saves ~80 vertical px vs the two pill rows + much
+          easier to tap.
+          sm+: the original pill rows render so desktop keeps the
+          chip-style picker pattern. */}
       <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-3">
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Mobile compact controls */}
+        <div className="sm:hidden grid grid-cols-2 gap-2">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            aria-label="Filter by status"
+          >
+            <option value="active">Active (open + in progress)</option>
+            <option value="all">Any status</option>
+            <option value="open">Open</option>
+            <option value="in_progress">In progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+          <select
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value as MaintenancePriority | 'all')}
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            aria-label="Filter by priority"
+          >
+            <option value="all">Any priority</option>
+            <option value="emergency">Emergency</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+
+        {/* Desktop pill rows */}
+        <div className="hidden sm:flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] uppercase tracking-wider text-mute font-semibold mr-1">Status</span>
           {([
             { id: 'active',      label: 'Active' },
@@ -242,7 +261,7 @@ export default function ManagerMaintenance() {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="hidden sm:flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] uppercase tracking-wider text-mute font-semibold mr-1">Priority</span>
           {(['all', 'emergency', 'high', 'medium', 'low'] as const).map((p) => (
             <button
@@ -257,11 +276,12 @@ export default function ManagerMaintenance() {
             </button>
           ))}
         </div>
+
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-mute" strokeWidth={1.75} />
           <input
             type="text"
-            placeholder="Search by title or description…"
+            placeholder="Search title or description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm placeholder-mute focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -422,32 +442,45 @@ export default function ManagerMaintenance() {
 
 // ── Subcomponents ────────────────────────────────────────────────────
 
-function StatTile({ Icon, label, value, tone }: {
+// Tones use full static class strings (no dynamic `md:${x}` interpolation,
+// since Tailwind's JIT only generates classes it can see in source).
+const TONES = {
+  amber:   { card: 'md:bg-white md:border-amber-200',   activeBg: 'bg-amber-50',   iconBg: 'bg-amber-50',   iconText: 'text-amber-700',   value: 'text-amber-700' },
+  blue:    { card: 'md:bg-white md:border-blue-200',    activeBg: 'bg-blue-50',    iconBg: 'bg-blue-50',    iconText: 'text-blue-700',    value: 'text-blue-700' },
+  red:     { card: 'md:bg-red-50 md:border-red-200',    activeBg: 'bg-red-100',    iconBg: 'bg-red-100',    iconText: 'text-red-700',     value: 'text-red-700' },
+  emerald: { card: 'md:bg-white md:border-emerald-200', activeBg: 'bg-emerald-50', iconBg: 'bg-emerald-50', iconText: 'text-emerald-700', value: 'text-emerald-700' },
+  gray:    { card: 'md:bg-white md:border-gray-200',    activeBg: 'bg-gray-100',   iconBg: 'bg-gray-50',    iconText: 'text-gray-500',    value: 'text-gray-500' },
+} as const
+
+function StatTile({ Icon, label, shortLabel, value, tone, onClick, active }: {
   Icon: typeof Wrench
   label: string
+  shortLabel?: string        // displayed on mobile where horizontal room is tight
   value: number
-  tone: 'amber' | 'blue' | 'red' | 'emerald' | 'gray'
+  tone: keyof typeof TONES
+  onClick?: () => void
+  active?: boolean           // visually emphasize when the related filter is on
 }) {
-  const tones: Record<typeof tone, { bg: string; iconBg: string; iconText: string; value: string }> = {
-    amber:   { bg: 'bg-white border-amber-200',   iconBg: 'bg-amber-50',   iconText: 'text-amber-700',   value: 'text-amber-700' },
-    blue:    { bg: 'bg-white border-blue-200',    iconBg: 'bg-blue-50',    iconText: 'text-blue-700',    value: 'text-blue-700' },
-    red:     { bg: 'bg-red-50 border-red-200',    iconBg: 'bg-red-100',    iconText: 'text-red-700',     value: 'text-red-700' },
-    emerald: { bg: 'bg-white border-emerald-200', iconBg: 'bg-emerald-50', iconText: 'text-emerald-700', value: 'text-emerald-700' },
-    gray:    { bg: 'bg-white border-gray-200',    iconBg: 'bg-gray-50',    iconText: 'text-gray-500',    value: 'text-gray-500' },
-  }
-  const t = tones[tone]
+  const t = TONES[tone]
   return (
-    <div className={`rounded-xl border p-4 ${t.bg}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[11px] uppercase tracking-wider text-mute font-semibold">{label}</p>
-          <p className={`text-3xl font-bold mt-1 tabular-nums ${t.value}`}>{value}</p>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left px-2 py-3 md:p-4 md:rounded-xl md:border transition-colors ${t.card} ${active ? t.activeBg : ''} ${onClick ? 'hover:bg-gray-50' : 'cursor-default'}`}
+    >
+      <div className="flex md:items-start md:justify-between flex-col md:flex-row gap-1">
+        <div className="min-w-0">
+          <p className="text-[10px] md:text-[11px] uppercase tracking-wider text-mute font-semibold truncate">
+            <span className="md:hidden">{shortLabel ?? label}</span>
+            <span className="hidden md:inline">{label}</span>
+          </p>
+          <p className={`text-xl md:text-3xl font-bold md:mt-1 tabular-nums ${t.value}`}>{value}</p>
         </div>
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.iconBg} ${t.iconText}`}>
+        <div className={`hidden md:flex w-9 h-9 rounded-lg items-center justify-center ${t.iconBg} ${t.iconText}`}>
           <Icon className="w-4 h-4" strokeWidth={1.75} />
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 

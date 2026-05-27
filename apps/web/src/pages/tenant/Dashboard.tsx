@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
-import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
+import { formatUsd, formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
@@ -47,7 +47,7 @@ function PaymentRow({ payment, paymentMethodSetup, autopayOn }: { payment: Payme
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
-        <p className="text-xs text-gray-500">{new Date(date).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500">{formatLocalDate(date)}</p>
         {payment.memo && <p className="text-xs text-gray-500 mt-0.5 italic truncate">{payment.memo}</p>}
       </div>
       <div className="text-right shrink-0">
@@ -294,7 +294,7 @@ export default function TenantDashboard() {
               : nextPayment
                 ? daysUntilDue !== null && daysUntilDue < 0
                   ? 'Payment overdue'
-                  : `Due ${nextPayment.due_date ? new Date(nextPayment.due_date).toLocaleDateString() : 'soon'}`
+                  : `Due ${nextPayment.due_date ? formatLocalDate(nextPayment.due_date) : 'soon'}`
                 : 'No payment due'}
           </p>
           <p className={`text-4xl font-bold mt-1 ${s.amount}`}>
@@ -314,7 +314,21 @@ export default function TenantDashboard() {
           {paymentMethodSetup && autopayOn && nextPayment && (() => {
             const payOnIso = (nextPayment as Payment & { scheduled_for?: string | null }).scheduled_for ?? nextPayment.due_date
             if (!payOnIso) return null
-            const payOn = new Date(payOnIso + 'T00:00:00').toLocaleDateString()
+            const overdue = daysUntilDue !== null && daysUntilDue < 0
+            // Overdue path — the "Funds to your landlord by [past date]"
+            // / "Withdrawn from your bank on [past date]" copy doesn't
+            // make sense once the dates are in the past. Show an
+            // overdue-aware message instead and prompt them to retry
+            // on the Pay Rent screen.
+            if (overdue) {
+              return (
+                <div className={`text-xs mt-3 ${s.text} ${s.pillBg} rounded-md px-2 py-1 inline-flex flex-col items-start`}>
+                  <span>Auto-pay was scheduled for {formatLocalDate(payOnIso)}</span>
+                  <span className="opacity-80">Update your payment method or retry from Pay Rent.</span>
+                </div>
+              )
+            }
+            const payOn = formatLocalDate(payOnIso)
             const ach = isAch(savedRail)
             const withdraw = ach ? withdrawalDate(payOnIso, savedRail).toLocaleDateString() : null
             return (
@@ -373,11 +387,11 @@ export default function TenantDashboard() {
               <div className="grid grid-cols-2 gap-y-3 text-sm">
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Start</p>
-                  <p className="font-medium text-gray-800 mt-0.5">{new Date(lease.start_date).toLocaleDateString()}</p>
+                  <p className="font-medium text-gray-800 mt-0.5">{formatLocalDate(lease.start_date)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">End</p>
-                  <p className="font-medium text-gray-800 mt-0.5">{new Date(lease.end_date).toLocaleDateString()}</p>
+                  <p className="font-medium text-gray-800 mt-0.5">{formatLocalDate(lease.end_date)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Monthly Rent</p>

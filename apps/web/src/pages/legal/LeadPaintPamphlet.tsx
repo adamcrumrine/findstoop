@@ -6,16 +6,44 @@
 // We summarize the official EPA pamphlet content. The pamphlet is required
 // reading; the separate disclosure (signed) lives at /legal/lead-disclosure/:leaseId.
 
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer, ExternalLink } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
+import { supabase } from '../../lib/supabase'
 
 export default function LeadPaintPamphlet() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const leaseId = params.get('lease') ?? null
   const back = profile?.role === 'tenant' ? '/tenant/documents'
              : profile?.role === 'manager' ? '/manager/documents'
              : '/'
+
+  // Auto-acknowledge as soon as the tenant lands here. Opening the
+  // pamphlet IS the federal disclosure event — there's no separate
+  // action needed. Guard against (a) re-running when auth profile
+  // resolves on a fresh tab (the first render has profile=undefined and
+  // would set the ref prematurely if we set it before the role check
+  // passes), and (b) duplicate writes when the lease already has a
+  // timestamp.
+  const persistedRef = useRef(false)
+  useEffect(() => {
+    if (!leaseId) return
+    if (profile?.role !== 'tenant') return
+    if (persistedRef.current) return
+    let cancelled = false
+    ;(async () => {
+      // SECURITY DEFINER RPC — tenant has no direct UPDATE on leases.
+      // The RPC is idempotent: if a timestamp is already set, it returns
+      // the existing value without re-writing.
+      const { error } = await supabase.rpc('tenant_acknowledge_lead_pamphlet', { p_lease_id: leaseId })
+      if (cancelled) return
+      if (!error) persistedRef.current = true
+    })()
+    return () => { cancelled = true }
+  }, [leaseId, profile?.role])
 
   return (
     <div className="min-h-screen bg-gray-50">

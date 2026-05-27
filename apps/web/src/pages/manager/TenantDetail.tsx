@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, type LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { formatUsd } from '@findstoop/shared/lib/format'
+import { formatUsd, formatPhone } from '@findstoop/shared/lib/format'
 import type { Profile } from '@findstoop/shared/types/profile'
 import type { Lease } from '@findstoop/shared/types/lease'
 
@@ -99,7 +99,7 @@ export default function TenantDetail() {
               )}
               {tenant.phone && (
                 <a href={`tel:${tenant.phone}`} className="inline-flex items-center gap-1 hover:text-ink">
-                  <Phone className="w-3.5 h-3.5" strokeWidth={1.75} /> {tenant.phone}
+                  <Phone className="w-3.5 h-3.5" strokeWidth={1.75} /> {formatPhone(tenant.phone)}
                 </a>
               )}
             </div>

@@ -9,6 +9,11 @@ import type { Profile } from '../types/profile'
 //     still being reviewed/edited by the manager must NOT appear in the
 //     tenant's portal — they shouldn't see it until it's ready.
 // Active is preferred when both somehow exist (lease renewal overlap, etc.).
+// Returns the tenant's "current" lease — the one their portal should
+// surface as the working lease (dashboard, documents, pay rent, etc).
+// Priority: active → upcoming (signed, future start) → pending+sent.
+// Upcoming was missed when that status was introduced, which left
+// tenants on signed-but-future leases with an empty portal.
 export async function getTenantActiveLease(tenantId: string): Promise<Lease | null> {
   const selection = '*, unit:units(unit_number, properties(name, address, city, state, zip))'
   const { data: active } = await supabase
@@ -20,6 +25,18 @@ export async function getTenantActiveLease(tenantId: string): Promise<Lease | nu
     .limit(1)
     .maybeSingle()
   if (active) return active as unknown as Lease
+
+  // Signed but future-start — tenant should still see documents, lease,
+  // and any pre-move-in comms / inspections their landlord has prepared.
+  const { data: upcoming } = await supabase
+    .from('leases')
+    .select(selection)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'upcoming')
+    .order('start_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (upcoming) return upcoming as unknown as Lease
 
   const { data: pendingSent } = await supabase
     .from('leases')

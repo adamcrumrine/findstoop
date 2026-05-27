@@ -68,7 +68,7 @@ export default function AdminFunnel() {
   })
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Funnel + cohorts</h1>
         <p className="text-sm text-slate-500 mt-1">Activation drop-off and week-over-week retention.</p>
@@ -78,23 +78,24 @@ export default function AdminFunnel() {
       <section className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
         <h2 className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-4">Manager activation funnel</h2>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {stageRows.map((stage, i) => (
             <div key={stage.key}>
-              <div className="flex items-center gap-3">
-                <div className="shrink-0 w-9 h-9 rounded-lg bg-slate-100 text-slate-700 inline-flex items-center justify-center">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 w-9 h-9 rounded-lg bg-slate-100 text-slate-700 inline-flex items-center justify-center mt-0.5">
                   <stage.Icon className="w-4 h-4" strokeWidth={1.75} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline justify-between gap-3 mb-1">
-                    <div className="flex items-baseline gap-2 min-w-0">
-                      <p className="font-semibold text-ink text-slate-900">{stage.label}</p>
-                      <p className="text-xs text-slate-500 truncate">{stage.sub}</p>
-                    </div>
-                    <div className="flex items-baseline gap-3 shrink-0">
-                      <span className="text-lg font-bold tabular-nums text-slate-900">{stage.count.toLocaleString()}</span>
-                      <span className="text-xs text-slate-500 tabular-nums">{stage.fromTop.toFixed(0)}% of top</span>
-                    </div>
+                  {/* Top row: label on the left, count on the right.
+                      Description + % share live on the second row so neither
+                      gets crushed when the viewport is narrow. */}
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-semibold text-slate-900 truncate">{stage.label}</p>
+                    <span className="text-lg font-bold tabular-nums text-slate-900 shrink-0">{stage.count.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3 mt-0.5 mb-1.5">
+                    <p className="text-xs text-slate-500 truncate">{stage.sub}</p>
+                    <span className="text-[11px] text-slate-500 tabular-nums shrink-0">{stage.fromTop.toFixed(0)}% of top</span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600" style={{ width: `${stage.fromTop}%` }} />
@@ -102,9 +103,9 @@ export default function AdminFunnel() {
                 </div>
               </div>
               {i > 0 && stage.dropFromPrev > 0 && (
-                <div className="ml-12 mt-1 flex items-center gap-1.5 text-[11px] text-red-700">
-                  <TrendingDown className="w-3 h-3" strokeWidth={2} />
-                  <span>{stage.dropFromPrev.toFixed(0)}% drop-off from previous stage ({Number(stageRows[i - 1].count - stage.count).toLocaleString()} lost)</span>
+                <div className="ml-12 mt-1.5 flex items-start gap-1.5 text-[11px] text-red-700">
+                  <TrendingDown className="w-3 h-3 mt-0.5 shrink-0" strokeWidth={2} />
+                  <span>{stage.dropFromPrev.toFixed(0)}% drop-off ({Number(stageRows[i - 1].count - stage.count).toLocaleString()} lost from previous stage)</span>
                 </div>
               )}
             </div>
@@ -126,7 +127,7 @@ export default function AdminFunnel() {
           <div className="px-5 py-10 text-center text-slate-500 text-sm">No cohorts yet — need at least one week of signup history.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs min-w-[720px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap">Cohort</th>

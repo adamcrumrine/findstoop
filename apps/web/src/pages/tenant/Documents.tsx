@@ -34,11 +34,14 @@ function DocIcon({ type, className = 'w-5 h-5' }: { type: DocumentType; classNam
   return <Icon className={className} strokeWidth={1.75} />
 }
 
+// Per-type icon tile color. Notices use the FindStoop brand green —
+// they're shared reference material with no pending state, so they
+// render as "complete" the moment they're attached.
 const DOC_TYPE_COLOR: Record<DocumentType, string> = {
   lease: 'bg-brand-50 text-brand-700',
   addendum: 'bg-purple-50 text-purple-700',
   inspection: 'bg-blue-50 text-blue-700',
-  notice: 'bg-orange-50 text-orange-700',
+  notice: 'bg-brand-50 text-brand-700',
   other: 'bg-gray-50 text-gray-600',
 }
 
@@ -189,7 +192,7 @@ export default function TenantDocuments() {
 
       {!lease && !loading && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          No active lease found. Documents will appear here once your lease is set up.
+          No lease on file yet. Documents will appear here once your landlord sets one up.
         </div>
       )}
 
@@ -298,7 +301,14 @@ function TenantInspections({ leaseId }: { leaseId: string }) {
                                                                             { label: 'In progress', cls: 'bg-blue-50 text-blue-700 border-blue-200' }
           return (
             <div key={r.id} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 border border-gray-100 shadow-sm">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 inline-flex items-center justify-center shrink-0">
+              {/* Icon turns brand-green once both parties have signed;
+                  amber while any action is still outstanding. Matches the
+                  Required-disclosures rows for visual consistency. */}
+              <div
+                className={`w-10 h-10 rounded-lg inline-flex items-center justify-center shrink-0 ${
+                  r.state === 'both_signed' ? 'bg-brand-50 text-brand-700' : 'bg-amber-50 text-amber-700'
+                }`}
+              >
                 <ClipboardList className="w-5 h-5" strokeWidth={1.75} />
               </div>
               <div className="flex-1 min-w-0">

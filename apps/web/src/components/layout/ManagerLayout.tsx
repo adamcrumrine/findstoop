@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import Avatar from '../shared/Avatar'
 import FeedbackModal from '../manager/FeedbackModal'
+import NotificationsBell from '../manager/NotificationsBell'
 import { MessageCircleQuestion } from 'lucide-react'
 
 interface NavItem {
@@ -174,6 +175,7 @@ export default function ManagerLayout() {
                 Sign out
               </button>
             </div>
+            <NotificationsBell />
           </div>
         </div>
       </aside>
@@ -181,18 +183,23 @@ export default function ManagerLayout() {
       {/* ── Main column ───────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Mobile header */}
-        <header className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0 z-10">
+        {/* Mobile header — extra top padding via env(safe-area-inset-top)
+            so the bar clears the iOS notch / Android status bar. */}
+        <header
+          className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0 z-10"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+        >
           <Link to="/" aria-label="FindStoop home" className="block">
             <img src="/findstoop-logo.png" alt="FindStoop" className="h-10 w-auto" />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <NotificationsBell />
             <Avatar url={profile?.company_logo_url ?? profile?.avatar_url} name={profile?.company_name ?? profile?.full_name} email={profile?.email} size={32} />
           </div>
         </header>
 
         {/* Page */}
-        <main id="main-content" className="relative flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 lg:pr-24 xl:pr-40">
+        <main id="main-content" className="relative flex-1 overflow-y-auto p-4 md:p-6 pb-28 md:pb-6 lg:pr-24 xl:pr-40">
           {/* Ambient background illustration — shifted to the RIGHT of the
               centered content column because the left side is occupied by
               the sidebar. xPct values come from PAGE_BG. */}
@@ -219,19 +226,22 @@ export default function ManagerLayout() {
         </main>
 
         {/* ── Bottom nav — mobile ──────────────────────────────────────── */}
-        <nav aria-label="Manager mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
+        {/* Bottom nav adds safe-area-inset padding so the row clears the
+            iOS home indicator. pt-3 + pb-3 (+ env inset) gives each tap
+            target ~52px high — Apple HIG minimum is 44, Material is 48. */}
+        <nav aria-label="Manager mobile navigation" className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex">
             {primaryNav.map(({ to, label, Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center flex-1 pt-2 pb-3 text-[10px] font-medium transition-colors ${
+                  `flex flex-col items-center justify-center flex-1 pt-3 pb-3 text-[10px] font-medium transition-colors ${
                     isActive ? 'text-brand-600' : 'text-mute'
                   }`
                 }
               >
-                <Icon className="w-5 h-5 mb-0.5" strokeWidth={1.75} />
+                <Icon className="w-5 h-5 mb-1" strokeWidth={1.75} />
                 {label}
               </NavLink>
             ))}
@@ -239,9 +249,9 @@ export default function ManagerLayout() {
             {/* More button */}
             <button
               onClick={() => setMoreOpen((o) => !o)}
-              className="flex flex-col items-center justify-center flex-1 pt-2 pb-3 text-[10px] font-medium text-mute"
+              className="flex flex-col items-center justify-center flex-1 pt-3 pb-3 text-[10px] font-medium text-mute"
             >
-              <MoreHorizontal className="w-5 h-5 mb-0.5" strokeWidth={1.75} />
+              <MoreHorizontal className="w-5 h-5 mb-1" strokeWidth={1.75} />
               More
             </button>
           </div>
@@ -270,6 +280,16 @@ export default function ManagerLayout() {
                       {label}
                     </NavLink>
                   ))}
+                  {/* Feedback opens the FeedbackModal — keeps parity with
+                      the desktop sidebar's "Send feedback" affordance. */}
+                  <button
+                    type="button"
+                    onClick={() => { setMoreOpen(false); setFeedbackOpen(true) }}
+                    className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-xs font-medium text-mute hover:bg-gray-50 transition-colors"
+                  >
+                    <MessageCircleQuestion className="w-6 h-6" strokeWidth={1.75} />
+                    Feedback
+                  </button>
                 </div>
                 <div className="px-4 pb-1">
                   <button

@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Users as UsersIcon, Search } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import UserRefBadge from '../../components/admin/UserRefBadge'
 
 interface Row {
   user_ref: string
@@ -64,7 +65,7 @@ export default function AdminUsers() {
   }, [rows, roleFilter, query])
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6 max-w-6xl">
       <header className="mb-4">
         <h1 className="text-2xl font-bold text-slate-900">Users</h1>
         <p className="text-sm text-slate-500 mt-1">Anonymized roster — 6-character refs, no PII visible.</p>
@@ -106,7 +107,8 @@ export default function AdminUsers() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+         <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[760px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <Th>Ref</Th>
@@ -123,7 +125,9 @@ export default function AdminUsers() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.user_ref} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-4 py-2 font-mono text-slate-700">{r.user_ref}</td>
+                  <td className="px-4 py-2">
+                    <UserRefBadge userId={r.raw_id} refLabel={r.user_ref} />
+                  </td>
                   <td className="px-4 py-2">
                     {r.role ? (
                       <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${ROLE_COLOR[r.role]}`}>
@@ -152,6 +156,7 @@ export default function AdminUsers() {
               ))}
             </tbody>
           </table>
+         </div>
         </div>
       )}
     </div>

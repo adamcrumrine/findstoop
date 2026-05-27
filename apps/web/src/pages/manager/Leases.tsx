@@ -8,7 +8,7 @@ import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseStatus } from '@findstoop/shared/types/lease'
 import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
-import { FileText, FileSignature, Send, Loader2, CheckCircle2 } from 'lucide-react'
+import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import { Link } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
@@ -29,6 +29,16 @@ const statusColors: Record<LeaseStatus, string> = {
   pending:    'bg-yellow-100 text-yellow-700',
   expired:    'bg-gray-100 text-gray-600',
   terminated: 'bg-red-100 text-red-700',
+}
+
+// Solid dot color for the footer status indicator — same hue as the pill
+// background, but bumped two shades darker so it pops against white.
+const statusDot: Record<LeaseStatus, string> = {
+  active:     'bg-green-500',
+  upcoming:   'bg-blue-500',
+  pending:    'bg-yellow-500',
+  expired:    'bg-gray-400',
+  terminated: 'bg-red-500',
 }
 
 // ── Lease card ────────────────────────────────────────────────────────────────
@@ -86,100 +96,123 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
       || lease.status === 'expired' || lease.status === 'terminated')
     && !lease.signed_at && !tenantSigned && !managerSigned && !sentLabel
 
+  // Right-column countdown copy. Empty string when there's nothing to
+  // surface for this lease state (e.g., expired / terminated).
+  const countdown: { label: string; tone: string } | null = (() => {
+    if (lease.status !== 'active' && lease.status !== 'upcoming') return null
+    if (isUpcoming) {
+      const d = Math.max(0, daysUntilStart)
+      return { label: `Starts in ${d}d`, tone: d < 30 ? 'text-yellow-600 font-medium' : 'text-gray-700' }
+    }
+    if (isMonthToMonth) {
+      if (daysUntilMoveOut != null) {
+        const d = daysUntilMoveOut
+        if (d < 0)  return { label: `${Math.abs(d)}d past move-out`, tone: 'text-red-600 font-medium' }
+        if (d === 0) return { label: 'Move-out today', tone: 'text-red-600 font-medium' }
+        return { label: `${d}d to move-out`, tone: d < 30 ? 'text-yellow-600 font-medium' : 'text-gray-700' }
+      }
+      return null
+    }
+    if (daysLeft > 0) {
+      return { label: `${daysLeft}d left`, tone: daysLeft < 30 ? 'text-yellow-600 font-medium' : 'text-gray-700' }
+    }
+    return null
+  })()
+
+  const fullySigned = lease.signed_at || (tenantSigned && managerSigned)
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Avatar stack — every named tenant on the lease. Hover each
-                avatar for the full name. Falls back to primary name as
-                the card title if there's only one tenant. */}
-            {tenants.length > 0 ? (
-              <div className="flex -space-x-2 mr-1">
-                {tenants.slice(0, 5).map((t) => (
-                  <span
-                    key={t.id}
-                    title={t.full_name ?? t.email ?? 'Tenant'}
-                    className="inline-block ring-2 ring-white rounded-full"
-                  >
-                    <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={28} />
-                  </span>
-                ))}
-                {tenants.length > 5 && (
-                  <span
-                    title={tenants.slice(5).map((t) => t.full_name ?? t.email).join(', ')}
-                    className="inline-flex items-center justify-center w-7 h-7 ring-2 ring-white rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700"
-                  >
-                    +{tenants.length - 5}
-                  </span>
-                )}
-              </div>
-            ) : null}
-            <h3 className="font-semibold text-gray-900 truncate">
-              {tenants.length > 1 ? `${primaryName} +${tenants.length - 1}` : primaryName}
-            </h3>
-            {/* Status pill — the enum value renders "upcoming" itself so
-                there's no separate derived pill for it. */}
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[lease.status]}`}>
-              {lease.status}
-            </span>
-            {/* Derived month-to-month pill — only appears for active leases
-                whose original term has lapsed. Lowercase to match the
-                style of the other status pills. */}
-            {isMonthToMonth && (
+      {/* ── Header: avatar stack + name (truncate) + status pill + an
+          icon-only Review/View button anchored to the top-right corner.
+          The icon replaces the old footer link to keep the action visible
+          but unobtrusive on mobile. */}
+      <div className="flex items-start gap-3">
+        {tenants.length > 0 && (
+          <div className="flex -space-x-2 shrink-0">
+            {tenants.slice(0, 5).map((t) => (
               <span
-                className="text-xs font-medium px-2 py-0.5 rounded-full text-amber-800 bg-amber-100"
-                title={`Original term ended ${new Date(lease.end_date).toLocaleDateString()} — now month-to-month`}
+                key={t.id}
+                title={t.full_name ?? t.email ?? 'Tenant'}
+                className="inline-block ring-2 ring-white rounded-full"
               >
-                month-to-month
+                <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={28} />
+              </span>
+            ))}
+            {tenants.length > 5 && (
+              <span
+                title={tenants.slice(5).map((t) => t.full_name ?? t.email).join(', ')}
+                className="inline-flex items-center justify-center w-7 h-7 ring-2 ring-white rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700"
+              >
+                +{tenants.length - 5}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">{propertyName} — Unit {unitNumber}</p>
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-gray-500">
-            <div><span className="text-gray-500">Start:</span> {new Date(lease.start_date).toLocaleDateString()}</div>
-            <div><span className="text-gray-500">End:</span> {new Date(lease.end_date).toLocaleDateString()}</div>
-            <div><span className="text-gray-500">Rent:</span> ${Number(lease.rent_amount).toLocaleString()}/mo</div>
-            {(lease.status === 'active' || lease.status === 'upcoming') && (() => {
-              // Upcoming → countdown to lease START (when it becomes active).
-              // M2M with tentative move-out date → countdown to that date.
-              // M2M without a date → "Month-to-month" label.
-              // Active fixed-term → countdown to lease END.
-              if (isUpcoming) {
-                const d = Math.max(0, daysUntilStart)
-                return <div className={d < 30 ? 'text-yellow-600 font-medium' : ''}>Starts in {d}d</div>
-              }
-              if (isMonthToMonth) {
-                if (daysUntilMoveOut != null) {
-                  const d = daysUntilMoveOut
-                  if (d < 0)  return <div className="text-red-600 font-medium" title={`Tentative move-out was ${moveOutDate?.toLocaleDateString()}`}>{Math.abs(d)}d past move-out</div>
-                  if (d === 0) return <div className="text-red-600 font-medium">Move-out today</div>
-                  return <div className={d < 30 ? 'text-yellow-600 font-medium' : ''} title={`Tentative move-out: ${moveOutDate?.toLocaleDateString()}`}>{d}d until move-out</div>
-                }
-                return <div>M2M</div>
-              }
-              if (daysLeft > 0) {
-                return <div className={daysLeft < 30 ? 'text-yellow-600 font-medium' : ''}>{daysLeft}d left</div>
-              }
-              return null
-            })()}
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-gray-900 truncate">
+              {tenants.length > 1 ? `${primaryName} +${tenants.length - 1}` : primaryName}
+            </h3>
+            {/* Status pill — hidden on mobile (footer dropdown shows the
+                same info), shown on sm+ where there's room. */}
+            <span className={`hidden sm:inline-flex text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded ${statusColors[lease.status]}`}>
+              {lease.status}
+            </span>
+            {/* M2M is a derived state not surfaced elsewhere — keep it
+                visible on every breakpoint so the manager can tell at a
+                glance that the original term has lapsed. */}
+            {isMonthToMonth && (
+              <span
+                className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-amber-800 bg-amber-100"
+                title={`Original term ended ${new Date(lease.end_date).toLocaleDateString()} — now month-to-month`}
+              >
+                M2M
+              </span>
+            )}
           </div>
         </div>
-        <select
-          value={lease.status}
-          onChange={(e) => onUpdateStatus(lease.id, e.target.value as LeaseStatus)}
-          className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white shrink-0 focus:outline-none focus:ring-1 focus:ring-brand-500"
+        <Link
+          to={`/manager/review-lease/${lease.id}`}
+          aria-label={fullySigned ? 'View lease' : 'Review lease'}
+          title={fullySigned ? 'View lease' : 'Review lease'}
+          className="shrink-0 -mt-1 -mr-1 p-2 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors"
         >
-          <option value="pending">Pending</option>
-          <option value="upcoming">Upcoming</option>
-          <option value="active">Active</option>
-          <option value="expired">Expired</option>
-          <option value="terminated">Terminated</option>
-        </select>
+          <ChevronRight className="w-5 h-5" strokeWidth={2} />
+        </Link>
       </div>
-      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+
+      {/* Property — flush to the card's left edge, full width below the
+          header so the address has the whole card to breathe in. */}
+      <p className="text-xs text-gray-500 mt-2 truncate">{propertyName} — Unit {unitNumber}</p>
+
+      {/* ── Term + Rent on one row, separated by a dot. Countdown gets
+          its own line so the days-left/move-out signal stays visible. ── */}
+      <div className="mt-3 text-xs">
+        <p className="text-gray-700 tabular-nums flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span>
+            <span className="text-gray-400 mr-1.5">Term</span>
+            {new Date(lease.start_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })}
+            {' – '}
+            {new Date(lease.end_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })}
+          </span>
+          <span className="text-gray-300">·</span>
+          <span>
+            <span className="text-gray-400 mr-1.5">Rent</span>
+            ${Number(lease.rent_amount).toLocaleString()}/mo
+          </span>
+        </p>
+        {countdown && (
+          <p className={`tabular-nums mt-1 ${countdown.tone}`}>{countdown.label}</p>
+        )}
+      </div>
+
+      {/* ── Footer: signature state + admin controls (Review icon lives
+          in the header now, so the footer is just signature copy + the
+          status dropdown + send-for-signature when relevant). */}
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-mute inline-flex items-center gap-1.5">
-          {lease.signed_at || (tenantSigned && managerSigned) ? (
+          {fullySigned ? (
             <>
               <FileSignature className="w-3.5 h-3.5 text-green-600" strokeWidth={1.75} />
               Fully signed
@@ -187,12 +220,12 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
           ) : tenantSigned ? (
             <>
               <FileSignature className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
-              Tenant signed · awaiting your signature
+              Tenant signed · awaiting yours
             </>
           ) : sentLabel ? (
             <>
               <Send className="w-3.5 h-3.5 text-brand-600" strokeWidth={1.75} />
-              {sentLabel} · awaiting tenant signature
+              {sentLabel}
             </>
           ) : looksExecutedExternally ? (
             <>
@@ -206,7 +239,7 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {!lease.signed_at && lease.status === 'pending' && (
             <button
               type="button"
@@ -218,15 +251,27 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
               {sending
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />
                 : <Send className="w-3.5 h-3.5" strokeWidth={1.75} />}
-              {sentLabel ? 'Re-send for signature' : 'Send for signature'}
+              {sentLabel ? 'Re-send' : 'Send'}
             </button>
           )}
-          <Link
-            to={`/manager/review-lease/${lease.id}`}
-            className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1"
+          {/* Status dot — same hue family as the (now hidden on mobile)
+              pill; tiny enough to live inline without crowding. */}
+          <span
+            className={`inline-block w-2 h-2 rounded-full shrink-0 ${statusDot[lease.status]}`}
+            aria-hidden="true"
+          />
+          <select
+            value={lease.status}
+            onChange={(e) => onUpdateStatus(lease.id, e.target.value as LeaseStatus)}
+            className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+            title="Change lease status"
           >
-            {lease.signed_at || (tenantSigned && managerSigned) ? 'View →' : 'Review →'}
-          </Link>
+            <option value="pending">Pending</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="active">Active</option>
+            <option value="expired">Expired</option>
+            <option value="terminated">Terminated</option>
+          </select>
         </div>
       </div>
     </div>
@@ -328,23 +373,67 @@ export default function ManagerLeases() {
         </div>
       </div>
 
-      {!loading && leases.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {(['all', 'active', 'upcoming', 'pending', 'expired', 'terminated'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
-                filterStatus === s
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
-              }`}
-            >
-              {s} {s === 'all' ? `(${leases.length})` : `(${leases.filter((l) => l.status === s).length})`}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Filter — native dropdown on mobile (compact + native picker UX),
+          pill row on sm+ where horizontal room is no problem. */}
+      {!loading && leases.length > 0 && (() => {
+        const opts = (['all', 'active', 'upcoming', 'pending', 'expired', 'terminated'] as const)
+        const countFor = (s: LeaseStatus | 'all') =>
+          s === 'all' ? leases.length : leases.filter((l) => l.status === s).length
+        return (
+          <>
+            {/* Mobile — single select */}
+            <div className="sm:hidden">
+              <label className="sr-only" htmlFor="lease-filter">Filter leases by status</label>
+              <div className="relative inline-flex items-center">
+                {filterStatus !== 'all' && (
+                  <span
+                    className={`absolute left-3 w-2 h-2 rounded-full ${statusDot[filterStatus as LeaseStatus]} pointer-events-none`}
+                    aria-hidden="true"
+                  />
+                )}
+                <select
+                  id="lease-filter"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as LeaseStatus | 'all')}
+                  className={`text-sm font-medium border border-gray-200 rounded-lg py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 capitalize ${filterStatus !== 'all' ? 'pl-7' : 'pl-3'}`}
+                >
+                  {opts.map((s) => (
+                    <option key={s} value={s} className="capitalize">
+                      {s} ({countFor(s)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* sm+ — full pill row */}
+            <div className="hidden sm:flex gap-2 flex-wrap">
+              {opts.map((s) => {
+                const active = filterStatus === s
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setFilterStatus(s)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize whitespace-nowrap ${
+                      active
+                        ? 'bg-brand-600 text-white border border-brand-600'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {s !== 'all' && (
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : statusDot[s as LeaseStatus]}`}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span>{s} <span className={active ? 'text-white/80' : 'text-gray-400'}>({countFor(s)})</span></span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )
+      })()}
 
       {loading ? (
         <div className="space-y-3"><Skeleton /><Skeleton /><Skeleton /></div>

@@ -85,22 +85,24 @@ export default function AdminVisitors() {
   const intlLocations = locations.filter((l) => l.country_code !== 'US')
 
   return (
-    <div className="p-6 max-w-7xl">
-      <header className="mb-4 flex items-start justify-between gap-4">
+    <div className="p-4 sm:p-6 max-w-7xl">
+      <header className="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Visitors</h1>
           <p className="text-sm text-slate-500 mt-1">
             Where traffic is coming from — IP-derived city-level resolution. Marketing pages + signed-in users.
           </p>
         </div>
-        <div className="flex gap-1.5">
+        {/* Range toggle: full-width segmented row on mobile so the pills
+            get real tap area; compact pill cluster on sm+. */}
+        <div className="flex gap-1 sm:gap-1.5 bg-slate-100 sm:bg-transparent rounded-full p-1 sm:p-0 shrink-0">
           {(['1h', '24h', '7d', '30d', 'all'] as const).map((r) => (
             <button
               key={r}
               type="button"
               onClick={() => setRange(r)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                range === r ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                range === r ? 'bg-slate-900 text-white' : 'sm:bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {r}
@@ -131,7 +133,7 @@ export default function AdminVisitors() {
                 <button type="button" onClick={() => setSelected(null)} className="text-xs text-brand-600 hover:underline">Clear selection</button>
               )}
             </div>
-            <div className="relative" style={{ height: 480 }}>
+            <div className="relative h-72 sm:h-96 lg:h-[480px]">
               <ComposableMap
                 projection="geoAlbersUsa"
                 projectionConfig={{ scale: 1000 }}

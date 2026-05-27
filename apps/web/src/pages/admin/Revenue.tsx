@@ -80,7 +80,7 @@ export default function AdminRevenue() {
   const avgOrder = totals.count > 0 ? Math.round(totals.revenue / totals.count) : 0
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Revenue</h1>
         <p className="text-sm text-slate-500 mt-1">Screening revenue, margin, and cost analysis.</p>
@@ -116,7 +116,8 @@ export default function AdminRevenue() {
         <div className="px-5 py-3 border-b border-slate-200">
           <h2 className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Revenue by tier</h2>
         </div>
-        <table className="w-full text-sm">
+       <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <Th>Tier</Th>
@@ -138,6 +139,7 @@ export default function AdminRevenue() {
             ))}
           </tbody>
         </table>
+       </div>
       </div>
     </div>
   )

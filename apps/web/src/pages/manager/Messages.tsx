@@ -429,8 +429,11 @@ export default function ManagerMessages() {
       .finally(() => setCreating(false))
   }, [conversations, loading, managerId, searchParams, selected, creating, reload, setSearchParams])
 
+  // Mobile: chat is a fixed overlay between the top header (~56px) and
+  // the bottom nav (~64px + safe-area), so the message input never gets
+  // clipped under the nav. md+: original inline flex layout (no nav).
   return (
-    <div className="flex h-[calc(100vh-4rem)] md:h-[calc(100vh-0px)] -m-4 md:-m-6">
+    <div className="flex fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+3.5rem)] bottom-[calc(env(safe-area-inset-bottom,0px)+64px)] md:static md:h-[100dvh] md:-m-6 bg-white">
       {/* Sidebar — conversation list */}
       <div className={`w-full md:w-80 flex flex-col border-r border-gray-200 bg-white shrink-0 ${selected ? 'hidden md:flex' : 'flex'}`}>
         <div className="px-4 py-4 border-b border-gray-100 shrink-0">

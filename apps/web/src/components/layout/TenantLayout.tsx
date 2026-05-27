@@ -83,8 +83,12 @@ export default function TenantLayout() {
         Skip to main content
       </a>
 
-      {/* Header — logo on the left, avatar (with dropdown) on the right */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0">
+      {/* Header — logo left, avatar right. env(safe-area-inset-top)
+          padding clears the iOS notch / Android status bar. */}
+      <header
+        className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+      >
         <Link to="/" aria-label="FindStoop home">
           <img src="/findstoop-logo.png" alt="FindStoop" className="h-10 w-auto" />
         </Link>
@@ -124,7 +128,7 @@ export default function TenantLayout() {
       </header>
 
       {/* Page */}
-      <main id="main-content" className="relative flex-1 p-4 pb-24 overflow-hidden">
+      <main id="main-content" className="relative flex-1 p-4 pb-28 overflow-hidden">
         {/* One large, washed-out illustration anchored to this route. Lives
             in the absolute background layer so the page's cards sit on top
             and the illustration peeks out behind/around them. Hidden on
@@ -147,15 +151,15 @@ export default function TenantLayout() {
         </div>
       </main>
 
-      {/* Bottom nav */}
-      <nav aria-label="Tenant primary navigation" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20">
+      {/* Bottom nav — safe-area inset clears the iOS home indicator. */}
+      <nav aria-label="Tenant primary navigation" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex max-w-2xl mx-auto">
           {navItems.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `relative flex flex-col items-center justify-center flex-1 pt-2 pb-3 text-[10px] font-medium transition-colors ${
+                `relative flex flex-col items-center justify-center flex-1 pt-3 pb-3 text-[10px] font-medium transition-colors ${
                   isActive ? 'text-brand-600' : 'text-mute'
                 }`
               }
@@ -164,7 +168,7 @@ export default function TenantLayout() {
                 <>
                   <div className="relative">
                     <Icon
-                      className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110' : ''}`}
+                      className={`w-5 h-5 mb-1 transition-transform ${isActive ? 'scale-110' : ''}`}
                       strokeWidth={1.75}
                     />
                     {badgeFor(to) && (

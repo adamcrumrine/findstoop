@@ -12,7 +12,7 @@ import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import Avatar from '../../components/shared/Avatar'
-import { Users } from 'lucide-react'
+import { Users, ChevronRight, Phone } from 'lucide-react'
 
 function Skeleton() {
   return (
@@ -35,10 +35,10 @@ interface TenantCardProps {
   propertyName: string | undefined
 }
 
-// Status pill colors for every lease status the Tenants list might surface.
-// "No lease" gets a neutral gray so tenants without a lease still get a
-// uniform card layout — same grid, same pill slot — instead of looking
-// like a different card variant.
+// Status indicator — pill on sm+ (room to spell out the label), tiny
+// colored dot on mobile (same hue family, much less space). Matches the
+// pattern we use on the lease card so the visual language is consistent
+// across the manager surfaces.
 const STATUS_PILL: Record<LeaseStatus | 'no_lease', { label: string; cls: string }> = {
   active:     { label: 'Active',       cls: 'bg-green-100 text-green-700' },
   upcoming:   { label: 'Upcoming',     cls: 'bg-blue-100 text-blue-700' },
@@ -48,41 +48,61 @@ const STATUS_PILL: Record<LeaseStatus | 'no_lease', { label: string; cls: string
   no_lease:   { label: 'No lease',     cls: 'bg-gray-100 text-gray-600' },
 }
 
+const STATUS_DOT: Record<LeaseStatus | 'no_lease', string> = {
+  active:     'bg-green-500',
+  upcoming:   'bg-blue-500',
+  pending:    'bg-yellow-500',
+  expired:    'bg-gray-400',
+  terminated: 'bg-red-500',
+  no_lease:   'bg-gray-300',
+}
+
 function TenantCard({ tenant, lease, unitNumber, propertyName }: TenantCardProps) {
   const name = tenant.full_name ?? tenant.email ?? 'Unknown'
-  const pill = STATUS_PILL[lease?.status ?? 'no_lease']
+  const statusKey = lease?.status ?? 'no_lease'
+  const pill = STATUS_PILL[statusKey]
+  // Stitched single-line metadata: property · unit · rent. Pieces drop
+  // out gracefully if any are missing (e.g. tenant with no lease yet).
+  const meta = [
+    propertyName,
+    unitNumber ? `Unit ${unitNumber}` : null,
+    lease ? `$${Number(lease.rent_amount).toLocaleString()}/mo` : null,
+  ].filter(Boolean).join(' · ')
   return (
-    <Link to={`/manager/tenants/${tenant.id}`} className="block bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition-all">
+    <Link
+      to={`/manager/tenants/${tenant.id}`}
+      className="block bg-white rounded-xl border border-gray-200 px-4 py-3 hover:border-brand-300 hover:shadow-sm transition-all"
+    >
       <div className="flex items-center gap-3">
         <Avatar name={tenant.full_name} email={tenant.email} url={tenant.avatar_url} size={40} />
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 truncate">{name}</p>
-          <p className="text-sm text-gray-500 truncate">{tenant.email}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-900 truncate">{name}</p>
+            {/* Pill on sm+, dot on mobile. */}
+            <span
+              className={`hidden sm:inline-flex text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${pill.cls}`}
+            >
+              {pill.label}
+            </span>
+            <span
+              className={`sm:hidden inline-block w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[statusKey]}`}
+              aria-label={pill.label}
+              title={pill.label}
+            />
+          </div>
+          <p className="text-xs text-gray-500 truncate">{tenant.email}</p>
+          {/* Property · unit · rent on a single inline line below contact
+              info. Replaces the 3-column grid + divider so each card
+              loses ~40px of vertical real estate. */}
+          {meta && <p className="text-xs text-gray-600 truncate mt-0.5">{meta}</p>}
+          {tenant.phone && (
+            <p className="text-[11px] text-gray-400 mt-0.5 inline-flex items-center gap-1">
+              <Phone className="w-3 h-3" strokeWidth={1.75} />
+              {formatPhone(tenant.phone)}
+            </p>
+          )}
         </div>
-        {tenant.phone && (
-          <span className="text-sm text-gray-500 shrink-0 hidden sm:inline">
-            {formatPhone(tenant.phone)}
-          </span>
-        )}
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${pill.cls}`}>
-          {pill.label}
-        </span>
-      </div>
-      <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-xs text-gray-500">
-        <div>
-          <p className="text-gray-500 uppercase tracking-wide">Unit</p>
-          <p className="font-medium text-gray-700 mt-0.5">{unitNumber ?? '—'}</p>
-        </div>
-        <div>
-          <p className="text-gray-500 uppercase tracking-wide">Property</p>
-          <p className="font-medium text-gray-700 mt-0.5 truncate">{propertyName ?? '—'}</p>
-        </div>
-        <div>
-          <p className="text-gray-500 uppercase tracking-wide">Rent</p>
-          <p className="font-medium text-gray-700 mt-0.5">
-            {lease ? `$${Number(lease.rent_amount).toLocaleString()}/mo` : '—'}
-          </p>
-        </div>
+        <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" strokeWidth={2} aria-hidden="true" />
       </div>
     </Link>
   )

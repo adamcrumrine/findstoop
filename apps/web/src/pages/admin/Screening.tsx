@@ -95,7 +95,7 @@ export default function AdminScreening() {
   }
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Screening</h1>
         <p className="text-sm text-slate-500 mt-1">Order funnel, completion rates, fraud flags.</p>
@@ -142,7 +142,8 @@ export default function AdminScreening() {
         <div className="px-5 py-3 border-b border-slate-200">
           <h2 className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Most recent 50 orders</h2>
         </div>
-        <table className="w-full text-sm">
+       <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[680px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <Th>Ref</Th>
@@ -166,6 +167,7 @@ export default function AdminScreening() {
             ))}
           </tbody>
         </table>
+       </div>
       </div>
     </div>
   )

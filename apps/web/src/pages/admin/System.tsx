@@ -56,7 +56,7 @@ export default function AdminSystem() {
   const errorRate    = totalCalls > 0 ? Math.round((totalErrors / totalCalls) * 1000) / 10 : 0
 
   return (
-    <div className="p-6 max-w-7xl">
+    <div className="p-4 sm:p-6 max-w-7xl">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">System health</h1>
         <p className="text-sm text-slate-500 mt-1">Edge function uptime, latency, and cost — last 24 hours.</p>
@@ -73,7 +73,8 @@ export default function AdminSystem() {
         <div className="px-5 py-3 border-b border-slate-200">
           <h2 className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Per-function health (24h)</h2>
         </div>
-        <table className="w-full text-sm">
+       <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[820px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <Th>Function</Th>
@@ -112,6 +113,7 @@ export default function AdminSystem() {
             })}
           </tbody>
         </table>
+       </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -124,7 +126,8 @@ export default function AdminSystem() {
             No errors logged. Quiet skies.
           </div>
         ) : (
-          <table className="w-full text-sm">
+         <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <Th>When</Th>
@@ -148,6 +151,7 @@ export default function AdminSystem() {
               ))}
             </tbody>
           </table>
+         </div>
         )}
       </div>
     </div>

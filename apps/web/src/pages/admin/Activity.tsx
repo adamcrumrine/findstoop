@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, FileText, LogIn, UserPlus, Eye, AlertCircle, MousePointerClick, MapPin } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import UserRefBadge from '../../components/admin/UserRefBadge'
 
 interface EventRow {
   id: number
@@ -73,7 +74,7 @@ export default function AdminActivity() {
   }, [filter])
 
   return (
-    <div className="p-6 max-w-6xl">
+    <div className="p-4 sm:p-6 max-w-6xl">
       <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Activity</h1>
@@ -81,13 +82,13 @@ export default function AdminActivity() {
         </div>
       </header>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 sm:pb-0 sm:flex-wrap">
         {(['all', 'page_view', 'sign_in', 'sign_up', 'action', 'error'] as const).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
               filter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -106,7 +107,8 @@ export default function AdminActivity() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+         <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">When</th>
@@ -133,7 +135,7 @@ export default function AdminActivity() {
                     <td className="px-4 py-2">
                       {e.user_id ? (
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-slate-700">{e.user_id.slice(0, 6)}</span>
+                          <UserRefBadge userId={e.user_id} refLabel={e.user_id.slice(0, 6)} className="text-xs" />
                           {e.user_role && (
                             <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${ROLE_COLOR[e.user_role] ?? 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                               {e.user_role}
@@ -165,6 +167,7 @@ export default function AdminActivity() {
               })}
             </tbody>
           </table>
+         </div>
         </div>
       )}
     </div>

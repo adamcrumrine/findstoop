@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { Mail, Bell, Loader2, CheckCircle2, UserCircle, IdCard } from 'lucide-react'
+import { Mail, Bell, Loader2, CheckCircle2, UserCircle, IdCard, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
+import { formatPhone, formatUsdCents, formatAddress } from '@findstoop/shared/lib/format'
 
 interface BioForm {
   date_of_birth: string
@@ -27,14 +28,29 @@ const EMPTY_BIO: BioForm = {
 export default function TenantSettings() {
   const { profile } = useAuth()
   const [emailEnabled, setEmailEnabled] = useState(true)
+  const [smsEnabled, setSmsEnabled] = useState(false)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [bio, setBio] = useState<BioForm>(EMPTY_BIO)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [savingBio, setSavingBio] = useState(false)
+  const [, setSavingProfile] = useState(false)
+  const [, setSavingBio] = useState(false)
+  // Once the tenant has a submitted rental application, fields the
+  // application captured become locked here. The application is the
+  // system of record for those values — changes route through the
+  // landlord (e.g., updating an emergency contact via Settings, but
+  // calling the manager to correct a typo in date_of_birth).
+  const [fromApplication, setFromApplication] = useState(false)
+  // Snapshots of the last-persisted values. Auto-save compares current
+  // form state against these and skips the network round-trip + toast
+  // if nothing actually changed.
+  const lastSavedProfile = useRef<{ fullName: string; phone: string; smsEnabled: boolean } | null>(null)
+  const lastSavedBio = useRef<BioForm | null>(null)
+  // Toast-debounce — coalesces multiple rapid saves into one "Saved"
+  // toast over the 2-second window.
+  const toastDebounce = useRef<number | null>(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -42,25 +58,41 @@ export default function TenantSettings() {
     ;(async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('notification_email_enabled, full_name, phone, avatar_url, date_of_birth, employer, employer_phone, monthly_income, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, previous_address, about_me')
+        .select('notification_email_enabled, notification_sms_enabled, full_name, phone, avatar_url, date_of_birth, employer, employer_phone, monthly_income, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, previous_address, about_me')
         .eq('id', profile.id)
         .single()
       if (cancelled) return
       setEmailEnabled(data?.notification_email_enabled ?? true)
-      setFullName(data?.full_name ?? '')
-      setPhone(data?.phone ?? '')
+      const loadedSms      = data?.notification_sms_enabled ?? false
+      const loadedFullName = data?.full_name ?? ''
+      const loadedPhone    = formatPhone(data?.phone ?? '') || ''
+      setSmsEnabled(loadedSms)
+      setFullName(loadedFullName)
+      setPhone(loadedPhone)
+      lastSavedProfile.current = { fullName: loadedFullName, phone: loadedPhone, smsEnabled: loadedSms }
+      // Has a submitted application? If so, app-sourced fields lock.
+      const { data: appRow } = await supabase
+        .from('applications')
+        .select('id')
+        .eq('applicant_profile_id', profile.id)
+        .not('submitted_at', 'is', null)
+        .limit(1)
+        .maybeSingle()
+      if (!cancelled) setFromApplication(!!appRow)
       setAvatarUrl(data?.avatar_url ?? null)
-      setBio({
+      const loadedBio: BioForm = {
         date_of_birth: data?.date_of_birth ?? '',
         employer: data?.employer ?? '',
-        employer_phone: data?.employer_phone ?? '',
+        employer_phone: formatPhone(data?.employer_phone ?? '') || data?.employer_phone || '',
         monthly_income: data?.monthly_income != null ? String(data.monthly_income) : '',
         emergency_contact_name: data?.emergency_contact_name ?? '',
-        emergency_contact_phone: data?.emergency_contact_phone ?? '',
+        emergency_contact_phone: formatPhone(data?.emergency_contact_phone ?? '') || data?.emergency_contact_phone || '',
         emergency_contact_relationship: data?.emergency_contact_relationship ?? '',
-        previous_address: data?.previous_address ?? '',
+        previous_address: formatAddress(data?.previous_address ?? ''),
         about_me: data?.about_me ?? '',
-      })
+      }
+      setBio(loadedBio)
+      lastSavedBio.current = loadedBio
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -68,24 +100,37 @@ export default function TenantSettings() {
 
   const saveBio = async () => {
     if (!profile?.id) return
+    // Skip the round-trip when nothing has actually changed since the
+    // last persisted snapshot. Inline compare to avoid TDZ issues with
+    // helpers declared later in the component body.
+    if (lastSavedBio.current) {
+      const prev = lastSavedBio.current
+      const same = (Object.keys(bio) as Array<keyof BioForm>).every((k) => prev[k] === bio[k])
+      if (same) return
+    }
     setSavingBio(true)
+    // Persist raw digits for phone fields, formatted/whitespace-trimmed
+    // for the rest. UI re-applies the (###) ###-#### mask on load.
+    const stripPhone = (s: string) => s.replace(/\D/g, '') || null
     const { error } = await supabase.from('profiles').update({
       date_of_birth: bio.date_of_birth || null,
       employer: bio.employer.trim() || null,
-      employer_phone: bio.employer_phone.trim() || null,
+      employer_phone: stripPhone(bio.employer_phone),
       monthly_income: bio.monthly_income ? Number(bio.monthly_income) : null,
       emergency_contact_name: bio.emergency_contact_name.trim() || null,
-      emergency_contact_phone: bio.emergency_contact_phone.trim() || null,
+      emergency_contact_phone: stripPhone(bio.emergency_contact_phone),
       emergency_contact_relationship: bio.emergency_contact_relationship.trim() || null,
       previous_address: bio.previous_address.trim() || null,
       about_me: bio.about_me.trim() || null,
     }).eq('id', profile.id)
     setSavingBio(false)
-    if (error) toast.error(error.message)
-    else toast.success('Bio saved')
+    if (error) { toast.error(error.message); return }
+    lastSavedBio.current = bio
+    toastSaved()
   }
   const setBioField = (k: keyof BioForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setBio((b) => ({ ...b, [k]: e.target.value }))
+
 
   const persistAvatar = async (url: string | null) => {
     setAvatarUrl(url)
@@ -93,17 +138,64 @@ export default function TenantSettings() {
     await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id)
   }
 
+  // Coalesces multiple rapid saves into a single "Saved" toast. The
+  // 1.5s debounce window catches Profile + Bio saves landing in the
+  // same edit burst (since both auto-save useEffects can fire on the
+  // same field-change), so the user sees one confirmation, not two.
+  const toastSaved = () => {
+    if (toastDebounce.current != null) window.clearTimeout(toastDebounce.current)
+    toastDebounce.current = window.setTimeout(() => {
+      toast.success('Saved', { duration: 2000, icon: '✓' })
+      toastDebounce.current = null
+    }, 200)
+  }
+
   const saveProfile = async () => {
     if (!profile?.id) return
+    // No-op when the local state matches the last-persisted snapshot.
+    if (lastSavedProfile.current
+        && lastSavedProfile.current.fullName  === fullName
+        && lastSavedProfile.current.phone     === phone
+        && lastSavedProfile.current.smsEnabled === smsEnabled) {
+      return
+    }
     setSavingProfile(true)
+    // Strip formatting before persisting — DB stores raw digits; the UI
+    // re-applies the (###) ###-#### mask on display.
+    const cleanPhone = phone.replace(/\D/g, '') || null
     const { error } = await supabase
       .from('profiles')
-      .update({ full_name: fullName.trim(), phone: phone.trim() || null })
+      .update({
+        full_name: fullName.trim(),
+        phone: cleanPhone,
+        // SMS opt-in only makes sense with a phone on file; if the
+        // tenant clears their phone, clear the flag with it.
+        notification_sms_enabled: cleanPhone ? smsEnabled : false,
+      })
       .eq('id', profile.id)
     setSavingProfile(false)
-    if (error) toast.error(error.message)
-    else toast.success('Profile saved')
+    if (error) { toast.error(error.message); return }
+    lastSavedProfile.current = { fullName, phone, smsEnabled }
+    toastSaved()
   }
+
+  // Debounced auto-save for the Profile section (full name / phone /
+  // SMS opt-in). Skips the initial mount load and any save while a
+  // request is already in flight.
+  useEffect(() => {
+    if (loading || !profile?.id) return
+    const t = window.setTimeout(() => { void saveProfile() }, 800)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullName, phone, smsEnabled])
+
+  // Debounced auto-save for the Bio section. Same pattern.
+  useEffect(() => {
+    if (loading || !profile?.id) return
+    const t = window.setTimeout(() => { void saveBio() }, 800)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bio])
 
   const save = async (next: boolean) => {
     if (!profile?.id) return
@@ -156,37 +248,65 @@ export default function TenantSettings() {
           />
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Full name</label>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5 inline-flex items-center gap-1">
+              Full name
+              {fromApplication && <Lock className="w-3 h-3 text-mute" strokeWidth={2} />}
+            </label>
             <input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              disabled={fromApplication}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-mute"
             />
+            {fromApplication && (
+              <p className="text-[11px] text-mute mt-1">From your rental application — contact your landlord to correct.</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Phone</label>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5 inline-flex items-center gap-1">
+              Phone
+              {fromApplication && <Lock className="w-3 h-3 text-mute" strokeWidth={2} />}
+            </label>
             <input
               type="tel"
               value={phone}
+              // Re-format on blur to (###) ###-#### so the value the user
+              // sees always matches what we'll save. Editing leaves the
+              // raw text in place so the cursor doesn't jump.
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="555-555-5555"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              onBlur={() => {
+                const formatted = formatPhone(phone)
+                if (formatted) setPhone(formatted)
+              }}
+              disabled={fromApplication}
+              placeholder="(555) 555-5555"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-mute"
             />
+            {fromApplication && (
+              <p className="text-[11px] text-mute mt-1">From your rental application — contact your landlord to correct.</p>
+            )}
+            {/* SMS opt-in only enables when a phone is on file. Saved
+                alongside the phone number via Save profile. */}
+            <label className="mt-2 flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsEnabled}
+                disabled={!phone.trim()}
+                onChange={(e) => setSmsEnabled(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50"
+              />
+              <span className="text-xs">
+                <span className="font-medium text-ink">Send me text-message reminders</span>
+                <span className="block text-mute mt-0.5">
+                  Rent due, payment failures, and urgent maintenance updates. Standard message rates apply.
+                </span>
+              </span>
+            </label>
           </div>
 
-          <div className="flex justify-end pt-1">
-            <button
-              type="button"
-              onClick={saveProfile}
-              disabled={savingProfile}
-              className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 inline-flex items-center gap-2"
-            >
-              {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
-              Save profile
-            </button>
-          </div>
+          {/* No Save button — changes auto-save with a brief 1s "Saved" toast. */}
         </div>
       </section>
 
@@ -202,14 +322,52 @@ export default function TenantSettings() {
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <BioField label="Date of birth" type="date" value={bio.date_of_birth} onChange={setBioField('date_of_birth')} />
-          <BioField label="Monthly income ($)" type="number" value={bio.monthly_income} onChange={setBioField('monthly_income')} placeholder="5000" />
+          {/* App-sourced — locked when there's a submitted application. */}
+          <BioField
+            label="Date of birth"
+            type="date"
+            value={bio.date_of_birth}
+            onChange={setBioField('date_of_birth')}
+            disabled={fromApplication}
+            helper={fromApplication ? 'From your rental application' : undefined}
+          />
+          <BioField
+            label="Monthly income ($)"
+            type="number"
+            value={bio.monthly_income}
+            onChange={setBioField('monthly_income')}
+            placeholder="5,000"
+            disabled={fromApplication}
+            helper={fromApplication ? `From your rental application — ${formatUsdCents(Number(bio.monthly_income || 0))}` : undefined}
+          />
           <BioField label="Employer" value={bio.employer} onChange={setBioField('employer')} placeholder="Acme Corp" />
-          <BioField label="Employer phone" type="tel" value={bio.employer_phone} onChange={setBioField('employer_phone')} placeholder="555-555-5555" />
+          <BioField
+            label="Employer phone"
+            type="tel"
+            value={bio.employer_phone}
+            onChange={setBioField('employer_phone')}
+            onBlur={() => setBio((b) => ({ ...b, employer_phone: formatPhone(b.employer_phone) || b.employer_phone }))}
+            placeholder="(555) 555-5555"
+          />
           <BioField label="Emergency contact" value={bio.emergency_contact_name} onChange={setBioField('emergency_contact_name')} placeholder="Jane Doe" />
-          <BioField label="Emergency contact phone" type="tel" value={bio.emergency_contact_phone} onChange={setBioField('emergency_contact_phone')} placeholder="555-555-5555" />
+          <BioField
+            label="Emergency contact phone"
+            type="tel"
+            value={bio.emergency_contact_phone}
+            onChange={setBioField('emergency_contact_phone')}
+            onBlur={() => setBio((b) => ({ ...b, emergency_contact_phone: formatPhone(b.emergency_contact_phone) || b.emergency_contact_phone }))}
+            placeholder="(555) 555-5555"
+          />
           <BioField label="Relationship" value={bio.emergency_contact_relationship} onChange={setBioField('emergency_contact_relationship')} placeholder="Sister" />
-          <BioField label="Previous address" value={bio.previous_address} onChange={setBioField('previous_address')} placeholder="123 Oak St, City, ST" />
+          <BioField
+            label="Previous address"
+            value={bio.previous_address}
+            onChange={setBioField('previous_address')}
+            onBlur={() => setBio((b) => ({ ...b, previous_address: formatAddress(b.previous_address) }))}
+            placeholder="123 Oak St, City, ST 12345"
+            disabled={fromApplication}
+            helper={fromApplication ? 'From your rental application' : undefined}
+          />
         </div>
 
         <div className="mt-4">
@@ -223,17 +381,6 @@ export default function TenantSettings() {
           />
         </div>
 
-        <div className="flex justify-end mt-5">
-          <button
-            type="button"
-            onClick={saveBio}
-            disabled={savingBio}
-            className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 inline-flex items-center gap-2"
-          >
-            {savingBio && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save bio
-          </button>
-        </div>
       </section>
 
       {/* Notifications */}
@@ -260,11 +407,8 @@ export default function TenantSettings() {
         </p>
       </section>
 
-      {/* Analytics opt-out */}
-      <AnalyticsOptOut profileId={profile?.id ?? null} initial={!!profile?.analytics_opt_out} />
-
       {/* Account info — read-only for now */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6">
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-4">Account</h2>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
           <div>
@@ -277,6 +421,11 @@ export default function TenantSettings() {
           </div>
         </dl>
       </section>
+
+      {/* Privacy — pinned to the very bottom of the page. It's an
+          infrequent control + data-use disclosure, so the position
+          tells the reader "this is the fine-print area." */}
+      <AnalyticsOptOut profileId={profile?.id ?? null} initial={!!profile?.analytics_opt_out} />
     </div>
   )
 }
@@ -377,25 +526,37 @@ function BioField({
   label,
   value,
   onChange,
+  onBlur,
   type = 'text',
   placeholder,
+  disabled,
+  helper,
 }: {
   label: string
   value: string
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onBlur?: () => void
   type?: string
   placeholder?: string
+  disabled?: boolean
+  helper?: string
 }) {
   return (
     <div>
-      <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">{label}</label>
+      <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5 inline-flex items-center gap-1">
+        {label}
+        {disabled && <Lock className="w-3 h-3 text-mute" strokeWidth={2} />}
+      </label>
       <input
         type={type}
         value={value}
         onChange={onChange}
+        onBlur={onBlur}
         placeholder={placeholder}
-        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        disabled={disabled}
+        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:text-mute"
       />
+      {helper && <p className="text-[11px] text-mute mt-1">{helper}</p>}
     </div>
   )
 }

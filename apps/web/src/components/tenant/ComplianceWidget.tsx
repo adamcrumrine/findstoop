@@ -26,6 +26,7 @@ interface ComplianceRow {
   property_built_before_1978: boolean | null
   lead_disclosure_state: 'not_set' | 'not_required' | 'landlord_pending' | 'tenant_pending' | 'signed'
   fair_housing_state: 'pending' | 'acknowledged'
+  lead_pamphlet_state: 'not_required' | 'pending' | 'acknowledged'
   insurance_required: boolean
   insurance_proof_url: string | null
   insurance_uploaded_at: string | null
@@ -81,18 +82,24 @@ export default function ComplianceWidget({ leaseId }: { leaseId: string }) {
           subtitle="Federal civil-rights protection summary"
           status={row.fair_housing_state === 'acknowledged'
             ? { label: 'Acknowledged', tone: 'ok' }
-            : { label: 'Pending acknowledgment', tone: 'warn' }}
+            : { label: 'View', tone: 'warn' }}
+          complete={row.fair_housing_state === 'acknowledged'}
           to={`/legal/fair-housing-notice?lease=${row.lease_id}`}
         />
 
-        {/* Lead pamphlet — only for pre-1978 */}
+        {/* Lead pamphlet — only for pre-1978. Acknowledged automatically
+            when the tenant opens the page (federal disclosure happens on
+            receipt; opening is receipt). */}
         {row.property_built_before_1978 && (
           <DisclosureRow
             Icon={FileText}
             title="EPA Lead-Paint Pamphlet"
             subtitle='"Protect Your Family From Lead in Your Home"'
-            status={{ label: 'View', tone: 'info' }}
-            to="/legal/lead-paint-pamphlet"
+            status={row.lead_pamphlet_state === 'acknowledged'
+              ? { label: 'Acknowledged', tone: 'ok' }
+              : { label: 'View', tone: 'warn' }}
+            complete={row.lead_pamphlet_state === 'acknowledged'}
+            to={`/legal/lead-paint-pamphlet?lease=${row.lease_id}`}
           />
         )}
 
@@ -108,8 +115,9 @@ export default function ComplianceWidget({ leaseId }: { leaseId: string }) {
               row.lead_disclosure_state === 'signed'           ? { label: 'Signed',           tone: 'ok'   } :
               row.lead_disclosure_state === 'tenant_pending'   ? { label: 'Sign now',         tone: 'warn' } :
               row.lead_disclosure_state === 'landlord_pending' ? { label: 'Landlord pending', tone: 'info' } :
-                                                                  { label: 'Pending',          tone: 'warn' }
+                                                                  { label: 'Sign now',         tone: 'warn' }
             }
+            complete={row.lead_disclosure_state === 'signed'}
             to={`/legal/lead-disclosure/${row.lease_id}`}
           />
         )}
@@ -131,28 +139,46 @@ const TONE_CLS: Record<StatusTone, string> = {
   info: 'bg-blue-50 text-blue-700 border-blue-200',
 }
 
-function DisclosureRow({ Icon, title, subtitle, status, to }: {
+function DisclosureRow({ Icon, title, subtitle, status, complete, to }: {
   Icon: typeof ShieldCheck
   title: string
   subtitle: string
   status: { label: string; tone: StatusTone }
+  // True once the disclosure is acknowledged / signed / completed.
+  // Drives the icon-tile color: amber while pending, green when done.
+  complete: boolean
   to: string
 }) {
+  const iconCls = complete
+    ? 'bg-brand-50 text-brand-700'
+    : 'bg-amber-50 text-amber-700'
   return (
     <Link
       to={to}
       className="flex items-center gap-3 bg-white rounded-xl px-4 py-3.5 border border-gray-100 shadow-sm hover:border-brand-200 transition-colors"
     >
-      <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-700 inline-flex items-center justify-center shrink-0">
+      <div className={`w-10 h-10 rounded-lg inline-flex items-center justify-center shrink-0 ${iconCls}`}>
         <Icon className="w-5 h-5" strokeWidth={1.75} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900">{title}</p>
         <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
       </div>
-      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${TONE_CLS[status.tone]}`}>
-        {status.label}
-      </span>
+      {/* When complete, replace the status pill with a brand-green
+          check icon — pill is verbose, the icon is universal. */}
+      {complete ? (
+        <span
+          className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-50 text-brand-700 shrink-0"
+          aria-label={status.label}
+          title={status.label}
+        >
+          <CheckCircle2 className="w-4 h-4" strokeWidth={2} />
+        </span>
+      ) : (
+        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${TONE_CLS[status.tone]}`}>
+          {status.label}
+        </span>
+      )}
       <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" strokeWidth={1.75} />
     </Link>
   )
@@ -172,6 +198,8 @@ function InsuranceRow({ row, onChange }: { row: ComplianceRow; onChange: () => v
                  row.insurance_state === 'expired'   ? { label: 'Expired — re-upload', tone: 'warn' as const } :
                  row.insurance_state === 'overdue'   ? { label: 'Overdue',          tone: 'warn' as const } :
                                                        { label: `${row.insurance_days_remaining}d left`, tone: 'info' as const }
+  const complete = row.insurance_state === 'uploaded'
+  const iconCls = complete ? 'bg-brand-50 text-brand-700' : 'bg-amber-50 text-amber-700'
 
   const handleFile = async (picked: File | null) => {
     if (!picked) { setFile(null); return }
@@ -230,7 +258,7 @@ function InsuranceRow({ row, onChange }: { row: ComplianceRow; onChange: () => v
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
       >
-        <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-700 inline-flex items-center justify-center shrink-0">
+        <div className={`w-10 h-10 rounded-lg inline-flex items-center justify-center shrink-0 ${iconCls}`}>
           <ShieldCheck className="w-5 h-5" strokeWidth={1.75} />
         </div>
         <div className="flex-1 min-w-0">

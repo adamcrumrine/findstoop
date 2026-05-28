@@ -11,7 +11,10 @@
       "Bash(supabase link:*)",
       "Bash(supabase db:*)",
       "Bash(supabase logs:*)",
-      "Bash(supabase --help)"
+      "Bash(supabase --help)",
+      "Bash(sed -n '100,112p' apps/web/src/pages/shared/InspectionEditor.tsx)",
+      "Bash(sed -n '215,226p' apps/web/src/components/tenant/ComplianceWidget.tsx)",
+      "Bash(sed -n '1405,1418p' apps/web/src/pages/manager/ReviewLease.tsx)"
     ]
   }
 }

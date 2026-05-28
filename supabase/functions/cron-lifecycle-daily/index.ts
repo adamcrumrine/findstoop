@@ -491,6 +491,10 @@ Deno.serve(async (req) => {
             findstoop_tenant_id: row.tenant_id,
             findstoop_autopay: 'true',
           },
+        }, {
+          // Keyed on the payment row id: if the cron re-runs or is redelivered
+          // before initiated_at commits, the same rent row can't be charged twice.
+          idempotencyKey: `autopay:${row.id}`,
         })
         // ACH starts as 'processing'; card as 'succeeded'.
         const next =

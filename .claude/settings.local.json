@@ -14,7 +14,8 @@
       "Bash(supabase --help)",
       "Bash(sed -n '100,112p' apps/web/src/pages/shared/InspectionEditor.tsx)",
       "Bash(sed -n '215,226p' apps/web/src/components/tenant/ComplianceWidget.tsx)",
-      "Bash(sed -n '1405,1418p' apps/web/src/pages/manager/ReviewLease.tsx)"
+      "Bash(sed -n '1405,1418p' apps/web/src/pages/manager/ReviewLease.tsx)",
+      "PowerShell($w = Get-Command winget -ErrorAction SilentlyContinue; if \\($w\\) { \"winget available: $\\($w.Source\\)\" } else { \"no winget\" }; $d = Get-Command docker -ErrorAction SilentlyContinue; if \\($d\\) { \"docker present: $\\($d.Source\\)\" } else { \"docker NOT installed\" }; $wsl = \\(wsl --status 2>&1 | Out-String\\).Trim\\(\\); \"WSL status: $wsl\")"
     ]
   }
 }

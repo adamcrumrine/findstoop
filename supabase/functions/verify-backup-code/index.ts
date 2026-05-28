@@ -3,6 +3,7 @@
 // Codes are stored as SHA-256 hashes; the plain code is hashed server-side for comparison.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { checkRateLimit } from '../_shared/rateLimit.ts'
 
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -38,6 +39,15 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+    }
+
+    // Rate limit backup-code attempts: 8 per 5 minutes per user. Backup codes
+    // are a second factor; without this an attacker holding the password could
+    // brute-force codes online. (Supabase TOTP has its own limits; backup
+    // codes are verified here, so the throttle must live here too.)
+    const underLimit = await checkRateLimit({ key: `verify-backup:${user.id}`, windowSeconds: 300, maxCount: 8 })
+    if (!underLimit) {
+      return new Response(JSON.stringify({ error: 'Too many attempts — wait a few minutes.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // Fetch all unused backup codes for this user

@@ -136,7 +136,12 @@ Deno.serve(async (req) => {
       params.on_behalf_of = connectAccountId
     }
 
-    const paymentIntent = await stripe.paymentIntents.create(params)
+    // Idempotency key keyed on the payment row + method: a double-clicked
+    // "Pay" (or a retry) returns the SAME PaymentIntent instead of creating a
+    // second charge for the same rent row.
+    const paymentIntent = await stripe.paymentIntents.create(params, {
+      idempotencyKey: `rent:${paymentId}:${paymentMethod}`,
+    })
 
     return json({
       clientSecret: paymentIntent.client_secret,

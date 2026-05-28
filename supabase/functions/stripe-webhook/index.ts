@@ -7,6 +7,7 @@
 
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { logApiCall } from '../_shared/logging.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -265,6 +266,17 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown error'
+    // Persist the failure so a broken money-path event is visible in
+    // api_call_log — otherwise it only ever surfaces as a silent Stripe retry.
+    await logApiCall({
+      function_name: 'stripe-webhook',
+      vendor: 'stripe',
+      status_code: 500,
+      reference_id: event.id,
+      user_id: managerId,
+      error_message: msg.slice(0, 500),
+      metadata: { event_type: event.type },
+    })
     return new Response(JSON.stringify({ error: msg }), { status: 500 })
   }
 

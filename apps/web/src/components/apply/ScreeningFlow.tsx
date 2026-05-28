@@ -147,6 +147,10 @@ export default function ScreeningFlow({ applicationId, applicantName, applicantE
           ? supabase.functions.invoke('credit-report-ocr', { body: { orderId } })
           : null,
         requirements.credit   ? supabase.functions.invoke('run-credit-check',   { body: { orderId } }) : null,
+        // ⚠️ INACTIVE: criminal (Checkr) and eviction (LexisNexis) are not live
+        // integrations. The manager UI only offers them as disabled "Coming soon"
+        // tiles, so requirements.criminal/eviction are never true and these never
+        // fire. Left in place so enabling the prefs is all that's needed later.
         requirements.criminal ? supabase.functions.invoke('run-criminal-check', { body: { orderId } }) : null,
         requirements.eviction ? supabase.functions.invoke('run-eviction-check', { body: { orderId } }) : null,
       ].filter(Boolean))

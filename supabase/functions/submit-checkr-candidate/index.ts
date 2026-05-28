@@ -1,3 +1,9 @@
+// ⚠️ INACTIVE (as of 2026-05) — Checkr is NOT a live integration. This is
+// only ever called from ScreeningFlow when require_criminal_check=true, which
+// the manager UI cannot currently enable ("Coming soon" tile), so it never
+// runs. It also requires CHECKR_API_KEY, which is unset in all environments.
+// Kept as scaffolding. NOTE the SSN-handling posture below before reviving.
+//
 // Submit applicant identity to Checkr → receive candidate_id.
 //
 // SECURITY POSTURE: The full SSN is forwarded directly from the applicant's

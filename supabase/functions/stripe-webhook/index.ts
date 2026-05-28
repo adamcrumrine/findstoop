@@ -181,6 +181,23 @@ Deno.serve(async (req) => {
         }
         const update = { status: 'completed', paid_at: new Date().toISOString(), stripe_payment_id: pi.id }
         if (pi.metadata?.findstoop_payment_id) {
+          // Defense in depth: reconcile the charged amount against the row's
+          // rent before marking it paid, so an under-charged PaymentIntent can
+          // never flip a full rent row to "completed". amount_received includes
+          // the card surcharge, so it must be AT LEAST the rent in cents.
+          const { data: row } = await admin
+            .from('payments').select('amount').eq('id', pi.metadata.findstoop_payment_id).single()
+          const expectedRentCents = row ? Math.round(Number(row.amount) * 100) : null
+          if (expectedRentCents !== null && (pi.amount_received ?? 0) < expectedRentCents) {
+            await logApiCall({
+              function_name: 'stripe-webhook', vendor: 'stripe', status_code: 409,
+              reference_id: pi.id,
+              error_message: `amount mismatch: received ${pi.amount_received} < expected rent ${expectedRentCents}`,
+              metadata: { payment_id: pi.metadata.findstoop_payment_id, event_type: event.type },
+            })
+            // Do NOT mark completed — leave the row for manual review.
+            break
+          }
           await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
         } else {
           await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)

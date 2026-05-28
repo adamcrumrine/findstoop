@@ -95,6 +95,9 @@ const PATH_OPTIONS: { id: IncomePath; label: string; kinds: DocKind[]; helper: s
 export default function ScreeningFlow({ applicationId, applicantName, applicantEmail, requirements }: Props) {
   const [step, setStep] = useState<Step>('intro')
   const [orderId, setOrderId] = useState<string | null>(null)
+  // Per-order capability token from start-screening. Required by the OCR /
+  // scoring edge functions, which have no logged-in user to authorize against.
+  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [totalCents, setTotalCents] = useState(computeTotalCents(requirements))
@@ -128,6 +131,7 @@ export default function ScreeningFlow({ applicationId, applicantName, applicantE
       return
     }
     setOrderId(data.orderId)
+    setAccessToken(data.accessToken ?? null)
     setClientSecret(data.clientSecret)
     setTotalCents(data.amount_cents ?? computeTotalCents(requirements))
     setStep('pay')
@@ -139,22 +143,24 @@ export default function ScreeningFlow({ applicationId, applicantName, applicantE
   const finishUploads = async () => {
     if (!orderId) return
     setStep('review')
+    // Capability token gates every OCR/scoring call (the flow is anonymous).
+    const token = accessToken
     try {
       await Promise.all([
-        supabase.functions.invoke('dl-ocr',     { body: { orderId } }),
-        supabase.functions.invoke('income-ocr', { body: { orderId } }),
+        supabase.functions.invoke('dl-ocr',     { body: { orderId, token } }),
+        supabase.functions.invoke('income-ocr', { body: { orderId, token } }),
         requirements.credit_self_disclosed
-          ? supabase.functions.invoke('credit-report-ocr', { body: { orderId } })
+          ? supabase.functions.invoke('credit-report-ocr', { body: { orderId, token } })
           : null,
-        requirements.credit   ? supabase.functions.invoke('run-credit-check',   { body: { orderId } }) : null,
+        requirements.credit   ? supabase.functions.invoke('run-credit-check',   { body: { orderId, token } }) : null,
         // ⚠️ INACTIVE: criminal (Checkr) and eviction (LexisNexis) are not live
         // integrations. The manager UI only offers them as disabled "Coming soon"
         // tiles, so requirements.criminal/eviction are never true and these never
         // fire. Left in place so enabling the prefs is all that's needed later.
-        requirements.criminal ? supabase.functions.invoke('run-criminal-check', { body: { orderId } }) : null,
-        requirements.eviction ? supabase.functions.invoke('run-eviction-check', { body: { orderId } }) : null,
+        requirements.criminal ? supabase.functions.invoke('run-criminal-check', { body: { orderId, token } }) : null,
+        requirements.eviction ? supabase.functions.invoke('run-eviction-check', { body: { orderId, token } }) : null,
       ].filter(Boolean))
-      await supabase.functions.invoke('rentability-score', { body: { orderId } })
+      await supabase.functions.invoke('rentability-score', { body: { orderId, token } })
     } catch {
       // Edge fn failures aren't fatal for the applicant — the manager will
       // see "screening pending" and can reach out. We still mark them done.

@@ -173,3 +173,41 @@ export function trackError(message: string, metadata?: TrackArgs['metadata']): v
     metadata: { message: message.slice(0, 200), ...(metadata ?? {}) },
   })
 }
+
+// ── Global error reporting ─────────────────────────────────────────────────
+// A looping error (e.g. a render error that re-throws every frame) must never
+// flood analytics_events. We log each distinct message at most once per tab,
+// capped at MAX_DISTINCT_ERRORS total.
+const seenErrors = new Set<string>()
+const MAX_DISTINCT_ERRORS = 25
+
+/**
+ * Report a client-side error to analytics_events — deduped and capped so a
+ * runaway error can't flood the table. Safe to call from anywhere; the
+ * underlying track() never throws and never blocks the UI.
+ */
+export function reportError(message: string, metadata?: TrackArgs['metadata']): void {
+  const key = (message || 'Unknown error').slice(0, 200)
+  if (seenErrors.has(key) || seenErrors.size >= MAX_DISTINCT_ERRORS) return
+  seenErrors.add(key)
+  trackError(key, metadata)
+}
+
+/**
+ * Install handlers for uncaught errors and unhandled promise rejections.
+ * Call once at app startup. These catch failures that occur OUTSIDE React's
+ * render tree — async callbacks, event handlers, detached promise chains —
+ * which a React error boundary cannot see. (The boundary covers render path.)
+ */
+export function installGlobalErrorHandlers(): void {
+  if (typeof window === 'undefined') return
+  window.addEventListener('error', (e) => {
+    const where = e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : 'unknown'
+    reportError(e.message || 'Uncaught error', { source: 'window.onerror', where })
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    const reason = (e as PromiseRejectionEvent).reason
+    const msg = reason instanceof Error ? reason.message : String(reason)
+    reportError(msg || 'Unhandled rejection', { source: 'unhandledrejection' })
+  })
+}

@@ -3,6 +3,7 @@
 // Reads the user's phone number from their profiles row.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { checkRateLimit } from '../_shared/rateLimit.ts'
 
 const TWILIO_ACCOUNT_SID    = Deno.env.get('TWILIO_ACCOUNT_SID')!
 const TWILIO_AUTH_TOKEN     = Deno.env.get('TWILIO_AUTH_TOKEN')!
@@ -30,6 +31,14 @@ Deno.serve(async (req) => {
     })
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+
+    // Rate limit OTP sends: 5 per 10 minutes per user. Caps Twilio toll cost
+    // and SMS-bombing of the user's own number. (Twilio Verify also caps, but
+    // this stops the abuse before we pay for the send.)
+    const underLimit = await checkRateLimit({ key: `send-verification:${user.id}`, windowSeconds: 600, maxCount: 5 })
+    if (!underLimit) {
+      return new Response(JSON.stringify({ error: 'Too many code requests — wait a few minutes.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // Get user's phone number from profile
     const { data: profile, error: profileErr } = await supabase

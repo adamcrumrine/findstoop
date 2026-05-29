@@ -22,6 +22,7 @@
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
+import { tokensMatch } from '../_shared/screeningAuth.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const MODEL_OCR = 'claude-haiku-4-5-20251001'
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { orderId } = await req.json() as { orderId?: string }
+    const { orderId, token } = await req.json() as { orderId?: string; token?: string }
     if (!orderId) return json({ error: 'orderId required' }, { status: 400 })
 
     const admin = createClient(
@@ -92,11 +93,12 @@ Deno.serve(async (req) => {
       .from('screening_orders')
       .select(`
         id, application_id, credit_self_pdf_url,
-        dl_extracted, income_extracted
+        dl_extracted, income_extracted, access_token
       `)
       .eq('id', orderId)
       .single()
     if (orderErr || !order) return json({ error: 'Order not found' }, { status: 404 })
+    if (!tokensMatch(token, order.access_token)) return json({ error: 'Forbidden' }, { status: 403 })
     if (!order.credit_self_pdf_url) return json({ error: 'No credit report uploaded' }, { status: 400 })
 
     const { data: app } = await admin

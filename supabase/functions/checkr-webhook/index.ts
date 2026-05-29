@@ -1,3 +1,8 @@
+// ⚠️ INACTIVE (as of 2026-05) — Checkr is NOT a live integration. No Checkr
+// reports are created (see run-criminal-check), so this webhook receives no
+// traffic. It also rejects every request unless CHECKR_WEBHOOK_SECRET is set
+// (it is not in any environment). Kept as scaffolding for future enablement.
+//
 // Checkr webhook receiver — async report status updates.
 //
 // Checkr POSTs here when a report transitions through its lifecycle:

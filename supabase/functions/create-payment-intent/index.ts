@@ -39,22 +39,50 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { amount, leaseId, tenantId, paymentMethod } = await req.json() as {
-      amount: number
-      leaseId: string
-      tenantId: string
+    // SECURITY: the caller must be authenticated, and the charge amount is
+    // derived SERVER-SIDE from the pending payments row — never trusted from
+    // the request body. (Previously `amount`/`leaseId`/`tenantId` were taken
+    // from the client, so a tenant could pay $1 and have full rent recorded.)
+    const { paymentId, paymentMethod } = await req.json() as {
+      paymentId: string
       paymentMethod: 'card' | 'us_bank_account'
     }
 
-    if (!amount || !leaseId || !tenantId || !paymentMethod) {
+    if (!paymentId || !paymentMethod) {
       return json({ error: 'Missing required fields' }, { status: 400 })
     }
+    if (paymentMethod !== 'card' && paymentMethod !== 'us_bank_account') {
+      return json({ error: 'Invalid payment method' }, { status: 400 })
+    }
 
-    // Look up the landlord's tier + Connect status from the lease.
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) return json({ error: 'Unauthorized' }, { status: 401 })
+    const token = authHeader.replace('Bearer ', '')
+
     const admin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
+    const { data: { user }, error: authErr } = await admin.auth.getUser(token)
+    if (authErr || !user) return json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Load the pending payment row and verify the caller owns it. The amount
+    // and lease are taken from THIS row, not the request.
+    const { data: payment, error: payErr } = await admin
+      .from('payments')
+      .select('id, lease_id, tenant_id, amount, status')
+      .eq('id', paymentId)
+      .single()
+    if (payErr || !payment) return json({ error: 'Payment not found' }, { status: 404 })
+    if (payment.tenant_id !== user.id) return json({ error: 'Forbidden' }, { status: 403 })
+    if (payment.status === 'completed') return json({ error: 'Payment already completed' }, { status: 409 })
+
+    const amount = Number(payment.amount)
+    const leaseId = payment.lease_id
+    const tenantId = payment.tenant_id
+    if (!(amount > 0)) return json({ error: 'Invalid payment amount' }, { status: 400 })
+
+    // Look up the landlord's tier + Connect status from the lease.
     const { data: ctxRows } = await admin.rpc('lease_payout_context', { lease_uuid: leaseId })
     const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows
     const connectAccountId: string | null = ctx?.connect_account_id ?? null
@@ -89,6 +117,11 @@ Deno.serve(async (req) => {
         ? `Rent + 3.5% card processing fee`
         : `Rent payment via ACH`,
       metadata: {
+        // findstoop_payment_id lets the webhook flip THIS existing pending row
+        // to completed (it matches on this first). The client no longer inserts
+        // a payment row, which also removes the old duplicate-row bug.
+        findstoop_payment_id: paymentId,
+        findstoop_tenant_id: tenantId,
         leaseId,
         tenantId,
         rentAmount: String(amount),
@@ -103,7 +136,12 @@ Deno.serve(async (req) => {
       params.on_behalf_of = connectAccountId
     }
 
-    const paymentIntent = await stripe.paymentIntents.create(params)
+    // Idempotency key keyed on the payment row + method: a double-clicked
+    // "Pay" (or a retry) returns the SAME PaymentIntent instead of creating a
+    // second charge for the same rent row.
+    const paymentIntent = await stripe.paymentIntents.create(params, {
+      idempotencyKey: `rent:${paymentId}:${paymentMethod}`,
+    })
 
     return json({
       clientSecret: paymentIntent.client_secret,

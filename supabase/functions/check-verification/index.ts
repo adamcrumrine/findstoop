@@ -2,6 +2,7 @@
 // Verifies a Twilio Verify OTP code for the authenticated user.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { checkRateLimit } from '../_shared/rateLimit.ts'
 
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID')!
 const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN')!
@@ -28,6 +29,13 @@ Deno.serve(async (req) => {
     })
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+
+    // Rate limit code checks: 10 per 5 minutes per user — bounds online
+    // guessing of the 6-digit OTP beyond Twilio's own caps.
+    const underLimit = await checkRateLimit({ key: `check-verification:${user.id}`, windowSeconds: 300, maxCount: 10 })
+    if (!underLimit) {
+      return new Response(JSON.stringify({ error: 'Too many attempts — wait a few minutes.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // Get user's phone number
     const { data: profile, error: profileErr } = await supabase

@@ -1,6 +1,11 @@
 // Eviction history pull via LexisNexis Accurint (FCRA-regulated).
 //
-// STATUS: STUB. Awaiting LexisNexis Risk Solutions partner program approval.
+// ⚠️ INACTIVE (as of 2026-05) — STUB ONLY. Awaiting LexisNexis Risk Solutions
+// partner program approval. Eviction screening is a disabled "Coming soon"
+// tile in the manager UI, so require_eviction_check is never true and this is
+// never invoked from ScreeningFlow. The body below writes a clearly-marked
+// `_stub: true` placeholder rather than real court records — do not treat its
+// output as a real eviction result.
 //
 // Production behavior (post-LN approval):
 //   1. Verify addon_eviction_check=true, payment_status=paid

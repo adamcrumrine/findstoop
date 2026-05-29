@@ -22,6 +22,7 @@
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
+import { tokensMatch } from '../_shared/screeningAuth.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const MODEL_OCR = 'claude-haiku-4-5-20251001'
@@ -77,7 +78,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { orderId } = await req.json() as { orderId?: string }
+    const { orderId, token } = await req.json() as { orderId?: string; token?: string }
     if (!orderId) return json({ error: 'orderId required' }, { status: 400 })
 
     const admin = createClient(
@@ -87,10 +88,11 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await admin
       .from('screening_orders')
-      .select('id, application_id, dl_front_url, dl_back_url, dl_selfie_url, addon_selfie_match')
+      .select('id, application_id, dl_front_url, dl_back_url, dl_selfie_url, addon_selfie_match, access_token')
       .eq('id', orderId)
       .single()
     if (orderErr || !order) return json({ error: 'Order not found' }, { status: 404 })
+    if (!tokensMatch(token, order.access_token)) return json({ error: 'Forbidden' }, { status: 403 })
     if (!order.dl_front_url || !order.dl_back_url) {
       return json({ error: 'DL front and back not uploaded yet' }, { status: 400 })
     }

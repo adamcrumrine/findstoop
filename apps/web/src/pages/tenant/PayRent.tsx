@@ -28,13 +28,12 @@ interface CheckoutFormProps {
   chargeAmount: number // what Stripe is actually charging (rent + surcharge if card)
   surcharge: number    // surcharge component (0 for ACH)
   method: PayMethod
-  leaseId: string
   tenantId: string
   onSuccess: () => void
   onCancel: () => void
 }
 
-function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, leaseId, tenantId, onSuccess, onCancel }: CheckoutFormProps) {
+function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, tenantId, onSuccess, onCancel }: CheckoutFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const [processing, setProcessing] = useState(false)
@@ -61,16 +60,10 @@ function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, leaseId, te
     // until the bank settles, then the webhook flips status to completed.
     if (paymentIntent?.status === 'succeeded' || paymentIntent?.status === 'processing') {
       const isAch = paymentIntent.status === 'processing'
-      await supabase.from('payments').insert({
-        lease_id: leaseId,
-        tenant_id: tenantId,
-        amount: rentAmount,
-        type: 'rent',
-        status: isAch ? 'processing' : 'completed',
-        stripe_payment_id: paymentIntent.id,
-        initiated_at: new Date().toISOString(),
-        paid_at: isAch ? null : new Date().toISOString(),
-      })
+      // The Stripe webhook (service role) is the source of truth: it flips the
+      // existing pending rent row to completed/processing after reconciling the
+      // charged amount. The client no longer writes the payments row itself —
+      // that was the path that let a tampered amount be recorded as paid.
       await supabase
         .from('profiles')
         .update({ payment_method_setup_at: new Date().toISOString() })
@@ -294,11 +287,11 @@ export default function TenantPayRent() {
     }
 
     try {
+      // Pass only the payment row id — the edge function derives the amount
+      // server-side from that row and verifies we own it. (Never send amount.)
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: {
-          amount: rentAmount,
-          leaseId: lease.id,
-          tenantId: profile?.id,
+          paymentId: nextPayment.id,
           paymentMethod: method,
         },
       })
@@ -595,7 +588,6 @@ export default function TenantPayRent() {
                   chargeAmount={totalToCharge}
                   surcharge={surcharge}
                   method={method}
-                  leaseId={lease?.id ?? ''}
                   tenantId={profile?.id ?? ''}
                   onSuccess={handleSuccess}
                   onCancel={() => { setClientSecret(null); setPaying(false) }}

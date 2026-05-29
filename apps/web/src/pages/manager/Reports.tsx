@@ -1,5 +1,9 @@
+import { useState } from 'react'
+import { Download, FileText, Loader2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useReports } from '@findstoop/shared/hooks/useReports'
+import { supabase } from '../../lib/supabase'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -21,6 +25,117 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${color ?? 'text-gray-900'}`}>{value}</p>
       {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+// ── Tax center ────────────────────────────────────────────────────────────
+// Year-end exports for the landlord's accountant: a full transactions CSV and
+// an auto-filled Schedule E worksheet (opens as a print/PDF page).
+function csvEscape(v: unknown): string {
+  const s = String(v ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function TaxCenter() {
+  const now = new Date().getFullYear()
+  const years = [now, now - 1, now - 2]
+  const [year, setYear] = useState(now)
+  const [exporting, setExporting] = useState(false)
+
+  const downloadCsv = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      // RLS scopes payments to this manager's properties automatically.
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          amount, type, status, paid_at, due_date, memo,
+          lease:leases!payments_lease_id_fkey(unit:units(unit_number, property:properties(name))),
+          tenant:profiles!payments_tenant_id_fkey(full_name)
+        `)
+        .order('due_date', { ascending: true })
+        .limit(10000)
+      if (error) throw error
+
+      const rows = (data ?? []).filter((p: any) => {
+        const d = p.paid_at ?? p.due_date
+        return d && new Date(d).getFullYear() === year
+      })
+      if (rows.length === 0) {
+        toast.error(`No transactions found for ${year}.`)
+        return
+      }
+
+      const header = ['Date', 'Type', 'Status', 'Amount', 'Property', 'Unit', 'Tenant', 'Memo']
+      const body = rows.map((p: any) => {
+        const lease = Array.isArray(p.lease) ? p.lease[0] : p.lease
+        const unit = lease && (Array.isArray(lease.unit) ? lease.unit[0] : lease.unit)
+        const property = unit && (Array.isArray(unit.property) ? unit.property[0] : unit.property)
+        const tenant = Array.isArray(p.tenant) ? p.tenant[0] : p.tenant
+        return [
+          (p.paid_at ?? p.due_date ?? '').slice(0, 10),
+          String(p.type ?? '').replace(/_/g, ' '),
+          p.status ?? '',
+          Number(p.amount ?? 0).toFixed(2),
+          property?.name ?? '',
+          unit?.unit_number ?? '',
+          tenant?.full_name ?? '',
+          p.memo ?? '',
+        ]
+      })
+      const csv = [header, ...body].map((r) => r.map(csvEscape).join(',')).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `findstoop-transactions-${year}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <SectionHeader title="Tax center" subtitle="Year-end exports for your accountant" />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm text-gray-600">
+          Tax year
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="ml-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={downloadCsv}
+          disabled={exporting}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg disabled:opacity-50"
+        >
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <Download className="w-4 h-4" strokeWidth={1.75} />}
+          Transactions (CSV)
+        </button>
+        <a
+          href={`/manager/tax/schedule-e/${year}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg"
+        >
+          <FileText className="w-4 h-4" strokeWidth={1.75} />
+          Schedule E worksheet
+        </a>
+      </div>
+      <p className="text-xs text-gray-500 mt-3">
+        Income is auto-filled from rent FindStoop recorded as received. Confirm figures with your tax professional.
+      </p>
     </div>
   )
 }
@@ -153,6 +268,9 @@ export default function ManagerReports() {
           sub={`Across ${totalProperties} propert${totalProperties !== 1 ? 'ies' : 'y'}`}
         />
       </div>
+
+      {/* Tax center — year-end CSV + Schedule E worksheet */}
+      <TaxCenter />
 
       {/* Monthly Revenue — bar chart */}
       <ChartCard>

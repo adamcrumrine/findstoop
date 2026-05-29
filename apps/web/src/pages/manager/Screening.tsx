@@ -69,6 +69,26 @@ function scoreColor(score: number | null): string {
   return 'text-red-700 bg-red-50 border-red-200'
 }
 
+// Decision-support helpers. These give the raw score CONTEXT (so "75" isn't a
+// mystery number) and read affordability against the widely-used 3x gross
+// income-to-rent guideline. They present objective signals only — never an
+// approve/deny verdict — to stay clear of FCRA adverse-action + Fair Housing
+// liability. The housing provider makes the call.
+function scoreBand(score: number | null): { label: string; range: string; tone: string } {
+  if (score == null) return { label: 'Not scored yet', range: '', tone: 'text-gray-500' }
+  if (score >= 90) return { label: 'Strong', range: '90–100', tone: 'text-emerald-700' }
+  if (score >= 70) return { label: 'Moderate', range: '70–89', tone: 'text-blue-700' }
+  if (score >= 50) return { label: 'Thin', range: '50–69', tone: 'text-amber-700' }
+  return { label: 'Weak', range: '0–49', tone: 'text-red-700' }
+}
+
+function affordability(ratio: number | null): { label: string; tone: string } {
+  if (ratio == null) return { label: 'Income not provided', tone: 'text-gray-600 bg-gray-50 border-gray-200' }
+  if (ratio >= 3)    return { label: `${ratio.toFixed(1)}× income — at/above the common 3× guideline`, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' }
+  if (ratio >= 2.5)  return { label: `${ratio.toFixed(1)}× income — just under the 3× guideline`, tone: 'text-amber-700 bg-amber-50 border-amber-200' }
+  return { label: `${ratio.toFixed(1)}× income — below the 3× guideline`, tone: 'text-red-700 bg-red-50 border-red-200' }
+}
+
 export default function Screening() {
   const { user } = useAuth()
   const [orders, setOrders] = useState<OrderRow[]>([])
@@ -206,6 +226,10 @@ function OrderCard({ order }: { order: OrderRow }) {
             <p className="text-sm text-ink leading-relaxed mt-2">{order.rentability_summary}</p>
           )}
 
+          {(order.state === 'complete' || order.rentability_score != null) && (
+            <DecisionSupport order={order} />
+          )}
+
           {/* Verification chips */}
           <div className="flex gap-1.5 flex-wrap mt-3">
             <Chip
@@ -248,6 +272,90 @@ function OrderCard({ order }: { order: OrderRow }) {
         </div>
       </div>
     </article>
+  )
+}
+
+// ── Decision support ────────────────────────────────────────────────────
+// Turns the raw signals into a manager-readable summary: what the score means
+// (band + range), affordability vs the 3x guideline, and any concerns worth a
+// closer look. Objective signals only — the manager decides.
+function DecisionSupport({ order }: { order: OrderRow }) {
+  const app = order.application
+  const rent = app?.unit?.rent_amount ?? 0
+  const income = app?.monthly_income ?? null
+  const ratio =
+    (order.rentability_flags?.income_to_rent_ratio as number | undefined) ??
+    (income && rent ? income / rent : null)
+
+  const band = scoreBand(order.rentability_score)
+  const afford = affordability(ratio)
+
+  const idFlags = order.dl_flags ?? {}
+  const incFlags = order.income_flags ?? {}
+  const credit = order.credit_self_extracted as {
+    derogatory_count?: number; collection_count?: number; bankruptcy_count?: number
+  } | null
+
+  const concerns: string[] = []
+  if (idFlags.tamper_suspected) concerns.push('Possible ID document tampering — review the license image')
+  if (idFlags.expired) concerns.push('Driver’s license appears expired')
+  if (idFlags.name_match_app === false) concerns.push('Name on ID does not match the application')
+  if (idFlags.dob_match_app === false) concerns.push('Date of birth on ID does not match the application')
+  if (incFlags.tamper_suspected) concerns.push('Possible income-document tampering — review the uploads')
+  if (incFlags.employer_match_app === false) concerns.push('Employer on pay docs does not match the application')
+  if (incFlags.ytd_math_consistent === false) concerns.push('Year-to-date income math is inconsistent')
+  if (credit?.bankruptcy_count) concerns.push(`${credit.bankruptcy_count} bankruptcy record(s) on the self-provided report`)
+  if (credit?.collection_count) concerns.push(`${credit.collection_count} collection(s) on the self-provided report`)
+  if (credit?.derogatory_count) concerns.push(`${credit.derogatory_count} derogatory mark(s) on the self-provided report`)
+  ;(order.credit_self_authenticity_flags?.flags ?? [])
+    .filter((f) => f.severity === 'high')
+    .forEach((f) => concerns.push(f.message))
+
+  return (
+    <section className="mt-3 rounded-xl border border-gray-200 bg-gray-50/50 p-3.5">
+      <div className="flex items-center gap-1.5 mb-2.5">
+        <ShieldCheck className="w-3.5 h-3.5 text-brand-700" strokeWidth={2} />
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-mute">Decision support</h4>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-2.5 mb-2.5">
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Tenability™ score</p>
+          <p className="text-sm font-semibold text-ink mt-0.5">
+            {order.rentability_score ?? '—'}
+            <span className={`ml-1.5 font-medium ${band.tone}`}>
+              {band.label}{band.range && <span className="text-mute font-normal"> ({band.range})</span>}
+            </span>
+          </p>
+        </div>
+        <div className={`rounded-lg border px-3 py-2 ${afford.tone}`}>
+          <p className="text-[10px] uppercase tracking-wider font-semibold opacity-80">Affordability</p>
+          <p className="text-sm font-semibold mt-0.5">{afford.label}</p>
+        </div>
+      </div>
+
+      {concerns.length > 0 ? (
+        <ul className="space-y-1">
+          {concerns.map((c, i) => (
+            <li key={i} className="flex items-start gap-1.5 text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0 text-amber-600" strokeWidth={2} />
+              <span>{c}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+          <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-600" strokeWidth={2} />
+          No major concerns flagged in the verified signals.
+        </p>
+      )}
+
+      <p className="text-[10px] text-mute leading-relaxed mt-2.5">
+        Objective signals only — not a recommendation to approve or deny. Screening
+        decisions and any adverse action are your responsibility and must comply with
+        FCRA and Fair Housing laws. Apply the same criteria to every applicant.
+      </p>
+    </section>
   )
 }
 

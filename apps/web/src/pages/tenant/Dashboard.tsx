@@ -167,6 +167,15 @@ export default function TenantDashboard() {
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
 
+  // Failed-payment recovery: show a prominent banner when the most recent
+  // payment activity is a failure (autopay decline, or an ACH that bounced
+  // days later and was flipped to 'failed' by the Stripe webhook). Catches
+  // every failure source since it keys off status, not how it failed.
+  const lastAttempt = recentPayments[0]
+  const failedPayment =
+    nextPayment?.status === 'failed' ? nextPayment :
+    lastAttempt?.status === 'failed' ? lastAttempt : null
+
   const daysUntilDue = nextPayment?.due_date
     ? Math.ceil((new Date(nextPayment.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null
@@ -238,6 +247,25 @@ export default function TenantDashboard() {
         <h1 className="text-2xl font-bold text-gray-900">Hi, {firstName}!</h1>
         <p className="text-gray-500 text-sm mt-0.5">Welcome to your home portal.</p>
       </div>
+
+      {/* Failed-payment recovery banner — highest priority after greeting. */}
+      {!loading && failedPayment && (
+        <button
+          onClick={() => navigate('/tenant/pay-rent')}
+          className="w-full bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-red-100 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-5 h-5 text-red-700 shrink-0" strokeWidth={1.75} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-red-900">A recent payment didn't go through</p>
+              <p className="text-xs text-red-700">
+                {formatUsdCents(Number(failedPayment.amount))} couldn't be processed. Update your payment method and try again.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-red-600 shrink-0" strokeWidth={2} />
+        </button>
+      )}
 
       {/* Lease awaiting signature */}
       {!loading && lease && !lease.signed_at && (

@@ -54,7 +54,15 @@ interface OnboardingVars {
   property_count: number
 }
 
-type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars
+interface PaymentFailedVars {
+  first_name: string
+  amount: number
+  property_name: string
+  unit_number: string
+  pay_url: string
+}
+
+type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars
 
 function brandHeader() {
   return `
@@ -93,6 +101,23 @@ function payButton(href: string, label: string) {
 
 // deno-lint-ignore no-explicit-any
 const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) => string }> = {
+  // Sent when an auto-pay charge fails (e.g. card declined, requires 3DS).
+  // Treated as a critical transactional alert — NOT suppressed by the email
+  // preference flag, since a failed rent payment needs the tenant's action.
+  autopay_failed: {
+    subject: (v: PaymentFailedVars) => `Action needed: your auto-pay didn't go through at ${v.property_name}`,
+    html: (v: PaymentFailedVars) => wrapHtml(`
+      <p>Hi ${v.first_name},</p>
+      <p>We tried to process your scheduled rent payment, but it <strong>didn't go through</strong>:</p>
+      <ul style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
+        <li style="margin:4px 0"><strong>Amount:</strong> $${Number(v.amount).toLocaleString()}</li>
+        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+      </ul>
+      <p style="margin-top:16px">This usually means your card was declined, expired, or needs verification. Please update your payment method and make a one-time payment so you don't fall behind.</p>
+      ${payButton(v.pay_url, 'Update payment & pay')}
+      <p style="color:#8E8E93;font-size:13px">If you've already resolved this, you can ignore this email.</p>
+    `),
+  },
   rent_reminder_3d: {
     subject: (v: RentReminderVars) => `Reminder: rent is due in 3 days at ${v.property_name}`,
     html: (v: RentReminderVars) => wrapHtml(`
@@ -446,7 +471,11 @@ Deno.serve(async (req) => {
       .select(`
         id, amount, tenant_id, lease_id, scheduled_for, due_date, type, initiated_at,
         tenant:profiles!payments_tenant_id_fkey(
-          autopay_enabled, payment_complimentary, stripe_customer_id, stripe_default_payment_method_id
+          autopay_enabled, payment_complimentary, stripe_customer_id, stripe_default_payment_method_id,
+          email, full_name
+        ),
+        lease:leases!payments_lease_id_fkey(
+          unit:units(unit_number, property:properties(name))
         )
       `)
       .eq('status', 'pending')
@@ -518,6 +547,28 @@ Deno.serve(async (req) => {
         autopayFailed++
         // eslint-disable-next-line no-console
         console.warn('autopay charge failed', row.id, err instanceof Error ? err.message : err)
+
+        // Tell the tenant — a silent autopay failure means missed rent. This
+        // is a critical transactional alert, so it ignores the email-pref flag.
+        if (tenant?.email) {
+          const lease = Array.isArray((row as any).lease) ? (row as any).lease[0] : (row as any).lease
+          const unit = lease && (Array.isArray(lease.unit) ? lease.unit[0] : lease.unit)
+          const property = unit && (Array.isArray(unit.property) ? unit.property[0] : unit.property)
+          await fireTrigger({
+            triggerKey: 'autopay_failed',
+            userId: row.tenant_id,
+            recipientEmail: tenant.email,
+            // Date-stamped so a retry on a later day can re-alert if it fails again.
+            dedupToken: `autopay_failed:${row.id}:${new Date().toISOString().split('T')[0]}`,
+            templateVars: {
+              first_name: (tenant.full_name?.split(' ')[0]) ?? 'there',
+              amount: Number(row.amount),
+              property_name: property?.name ?? 'your rental',
+              unit_number: unit?.unit_number ?? '',
+              pay_url: `${APP_URL}/tenant/pay-rent`,
+            },
+          })
+        }
       }
     }
   } catch { /* tolerate single-day failures */ }

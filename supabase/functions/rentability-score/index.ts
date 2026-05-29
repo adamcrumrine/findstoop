@@ -22,6 +22,7 @@
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
+import { tokensMatch } from '../_shared/screeningAuth.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const MODEL_SCORE = 'claude-opus-4-7'
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { orderId } = await req.json() as { orderId?: string }
+    const { orderId, token } = await req.json() as { orderId?: string; token?: string }
     if (!orderId) return json({ error: 'orderId required' }, { status: 400 })
 
     const admin = createClient(
@@ -69,11 +70,12 @@ Deno.serve(async (req) => {
       .select(`
         id, application_id, dl_extracted, dl_match_score, dl_flags, income_extracted, income_flags,
         addon_credit_self_disclosed, credit_self_bureau, credit_self_report_date,
-        credit_self_extracted, credit_self_authenticity_score, credit_self_authenticity_flags
+        credit_self_extracted, credit_self_authenticity_score, credit_self_authenticity_flags, access_token
       `)
       .eq('id', orderId)
       .single()
     if (orderErr || !order) return json({ error: 'Order not found' }, { status: 404 })
+    if (!tokensMatch(token, order.access_token)) return json({ error: 'Forbidden' }, { status: 403 })
 
     await admin.from('screening_orders').update({ state: 'scoring' }).eq('id', orderId)
 

@@ -13,6 +13,7 @@
 //   5. Update screening_order.state if all required addons have completed
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { tokensMatch } from '../_shared/screeningAuth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { orderId } = await req.json() as { orderId?: string }
+    const { orderId, token } = await req.json() as { orderId?: string; token?: string }
     if (!orderId) return json({ error: 'orderId required' }, { status: 400 })
 
     const admin = createClient(
@@ -41,10 +42,11 @@ Deno.serve(async (req) => {
 
     const { data: order, error } = await admin
       .from('screening_orders')
-      .select('id, addon_credit_check, payment_status, array_data')
+      .select('id, addon_credit_check, payment_status, array_data, access_token')
       .eq('id', orderId)
       .single()
     if (error || !order) return json({ error: 'Order not found' }, { status: 404 })
+    if (!tokensMatch(token, order.access_token)) return json({ error: 'Forbidden' }, { status: 403 })
     if (!order.addon_credit_check) return json({ error: 'Credit check not part of this order' }, { status: 400 })
     if (order.payment_status !== 'paid') return json({ error: 'Order not paid' }, { status: 400 })
 

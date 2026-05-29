@@ -11,7 +11,8 @@
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS ai_screening_consent_at TIMESTAMPTZ;
 
+-- NOTE: COMMENT ... IS requires a single string literal — Postgres does not
+-- allow `||` concatenation here (it errors with "syntax error at or near ||").
+-- Kept as one literal so the migration applies on a fresh database.
 COMMENT ON COLUMN applications.ai_screening_consent_at IS
-  'Set when the applicant clicks Continue on the pre-qual intro screen. ' ||
-  'Covers AI document OCR, cross-checks, and the rentability scoring for ' ||
-  'BOTH the pre-qual and (if upgraded) the full-report tier. Never re-asked.';
+  'Set when the applicant clicks Continue on the pre-qual intro screen. Covers AI document OCR, cross-checks, and the rentability scoring for BOTH the pre-qual and (if upgraded) the full-report tier. Never re-asked.';

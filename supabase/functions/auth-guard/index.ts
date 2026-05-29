@@ -86,6 +86,25 @@ Deno.serve(async (req) => {
       return json(req, { locked })
     }
 
+    // SECURITY: never trust verifiedUserId. For a "success" report the client
+    // has just authenticated, so the request carries that user's JWT — verify
+    // it and derive the id from the token. An attacker can't mint a victim's
+    // JWT, so they can't register a device / suppress the new-device alert for
+    // someone else (the old code trusted verifiedUserId outright). Failed-login
+    // reports have no session and only touch the email-hash lockout counters.
+    let verifiedUserId: string | null = null
+    if (body.action === 'report' && body.success) {
+      const token = req.headers.get('Authorization')?.replace('Bearer ', '')
+      if (token) {
+        const auth = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        )
+        const { data: { user } } = await auth.auth.getUser(token)
+        verifiedUserId = user?.id ?? null
+      }
+    }
+
     // action === 'report'
     await recordLoginAttempt({
       emailHash,
@@ -93,11 +112,11 @@ Deno.serve(async (req) => {
       userAgent,
       success: !!body.success,
       reason: body.reason,
-      userId: body.user_id,
+      userId: verifiedUserId,
     })
 
-    // On successful sign-in, do device fingerprinting + alert.
-    if (body.success && body.user_id) {
+    // On successful, JWT-verified sign-in, do device fingerprinting + alert.
+    if (body.success && verifiedUserId) {
       const geo = await geoLookup(ip)
       const fingerprint = await deviceFingerprint(userAgent, geo.city ?? '', geo.region ?? '')
 
@@ -109,7 +128,7 @@ Deno.serve(async (req) => {
       const { data: existing } = await admin
         .from('user_devices')
         .select('id, alert_sent_at')
-        .eq('user_id', body.user_id)
+        .eq('user_id', verifiedUserId)
         .eq('fingerprint', fingerprint)
         .maybeSingle()
 
@@ -122,7 +141,7 @@ Deno.serve(async (req) => {
       } else {
         // New device — insert + send alert email
         await admin.from('user_devices').insert({
-          user_id: body.user_id,
+          user_id: verifiedUserId,
           fingerprint,
           user_agent: userAgent.slice(0, 500),
           ip_country: geo.country ?? null,
@@ -136,7 +155,7 @@ Deno.serve(async (req) => {
             const { data: profile } = await admin
               .from('profiles')
               .select('email, full_name')
-              .eq('id', body.user_id)
+              .eq('id', verifiedUserId)
               .single()
 
             if (profile?.email) {
@@ -175,7 +194,7 @@ Deno.serve(async (req) => {
               await admin
                 .from('user_devices')
                 .update({ alert_sent_at: new Date().toISOString() })
-                .eq('user_id', body.user_id)
+                .eq('user_id', verifiedUserId)
                 .eq('fingerprint', fingerprint)
             }
           } catch {

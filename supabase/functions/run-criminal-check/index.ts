@@ -1,3 +1,12 @@
+// ⚠️ INACTIVE (as of 2026-05) — Checkr is NOT a live integration.
+// Criminal screening is surfaced in the manager UI only as a disabled
+// "Coming soon" tile (PropertyDetail.tsx), so require_criminal_check is
+// never set true and this function is never invoked from ScreeningFlow.
+// It also hard-returns 500 unless CHECKR_API_KEY/CHECKR_PACKAGE_SLUG are
+// set (they are not in any environment). Kept as scaffolding for when the
+// Checkr Direct account is provisioned. Do not wire into a live flow
+// without re-reviewing FCRA + adverse-action handling.
+//
 // Create a Checkr report against the candidate created at SSN-submission.
 //
 // Flow:

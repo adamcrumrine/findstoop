@@ -119,12 +119,13 @@ Deno.serve(async (req) => {
     // Reuse an existing awaiting-payment order rather than creating a duplicate.
     const { data: existing } = await admin
       .from('screening_orders')
-      .select('id, stripe_payment_intent_id, state, payment_status')
+      .select('id, stripe_payment_intent_id, state, payment_status, access_token')
       .eq('application_id', applicationId)
       .eq('tier', tier)
       .maybeSingle()
 
     let orderId = existing?.id
+    let accessToken: string | null = existing?.access_token ?? null
     let pi: Stripe.PaymentIntent | null = null
 
     const addonLabels: string[] = []
@@ -191,14 +192,16 @@ Deno.serve(async (req) => {
           fee_cents,
           margin_cents,
           ...addonFields,
-        }).select('id').single()
+        }).select('id, access_token').single()
         if (insErr) throw new Error(insErr.message)
         orderId = inserted.id
+        accessToken = inserted.access_token
       }
     }
 
     return json(req, {
       orderId,
+      accessToken,
       clientSecret: pi.client_secret,
       paymentIntentId: pi.id,
       amount_cents,

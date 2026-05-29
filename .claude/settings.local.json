@@ -11,7 +11,24 @@
       "Bash(supabase link:*)",
       "Bash(supabase db:*)",
       "Bash(supabase logs:*)",
-      "Bash(supabase --help)"
+      "Bash(supabase --help)",
+      "Bash(sed -n '100,112p' apps/web/src/pages/shared/InspectionEditor.tsx)",
+      "Bash(sed -n '215,226p' apps/web/src/components/tenant/ComplianceWidget.tsx)",
+      "Bash(sed -n '1405,1418p' apps/web/src/pages/manager/ReviewLease.tsx)",
+      "PowerShell($w = Get-Command winget -ErrorAction SilentlyContinue; if \\($w\\) { \"winget available: $\\($w.Source\\)\" } else { \"no winget\" }; $d = Get-Command docker -ErrorAction SilentlyContinue; if \\($d\\) { \"docker present: $\\($d.Source\\)\" } else { \"docker NOT installed\" }; $wsl = \\(wsl --status 2>&1 | Out-String\\).Trim\\(\\); \"WSL status: $wsl\")",
+      "Bash(docker --version)",
+      "Bash(docker info *)",
+      "PowerShell(Write-Output \"=== WSL ===\"; \\(wsl --status 2>&1 | Out-String\\).Trim\\(\\); Write-Output \"=== WSL version ===\"; \\(wsl --version 2>&1 | Out-String\\).Trim\\(\\); Write-Output \"=== Docker Desktop process ===\"; $p = Get-Process \"Docker Desktop\" -ErrorAction SilentlyContinue; if \\($p\\) { \"running \\(pid $\\($p.Id\\)\\)\" } else { \"NOT running\" }; Write-Output \"=== Virtualization \\(CPU\\) ===\"; \\(Get-CimInstance Win32_Processor | Select-Object -First 1\\).VirtualizationFirmwareEnabled; Write-Output \"=== Optional features ===\"; Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux,VirtualMachinePlatform 2>$null | Select-Object FeatureName,State | Format-Table -AutoSize | Out-String)",
+      "PowerShell($o = \\(wsl --update --web-download 2>&1 | Out-String\\); $o -replace \"`0\",\"\")",
+      "Bash(supabase start *)",
+      "Bash(docker exec *)",
+      "Bash(xargs grep -l \"notification\")",
+      "Bash(xargs grep -l \"animate-pulse\\\\|Skeleton\\\\|loading\\\\|optimistic\")",
+      "Bash(xargs grep -l \"aria-\\\\|role=\\\\|@media\\\\|lg:\\\\|md:\")",
+      "Bash(xargs grep -l \"inspection\\\\|utility\")",
+      "Bash(xargs grep -l \"useOptimistic\\\\|optimistic\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ]
   }
 }

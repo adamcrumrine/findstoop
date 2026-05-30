@@ -63,11 +63,21 @@ function getLast6Months(): { label: string; year: number; month: number }[] {
   return months
 }
 
+// Bucket a payment into the month it belongs to — its rent PERIOD (due_date),
+// falling back to when it was paid, then when the row was created. Keying off
+// created_at breaks for imported/migrated history (whose rows are all created
+// at import time). Pure date strings are pinned to local midnight so they
+// don't shift a day in behind-UTC timezones.
+function periodOf(p: Payment): Date {
+  const v = String(p.due_date ?? p.paid_at ?? p.created_at)
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + 'T00:00:00') : new Date(v)
+}
+
 function computeMonthlyRevenue(payments: Payment[]): MonthlyRevenue[] {
   const months = getLast6Months()
   return months.map(({ label, year, month }) => {
     const monthPayments = payments.filter((p) => {
-      const d = new Date(p.created_at)
+      const d = periodOf(p)
       return d.getFullYear() === year && d.getMonth() === month
     })
     const collected = monthPayments
@@ -84,7 +94,7 @@ function computeCollectionRates(payments: Payment[]): CollectionRate[] {
   const months = getLast6Months()
   return months.map(({ label, year, month }) => {
     const monthPayments = payments.filter((p) => {
-      const d = new Date(p.created_at)
+      const d = periodOf(p)
       return d.getFullYear() === year && d.getMonth() === month
     })
     const due = monthPayments.reduce((sum, p) => sum + p.amount, 0)

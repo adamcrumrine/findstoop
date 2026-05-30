@@ -30,3 +30,6 @@ supabase/.temp
 
 # Vercel
 .vercel
+
+# Migration data exports (contain tenant PII — never commit)
+scripts/*.csv

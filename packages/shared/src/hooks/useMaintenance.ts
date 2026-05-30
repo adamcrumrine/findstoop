@@ -5,6 +5,7 @@ import {
   createMaintenanceRequest,
   updateMaintenanceStatus,
   uploadMaintenancePhoto,
+  triageMaintenance,
 } from '../api/maintenance'
 import type { MaintenanceRequest, MaintenanceStatus, MaintenancePriority } from '../types/maintenance'
 
@@ -58,7 +59,7 @@ export function useTenantMaintenance(tenantId: string | undefined): UseTenantMai
         const url = await uploadMaintenancePhoto(tid, file)
         imageUrls.push(url)
       }
-      await createMaintenanceRequest({
+      const created = await createMaintenanceRequest({
         unit_id: payload.unit_id,
         tenant_id: tid,
         title: payload.title,
@@ -67,6 +68,9 @@ export function useTenantMaintenance(tenantId: string | undefined): UseTenantMai
         images: imageUrls.length > 0 ? imageUrls : null,
       })
       await load()
+      // Fire AI triage in the background; refresh again when it lands so the
+      // manager (and tenant) see the categorized result. Never blocks submit.
+      triageMaintenance(created.id).then(() => load()).catch(() => {})
     } finally {
       setSubmitting(false)
     }
@@ -83,6 +87,8 @@ interface UseManagerMaintenanceResult {
   error: string | null
   updating: string | null
   updateStatus: (id: string, status: MaintenanceStatus, notes?: string) => Promise<void>
+  triaging: string | null
+  triage: (id: string) => Promise<void>
   reload: () => void
 }
 
@@ -91,6 +97,7 @@ export function useManagerMaintenance(unitIds: string[]): UseManagerMaintenanceR
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [triaging, setTriaging] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -128,5 +135,21 @@ export function useManagerMaintenance(unitIds: string[]): UseManagerMaintenanceR
     }
   }
 
-  return { requests, loading, error, updating, updateStatus, reload: load }
+  const triage = async (id: string) => {
+    setTriaging(id)
+    try {
+      const t = await triageMaintenance(id)
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, ai_category: t.category, ai_suggested_priority: t.priority, ai_summary: t.summary, ai_recommendation: t.recommendation, ai_triaged_at: new Date().toISOString() }
+            : r
+        )
+      )
+    } finally {
+      setTriaging(null)
+    }
+  }
+
+  return { requests, loading, error, updating, updateStatus, triaging, triage, reload: load }
 }

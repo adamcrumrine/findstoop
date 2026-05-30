@@ -67,6 +67,7 @@ const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
 const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
 const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
 const ManagerTaxScheduleE = lazy(() => import('./pages/manager/TaxScheduleE'))
+const ManagerRentRoll     = lazy(() => import('./pages/manager/RentRoll'))
 const AdminFeedback       = lazy(() => import('./pages/admin/Feedback'))
 const AdminDashboard      = lazy(() => import('./pages/admin/Dashboard'))
 const AdminActivity       = lazy(() => import('./pages/admin/Activity'))
@@ -162,6 +163,8 @@ export default function App() {
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
           {/* Annual Schedule E tax worksheet — standalone print page (RLS scopes data). */}
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />
+          {/* Rent roll — standalone print page; ?property=<id> scopes to one property. */}
+          <Route path="/manager/rent-roll" element={<ManagerRentRoll />} />
           {/* Standalone inspection PDF — no sidebar; RLS handles access */}
           <Route path="/inspection-pdf/:id" element={<InspectionPdf />} />
 

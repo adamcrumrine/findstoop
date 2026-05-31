@@ -67,6 +67,7 @@ const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
 const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
 const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
 const ManagerTaxScheduleE = lazy(() => import('./pages/manager/TaxScheduleE'))
+const ManagerRentRoll     = lazy(() => import('./pages/manager/RentRoll'))
 const AdminFeedback       = lazy(() => import('./pages/admin/Feedback'))
 const AdminDashboard      = lazy(() => import('./pages/admin/Dashboard'))
 const AdminActivity       = lazy(() => import('./pages/admin/Activity'))
@@ -83,6 +84,7 @@ const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
 const ManagerDocuments    = lazy(() => import('./pages/manager/Documents'))
 const ManagerReports      = lazy(() => import('./pages/manager/Reports'))
+const ManagerExpenses     = lazy(() => import('./pages/manager/Expenses'))
 const ManagerBilling      = lazy(() => import('./pages/manager/Billing'))
 const ManagerSettings     = lazy(() => import('./pages/manager/Settings'))
 
@@ -161,6 +163,8 @@ export default function App() {
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
           {/* Annual Schedule E tax worksheet — standalone print page (RLS scopes data). */}
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />
+          {/* Rent roll — standalone print page; ?property=<id> scopes to one property. */}
+          <Route path="/manager/rent-roll" element={<ManagerRentRoll />} />
           {/* Standalone inspection PDF — no sidebar; RLS handles access */}
           <Route path="/inspection-pdf/:id" element={<InspectionPdf />} />
 
@@ -222,6 +226,7 @@ export default function App() {
             <Route path="messages"     element={<ManagerMessages />} />
             <Route path="documents"    element={<ManagerDocuments />} />
             <Route path="reports"      element={<ManagerReports />} />
+            <Route path="expenses"     element={<ManagerExpenses />} />
             <Route path="billing"      element={<ManagerBilling />} />
             <Route path="settings"     element={<ManagerSettings />} />
             <Route path="import"       element={<ManagerImport />} />

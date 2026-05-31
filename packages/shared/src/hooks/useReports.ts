@@ -68,12 +68,12 @@ function getLast6Months(): { label: string; year: number; month: number }[] {
 // created_at breaks for imported/migrated history (whose rows are all created
 // at import time). Pure date strings are pinned to local midnight so they
 // don't shift a day in behind-UTC timezones.
-function periodOf(p: Payment): Date {
+export function periodOf(p: Payment): Date {
   const v = String(p.due_date ?? p.paid_at ?? p.created_at)
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + 'T00:00:00') : new Date(v)
 }
 
-function computeMonthlyRevenue(payments: Payment[]): MonthlyRevenue[] {
+export function computeMonthlyRevenue(payments: Payment[]): MonthlyRevenue[] {
   const months = getLast6Months()
   return months.map(({ label, year, month }) => {
     const monthPayments = payments.filter((p) => {
@@ -90,7 +90,7 @@ function computeMonthlyRevenue(payments: Payment[]): MonthlyRevenue[] {
   })
 }
 
-function computeCollectionRates(payments: Payment[]): CollectionRate[] {
+export function computeCollectionRates(payments: Payment[]): CollectionRate[] {
   const months = getLast6Months()
   return months.map(({ label, year, month }) => {
     const monthPayments = payments.filter((p) => {

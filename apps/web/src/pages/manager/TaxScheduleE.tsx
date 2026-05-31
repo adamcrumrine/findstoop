@@ -15,29 +15,23 @@ import { ArrowLeft, Printer, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { getExpenses } from '@findstoop/shared/api/expenses'
+import { EXPENSE_CATEGORY_META } from '@findstoop/shared/types/expense'
+import type { ExpenseCategory } from '@findstoop/shared/types/expense'
+import { categoryTotal } from '../../lib/scheduleE'
 
 interface PropertyRow { id: string; name: string; address: string; city: string; state: string; zip: string }
 type IncomeByType = Record<string, number>
-interface PropertyIncome { property: PropertyRow; rents: number; otherIncome: number; byType: IncomeByType }
+interface PropertyIncome {
+  property: PropertyRow
+  rents: number
+  otherIncome: number
+  byType: IncomeByType
+  expByCat: Partial<Record<ExpenseCategory, number>>
+}
 
-// Schedule E expense lines (Form 1040, Part I, lines 5–19). Worksheet rows.
-const EXPENSE_LINES: { line: number; label: string }[] = [
-  { line: 5,  label: 'Advertising' },
-  { line: 6,  label: 'Auto and travel' },
-  { line: 7,  label: 'Cleaning and maintenance' },
-  { line: 8,  label: 'Commissions' },
-  { line: 9,  label: 'Insurance' },
-  { line: 10, label: 'Legal and other professional fees' },
-  { line: 11, label: 'Management fees' },
-  { line: 12, label: 'Mortgage interest paid to banks, etc.' },
-  { line: 13, label: 'Other interest' },
-  { line: 14, label: 'Repairs' },
-  { line: 15, label: 'Supplies' },
-  { line: 16, label: 'Taxes' },
-  { line: 17, label: 'Utilities' },
-  { line: 18, label: 'Depreciation expense or depletion' },
-  { line: 19, label: 'Other (list)' },
-]
+// Total tracked expenses for a property (Schedule E line 20).
+const totalExpenses = (r: PropertyIncome) => categoryTotal(r.expByCat)
 
 // Payment types that count as rental income (cash basis). pet_deposit excluded
 // (refundable liability). Security deposits aren't a payment type here.
@@ -80,7 +74,7 @@ export default function TaxScheduleE() {
 
         const byProp = new Map<string, PropertyIncome>()
         for (const p of (props ?? []) as PropertyRow[]) {
-          byProp.set(p.id, { property: p, rents: 0, otherIncome: 0, byType: {} })
+          byProp.set(p.id, { property: p, rents: 0, otherIncome: 0, byType: {}, expByCat: {} })
         }
         for (const pay of (pays ?? []) as any[]) {
           const lease = Array.isArray(pay.lease) ? pay.lease[0] : pay.lease
@@ -94,6 +88,16 @@ export default function TaxScheduleE() {
           if (pay.type === 'rent') entry.rents += amt
           else entry.otherIncome += amt
         }
+
+        // Tracked operating expenses for the year, aggregated per property/category.
+        const expenses = await getExpenses([...byProp.keys()], year)
+        if (cancelled) return
+        for (const ex of expenses) {
+          const entry = byProp.get(ex.property_id)
+          if (!entry) continue
+          entry.expByCat[ex.category] = (entry.expByCat[ex.category] ?? 0) + Number(ex.amount)
+        }
+
         setRows([...byProp.values()])
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not build Schedule E')
@@ -133,6 +137,8 @@ export default function TaxScheduleE() {
 
   const grandRents = rows.reduce((s, r) => s + r.rents, 0)
   const grandOther = rows.reduce((s, r) => s + r.otherIncome, 0)
+  const grandExpenses = rows.reduce((s, r) => s + totalExpenses(r), 0)
+  const grandNet = grandRents + grandOther - grandExpenses
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -160,9 +166,10 @@ export default function TaxScheduleE() {
           </div>
 
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 mb-6 text-xs text-amber-900 leading-relaxed">
-            Income below is auto-filled from rent payments FindStoop recorded as <strong>received</strong> in {year}
-            (cash basis; refundable deposits excluded). Expense lines are a worksheet for you or your accountant to
-            complete. This is a convenience worksheet, not tax advice or an official IRS form — confirm figures before filing.
+            Income is auto-filled from rent FindStoop recorded as <strong>received</strong> in {year} (cash basis;
+            refundable deposits excluded). Expense lines are auto-filled from the expenses you logged on the Expenses
+            page — anything you haven't tracked shows blank to fill in. A convenience worksheet, not tax advice or an
+            official IRS form — confirm figures before filing.
           </div>
 
           {chunks.map((chunk, ci) => {
@@ -194,12 +201,22 @@ export default function TaxScheduleE() {
                     <Row label="Income" header />
                     <MoneyRow line={3} label="Rents received" values={chunk.map((r) => r.rents)} cols={cols} bold />
                     <MoneyRow line={4} label="Royalties received" values={chunk.map(() => null)} cols={cols} />
-                    <Row label="Expenses (enter your deductible amounts)" header />
-                    {EXPENSE_LINES.map((e) => (
-                      <MoneyRow key={e.line} line={e.line} label={e.label} values={chunk.map(() => null)} cols={cols} />
+                    <Row label="Expenses (auto-filled from your tracked expenses)" header />
+                    {EXPENSE_CATEGORY_META.map((c) => (
+                      <MoneyRow key={c.line} line={c.line} label={c.label} values={chunk.map((r) => r.expByCat[c.key] ?? null)} cols={cols} />
                     ))}
-                    <MoneyRow line={20} label="Total expenses (add lines 5–19)" values={chunk.map(() => null)} cols={cols} bold />
-                    <MoneyRow line={21} label="Income or (loss) — subtract line 20 from line 3" values={chunk.map(() => null)} cols={cols} bold />
+                    <MoneyRow line={20} label="Total expenses (add lines 5–19)" values={chunk.map((r) => totalExpenses(r) || null)} cols={cols} bold />
+                    <MoneyRow
+                      line={21}
+                      label="Income or (loss) — line 3 + 4 minus line 20"
+                      values={chunk.map((r) => {
+                        const inc = r.rents + r.otherIncome
+                        const exp = totalExpenses(r)
+                        return inc === 0 && exp === 0 ? null : inc - exp
+                      })}
+                      cols={cols}
+                      bold
+                    />
                   </tbody>
                 </table>
 
@@ -221,18 +238,21 @@ export default function TaxScheduleE() {
           {/* Portfolio totals */}
           <div className="mt-6 border-t border-gray-300 pt-4">
             <h2 className="text-sm font-bold mb-2">Portfolio totals — {year}</h2>
-            <div className="grid grid-cols-3 gap-4 text-sm max-w-lg">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm max-w-2xl">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Rents received</p>
-                <p className="font-semibold mt-0.5">{formatUsdCents(grandRents)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Other income</p>
-                <p className="font-semibold mt-0.5">{formatUsdCents(grandOther)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Total received</p>
+                <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Total income</p>
                 <p className="font-semibold mt-0.5">{formatUsdCents(grandRents + grandOther)}</p>
+                <p className="text-[10px] text-mute mt-0.5">Rent {formatUsdCents(grandRents)} · Other {formatUsdCents(grandOther)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Total expenses</p>
+                <p className="font-semibold mt-0.5">{formatUsdCents(grandExpenses)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-mute font-semibold">Net income / (loss)</p>
+                <p className={`font-semibold mt-0.5 ${grandNet < 0 ? 'text-red-700' : 'text-ink'}`}>
+                  {grandNet < 0 ? `(${formatUsdCents(-grandNet)})` : formatUsdCents(grandNet)}
+                </p>
               </div>
             </div>
             <p className="text-[11px] text-mute mt-3">
@@ -275,7 +295,9 @@ function MoneyRow({ line, label, values, cols, bold }: { line: number; label: st
       </td>
       {values.map((v, i) => (
         <td key={i} className="p-2 border border-gray-300 text-right tabular-nums">
-          {v == null ? <span className="text-gray-300">$</span> : formatUsdCents(v)}
+          {v == null ? <span className="text-gray-300">$</span>
+            : v < 0 ? <span className="text-red-700">({formatUsdCents(-v)})</span>
+            : formatUsdCents(v)}
         </td>
       ))}
       {Array.from({ length: 3 - cols }).map((_, i) => (

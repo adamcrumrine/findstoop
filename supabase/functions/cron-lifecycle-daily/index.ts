@@ -62,7 +62,17 @@ interface PaymentFailedVars {
   pay_url: string
 }
 
-type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars
+interface LeaseRenewalVars {
+  first_name: string
+  tenant_name: string
+  property_name: string
+  unit_number: string
+  end_date: string
+  days_left: number
+  url: string
+}
+
+type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars | LeaseRenewalVars
 
 function brandHeader() {
   return `
@@ -81,12 +91,23 @@ function brandFooter() {
   `
 }
 
-function wrapHtml(body: string) {
+// Manager-targeted emails (onboarding, lease-renewal alerts) should not carry
+// the renter footer / tenant-dashboard link.
+function brandFooterManager() {
+  return `
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #eee;color:#8E8E93;font-size:12px;line-height:1.5">
+      <p>You're receiving this because you manage properties on FindStoop.</p>
+      <p>Manage notification preferences in your <a href="${APP_URL}/manager/settings" style="color:#00A896">account settings</a>.</p>
+    </div>
+  `
+}
+
+function wrapHtml(body: string, footer: string = brandFooter()) {
   return `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
       ${brandHeader()}
       ${body}
-      ${brandFooter()}
+      ${footer}
     </div>
   `
 }
@@ -116,6 +137,33 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       <p style="margin-top:16px">This usually means your card was declined, expired, or needs verification. Please update your payment method and make a one-time payment so you don't fall behind.</p>
       ${payButton(v.pay_url, 'Update payment & pay')}
       <p style="color:#8E8E93;font-size:13px">If you've already resolved this, you can ignore this email.</p>
+    `),
+  },
+  // Lease-renewal nudge to the MANAGER (manager footer, links to the lease list).
+  lease_renewal_manager: {
+    subject: (v: LeaseRenewalVars) => `Lease ending in ${v.days_left} days — ${v.tenant_name} at ${v.property_name}`,
+    html: (v: LeaseRenewalVars) => wrapHtml(`
+      <p>Hi ${v.first_name},</p>
+      <p><strong>${v.tenant_name}</strong>'s lease ends in <strong>${v.days_left} days</strong>:</p>
+      <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
+        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Lease ends:</strong> ${v.end_date}</li>
+      </ul>
+      <p style="margin-top:16px">Now's a good time to offer a renewal, adjust the rent, or send a notice to vacate — so you're not scrambling at the last minute.</p>
+      ${payButton(v.url, 'Review the lease')}
+    `, brandFooterManager()),
+  },
+  // Lease-renewal heads-up to the TENANT.
+  lease_renewal_tenant: {
+    subject: (v: LeaseRenewalVars) => `Your lease at ${v.property_name} ends ${v.end_date}`,
+    html: (v: LeaseRenewalVars) => wrapHtml(`
+      <p>Hi ${v.first_name},</p>
+      <p>A friendly heads-up that your lease ends in <strong>${v.days_left} days</strong> (${v.end_date}):</p>
+      <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
+        <li style="margin:4px 0"><strong>Home:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+      </ul>
+      <p style="margin-top:16px">If you'd like to renew, reach out to your property manager — they may be in touch soon with options.</p>
+      ${payButton(v.url, 'Open your dashboard')}
     `),
   },
   rent_reminder_3d: {
@@ -341,6 +389,60 @@ Deno.serve(async (req) => {
       else outcome.failed++
     }
     totals.push(outcome)
+  }
+
+  // ── Lease-renewal nudges: 60d / 30d before lease end ───────────────────
+  // Active leases (not already month-to-month / auto-renewing) ending in the
+  // window. Nudges BOTH the manager (renew / adjust / notice) and the tenant.
+  // Deduped per (trigger_key, lease + days_before).
+  const tally = (o: Outcome, r: 'sent' | 'paused' | 'duplicate' | 'no_template' | 'send_failed') => {
+    if (r === 'sent') o.sent++
+    else if (r === 'duplicate') o.duplicate++
+    else if (r === 'paused') o.paused++
+    else o.failed++
+  }
+  for (const daysBefore of [60, 30] as const) {
+    const { data: rows, error } = await admin.rpc('leases_expiring_for_renewal', { days_before: daysBefore })
+    const mgr: Outcome = { triggerKey: `lease_renewal_manager_${daysBefore}d`, sent: 0, duplicate: 0, paused: 0, failed: 0, skipped: 0 }
+    const ten: Outcome = { triggerKey: `lease_renewal_tenant_${daysBefore}d`, sent: 0, duplicate: 0, paused: 0, failed: 0, skipped: 0 }
+    if (!error) {
+      for (const row of rows ?? []) {
+        const endStr = new Date(row.end_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        if (row.manager_email && row.manager_email_enabled !== false) {
+          tally(mgr, await fireTrigger({
+            triggerKey: 'lease_renewal_manager',
+            userId: row.manager_id,
+            recipientEmail: row.manager_email,
+            dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
+            templateVars: {
+              first_name: (row.manager_name?.split(' ')[0]) ?? 'there',
+              tenant_name: row.tenant_name ?? 'Your tenant',
+              property_name: row.property_name ?? '',
+              unit_number: row.unit_number ?? '',
+              end_date: endStr, days_left: daysBefore,
+              url: `${APP_URL}/manager/leases`,
+            },
+          }))
+        } else mgr.skipped++
+        if (row.tenant_email && row.tenant_email_enabled !== false) {
+          tally(ten, await fireTrigger({
+            triggerKey: 'lease_renewal_tenant',
+            userId: row.tenant_id,
+            recipientEmail: row.tenant_email,
+            dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
+            templateVars: {
+              first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
+              tenant_name: row.tenant_name ?? '',
+              property_name: row.property_name ?? '',
+              unit_number: row.unit_number ?? '',
+              end_date: endStr, days_left: daysBefore,
+              url: `${APP_URL}/tenant/dashboard`,
+            },
+          }))
+        } else ten.skipped++
+      }
+    }
+    totals.push(mgr, ten)
   }
 
   // ── Late-fee assessment ────────────────────────────────────────────────

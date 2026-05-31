@@ -6,7 +6,8 @@ import { formatUsd, formatUsdCents, formatLocalDate } from '@findstoop/shared/li
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
-import { MessageSquare, ChevronRight, FileSignature, Home as HomeIcon, CreditCard, Wrench } from 'lucide-react'
+import type { Lease } from '@findstoop/shared/types/lease'
+import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
@@ -100,6 +101,72 @@ function CardHeader({ title }: { title: string }) {
   return (
     <div className="px-4 py-3 border-b border-gray-100">
       <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">{title}</h2>
+    </div>
+  )
+}
+
+// Onboarding checklist — guides a new tenant through the steps to be fully set
+// up. Computed entirely from the lease + payment flags already loaded, so no
+// extra queries. Hides itself once every REQUIRED step is done (auto-pay is an
+// optional nudge that never keeps the card alive on its own).
+function SetupChecklist({ lease, paymentMethodSetup, autopayEnabled }: {
+  lease: Lease; paymentMethodSetup: boolean; autopayEnabled: boolean
+}) {
+  const navigate = useNavigate()
+  interface Step { key: string; label: string; done: boolean; to: string; required: boolean; show: boolean }
+  const steps: Step[] = [
+    { key: 'sign',     label: 'Sign your lease',             done: !!lease.signed_at, to: `/tenant/sign-lease/${lease.id}`, required: true,  show: true },
+    { key: 'payment',  label: 'Add a payment method',        done: paymentMethodSetup, to: '/tenant/pay-rent',              required: true,  show: true },
+    { key: 'docs',     label: 'Review documents & disclosures', done: false,           to: '/tenant/documents',             required: false, show: true },
+    { key: 'autopay',  label: 'Turn on auto-pay (optional)', done: autopayEnabled,    to: '/tenant/pay-rent',               required: false, show: paymentMethodSetup },
+  ]
+  const shown = steps.filter((s) => s.show)
+  const required = shown.filter((s) => s.required)
+  const requiredDone = required.filter((s) => s.done).length
+  if (requiredDone === required.length) return null // fully set up
+
+  const next = shown.find((s) => !s.done)
+  const pct = Math.round((requiredDone / required.length) * 100)
+
+  return (
+    <div className="bg-white rounded-2xl border border-brand-200 shadow-[0_0_0_4px_rgba(0,168,150,0.06)] overflow-hidden">
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">Get set up</h2>
+          <span className="text-xs font-semibold text-brand-700">{requiredDone} of {required.length}</span>
+        </div>
+        <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <ul className="px-2 pb-2">
+        {shown.map((s) => (
+          <li key={s.key}>
+            <button
+              type="button"
+              onClick={() => !s.done && navigate(s.to)}
+              disabled={s.done}
+              className={`w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-left ${s.done ? 'cursor-default' : 'hover:bg-gray-50'}`}
+            >
+              {s.done
+                ? <CheckCircle2 className="w-5 h-5 text-brand-600 shrink-0" strokeWidth={2} />
+                : <Circle className="w-5 h-5 text-gray-300 shrink-0" strokeWidth={2} />}
+              <span className={`flex-1 text-sm ${s.done ? 'text-mute line-through' : 'text-ink font-medium'}`}>{s.label}</span>
+              {!s.done && <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" strokeWidth={2} />}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {next && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={() => navigate(next.to)}
+            className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
+          >
+            {next.label.replace(' (optional)', '')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -267,21 +334,10 @@ export default function TenantDashboard() {
         </button>
       )}
 
-      {/* Lease awaiting signature */}
-      {!loading && lease && !lease.signed_at && (
-        <button
-          onClick={() => navigate(`/tenant/sign-lease/${lease.id}`)}
-          className="w-full bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-amber-100 transition-colors text-left"
-        >
-          <div className="flex items-center gap-3">
-            <FileSignature className="w-5 h-5 text-amber-700" strokeWidth={1.75} />
-            <div>
-              <p className="text-sm font-semibold text-amber-900">Your lease is ready to sign</p>
-              <p className="text-xs text-amber-700">Review the terms and add your signature.</p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-amber-600" strokeWidth={2} />
-        </button>
+      {/* Onboarding checklist — sign lease, disclosures, payment, insurance, autopay.
+          Hides itself once all required steps are done. */}
+      {!loading && lease && (
+        <SetupChecklist lease={lease} paymentMethodSetup={paymentMethodSetup} autopayEnabled={autopayEnabled} />
       )}
 
       {/* Rent CTA card */}

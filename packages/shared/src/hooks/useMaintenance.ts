@@ -86,7 +86,7 @@ interface UseManagerMaintenanceResult {
   loading: boolean
   error: string | null
   updating: string | null
-  updateStatus: (id: string, status: MaintenanceStatus, notes?: string) => Promise<void>
+  updateStatus: (id: string, status: MaintenanceStatus, notes?: string, extra?: { cost?: number | null; vendor?: string | null; expense_id?: string | null }) => Promise<void>
   triaging: string | null
   triage: (id: string) => Promise<void>
   reload: () => void
@@ -114,10 +114,13 @@ export function useManagerMaintenance(unitIds: string[]): UseManagerMaintenanceR
 
   useEffect(() => { load() }, [load])
 
-  const updateStatus = async (id: string, status: MaintenanceStatus, notes?: string) => {
+  const updateStatus = async (
+    id: string, status: MaintenanceStatus, notes?: string,
+    extra?: { cost?: number | null; vendor?: string | null; expense_id?: string | null }
+  ) => {
     setUpdating(id)
     try {
-      await updateMaintenanceStatus(id, status, notes)
+      await updateMaintenanceStatus(id, status, notes, extra)
       setRequests((prev) =>
         prev.map((r) =>
           r.id === id
@@ -126,6 +129,9 @@ export function useManagerMaintenance(unitIds: string[]): UseManagerMaintenanceR
                 status,
                 manager_notes: notes ?? r.manager_notes,
                 resolved_at: (status === 'resolved' || status === 'closed') ? new Date().toISOString() : r.resolved_at,
+                cost: extra?.cost !== undefined ? extra.cost : r.cost,
+                vendor: extra?.vendor !== undefined ? extra.vendor : r.vendor,
+                expense_id: extra?.expense_id !== undefined ? extra.expense_id : r.expense_id,
               }
             : r
         )

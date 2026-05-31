@@ -48,13 +48,17 @@ export async function createMaintenanceRequest(
 export async function updateMaintenanceStatus(
   id: string,
   status: MaintenanceStatus,
-  manager_notes?: string
+  manager_notes?: string,
+  extra?: { cost?: number | null; vendor?: string | null; expense_id?: string | null }
 ): Promise<void> {
   const updates: Partial<MaintenanceRequest> = { status }
   if (status === 'resolved' || status === 'closed') {
     updates.resolved_at = new Date().toISOString()
   }
   if (manager_notes !== undefined) updates.manager_notes = manager_notes
+  if (extra?.cost !== undefined) updates.cost = extra.cost
+  if (extra?.vendor !== undefined) updates.vendor = extra.vendor
+  if (extra?.expense_id !== undefined) updates.expense_id = extra.expense_id
   const { error } = await supabase.from('maintenance_requests').update(updates).eq('id', id)
   if (error) throw new Error(error.message)
 }

@@ -3,6 +3,8 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useManagerMaintenance } from '@findstoop/shared/hooks/useMaintenance'
+import { createExpense } from '@findstoop/shared/api/expenses'
+import { formatUsdCents } from '@findstoop/shared/lib/format'
 import Modal from '../../components/shared/Modal'
 import FormField, { selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
@@ -90,18 +92,46 @@ export default function ManagerMaintenance() {
   // Update modal state
   const [newStatus, setNewStatus] = useState<MaintenanceStatus>('open')
   const [notes, setNotes] = useState('')
+  const [cost, setCost] = useState('')
+  const [vendor, setVendor] = useState('')
+  const [logExpense, setLogExpense] = useState(true)
 
   const openDetail = (req: (typeof requests)[0]) => {
     setSelectedRequest(req)
     setNewStatus(req.status)
     setNotes(req.manager_notes ?? '')
+    setCost(req.cost != null ? String(req.cost) : '')
+    setVendor(req.vendor ?? '')
+    setLogExpense(!req.expense_id) // default to logging unless already logged
   }
 
   const handleUpdate = async () => {
     if (!selectedRequest) return
+    const costNum = cost.trim() ? Number(cost) : null
+    if (costNum != null && !(costNum >= 0)) { toast.error('Enter a valid cost'); return }
     try {
-      await updateStatus(selectedRequest.id, newStatus, notes || undefined)
-      toast.success('Request updated')
+      // Optionally log the cost as a Repairs expense on the property (once).
+      let expenseId: string | null | undefined
+      if (costNum && costNum > 0 && logExpense && !selectedRequest.expense_id) {
+        const propertyId = unitMap[selectedRequest.unit_id]?.property_id
+        if (propertyId) {
+          const exp = await createExpense({
+            property_id: propertyId,
+            category: 'repairs',
+            amount: costNum,
+            expense_date: new Date().toISOString().slice(0, 10),
+            vendor: vendor.trim() || null,
+            note: `Maintenance: ${selectedRequest.title}`,
+          })
+          expenseId = exp.id
+        }
+      }
+      await updateStatus(selectedRequest.id, newStatus, notes || undefined, {
+        cost: costNum,
+        vendor: vendor.trim() || null,
+        ...(expenseId !== undefined ? { expense_id: expenseId } : {}),
+      })
+      toast.success(expenseId ? 'Updated · expense logged' : 'Request updated')
       setSelectedRequest(null)
     } catch (err) {
       toast.error((err as Error).message)
@@ -489,6 +519,35 @@ export default function ManagerMaintenance() {
                   placeholder="Add a note visible to the tenant…"
                 />
               </FormField>
+
+              {/* Cost capture → optional Repairs expense */}
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Cost (optional)">
+                  <input
+                    type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={cost} onChange={(e) => setCost(e.target.value)}
+                  />
+                </FormField>
+                <FormField label="Vendor (optional)">
+                  <input
+                    type="text" placeholder="e.g. ABC Plumbing"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={vendor} onChange={(e) => setVendor(e.target.value)}
+                  />
+                </FormField>
+              </div>
+              {selectedRequest.expense_id ? (
+                <p className="text-xs text-emerald-700">✓ Logged as a Repairs expense.</p>
+              ) : cost.trim() && Number(cost) > 0 ? (
+                <label className="flex items-start gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox" checked={logExpense} onChange={(e) => setLogExpense(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>Log {formatUsdCents(Number(cost))} as a <strong>Repairs</strong> expense on this property — flows into Expenses &amp; Schedule E.</span>
+                </label>
+              ) : null}
             </div>
 
             <div className="flex gap-3">

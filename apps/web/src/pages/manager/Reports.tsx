@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { Download, Wallet } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useReports } from '@findstoop/shared/hooks/useReports'
 import {
@@ -132,12 +132,20 @@ export default function ManagerReports() {
           <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
           <p className="text-sm text-gray-500 mt-0.5">Year-to-date performance overview</p>
         </div>
-        <Link
-          to="/manager/download-center"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 px-3 py-2 rounded-lg shrink-0"
-        >
-          <Download className="w-4 h-4" strokeWidth={1.75} /> Download center
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/manager/expenses"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-ink border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg"
+          >
+            <Wallet className="w-4 h-4" strokeWidth={1.75} /> Expenses
+          </Link>
+          <Link
+            to="/manager/download-center"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 px-3 py-2 rounded-lg"
+          >
+            <Download className="w-4 h-4" strokeWidth={1.75} /> Download center
+          </Link>
+        </div>
       </div>
 
       {/* KPI row */}

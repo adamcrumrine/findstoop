@@ -48,15 +48,35 @@ export async function createMaintenanceRequest(
 export async function updateMaintenanceStatus(
   id: string,
   status: MaintenanceStatus,
-  manager_notes?: string
+  manager_notes?: string,
+  extra?: { cost?: number | null; vendor?: string | null; expense_id?: string | null }
 ): Promise<void> {
   const updates: Partial<MaintenanceRequest> = { status }
   if (status === 'resolved' || status === 'closed') {
     updates.resolved_at = new Date().toISOString()
   }
   if (manager_notes !== undefined) updates.manager_notes = manager_notes
+  if (extra?.cost !== undefined) updates.cost = extra.cost
+  if (extra?.vendor !== undefined) updates.vendor = extra.vendor
+  if (extra?.expense_id !== undefined) updates.expense_id = extra.expense_id
   const { error } = await supabase.from('maintenance_requests').update(updates).eq('id', id)
   if (error) throw new Error(error.message)
+}
+
+export interface TriageResult {
+  category: string | null
+  priority: MaintenanceRequest['ai_suggested_priority']
+  summary: string | null
+  recommendation: string | null
+}
+
+// Runs AI triage on a request via the edge function. Returns the triage so the
+// caller can patch state immediately. Best-effort — callers may ignore errors.
+export async function triageMaintenance(requestId: string): Promise<TriageResult> {
+  const { data, error } = await supabase.functions.invoke('triage-maintenance', { body: { requestId } })
+  if (error) throw new Error(error.message)
+  if (data?.error) throw new Error(data.error)
+  return data.triage as TriageResult
 }
 
 export async function uploadMaintenancePhoto(tenantId: string, file: File): Promise<string> {

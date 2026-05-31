@@ -3,13 +3,15 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useManagerMaintenance } from '@findstoop/shared/hooks/useMaintenance'
+import { createExpense } from '@findstoop/shared/api/expenses'
+import { formatUsdCents } from '@findstoop/shared/lib/format'
 import Modal from '../../components/shared/Modal'
 import FormField, { selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
 import {
   Wrench, AlertTriangle, Clock, CheckCircle2, ImageIcon, Search,
-  Building2,
+  Building2, Sparkles, Loader2,
 } from 'lucide-react'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
@@ -47,6 +49,13 @@ const PRIORITY_ORDER: Record<MaintenancePriority, number> = {
   low: 3,
 }
 
+const CATEGORY_LABEL: Record<string, string> = {
+  plumbing: 'Plumbing', electrical: 'Electrical', hvac: 'HVAC', appliance: 'Appliance',
+  structural: 'Structural', pest: 'Pest', locks_security: 'Locks & security',
+  landscaping: 'Landscaping', general: 'General',
+}
+const catLabel = (c: string | null) => (c ? CATEGORY_LABEL[c] ?? c : '')
+
 function Skeleton() {
   return (
     <div className="space-y-3">
@@ -70,7 +79,7 @@ export default function ManagerMaintenance() {
   const propertyIds = properties.map((p) => p.id)
   const { units, loading: unitsLoading } = useUnits(propertyIds)
   const unitIds = units.map((u) => u.id)
-  const { requests, loading: reqLoading, updating, updateStatus } = useManagerMaintenance(unitIds)
+  const { requests, loading: reqLoading, updating, updateStatus, triaging, triage } = useManagerMaintenance(unitIds)
 
   const loading = propsLoading || unitsLoading || reqLoading
 
@@ -83,23 +92,63 @@ export default function ManagerMaintenance() {
   // Update modal state
   const [newStatus, setNewStatus] = useState<MaintenanceStatus>('open')
   const [notes, setNotes] = useState('')
+  const [cost, setCost] = useState('')
+  const [vendor, setVendor] = useState('')
+  const [logExpense, setLogExpense] = useState(true)
 
   const openDetail = (req: (typeof requests)[0]) => {
     setSelectedRequest(req)
     setNewStatus(req.status)
     setNotes(req.manager_notes ?? '')
+    setCost(req.cost != null ? String(req.cost) : '')
+    setVendor(req.vendor ?? '')
+    setLogExpense(!req.expense_id) // default to logging unless already logged
   }
 
   const handleUpdate = async () => {
     if (!selectedRequest) return
+    const costNum = cost.trim() ? Number(cost) : null
+    if (costNum != null && !(costNum >= 0)) { toast.error('Enter a valid cost'); return }
     try {
-      await updateStatus(selectedRequest.id, newStatus, notes || undefined)
-      toast.success('Request updated')
+      // Optionally log the cost as a Repairs expense on the property (once).
+      let expenseId: string | null | undefined
+      if (costNum && costNum > 0 && logExpense && !selectedRequest.expense_id) {
+        const propertyId = unitMap[selectedRequest.unit_id]?.property_id
+        if (propertyId) {
+          const exp = await createExpense({
+            property_id: propertyId,
+            category: 'repairs',
+            amount: costNum,
+            expense_date: new Date().toISOString().slice(0, 10),
+            vendor: vendor.trim() || null,
+            note: `Maintenance: ${selectedRequest.title}`,
+          })
+          expenseId = exp.id
+        }
+      }
+      await updateStatus(selectedRequest.id, newStatus, notes || undefined, {
+        cost: costNum,
+        vendor: vendor.trim() || null,
+        ...(expenseId !== undefined ? { expense_id: expenseId } : {}),
+      })
+      toast.success(expenseId ? 'Updated · expense logged' : 'Request updated')
       setSelectedRequest(null)
     } catch (err) {
       toast.error((err as Error).message)
     }
   }
+
+  const handleTriage = async (id: string) => {
+    try {
+      await triage(id)
+      toast.success('AI triage complete')
+    } catch (err) {
+      toast.error((err as Error).message)
+    }
+  }
+
+  // Live reference so the detail modal reflects a just-run triage.
+  const sel = selectedRequest ? (requests.find((r) => r.id === selectedRequest.id) ?? selectedRequest) : null
 
   // Lookup helpers — memoized so we don't rebuild on every render
   const unitMap     = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
@@ -330,6 +379,12 @@ export default function ManagerMaintenance() {
                           {req.images.length}
                         </span>
                       )}
+                      {req.ai_category && (
+                        <span className="inline-flex items-center gap-1 text-brand-700">
+                          <Sparkles className="w-3 h-3" strokeWidth={2} />
+                          {catLabel(req.ai_category)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5 items-end shrink-0">
@@ -386,6 +441,60 @@ export default function ManagerMaintenance() {
               </div>
             )}
 
+            {/* AI triage */}
+            {sel && (
+              <div className="rounded-lg border border-brand-200 bg-brand-50/40 p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold text-brand-800 inline-flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" strokeWidth={2} /> AI triage
+                  </p>
+                  {sel.ai_triaged_at && (
+                    <button
+                      type="button" onClick={() => handleTriage(sel.id)} disabled={triaging === sel.id}
+                      className="text-[11px] font-medium text-brand-700 hover:text-brand-800 disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      {triaging === sel.id && <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />} Re-run
+                    </button>
+                  )}
+                </div>
+                {sel.ai_triaged_at ? (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {sel.ai_category && (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-brand-200 text-brand-800">
+                          {catLabel(sel.ai_category)}
+                        </span>
+                      )}
+                      {sel.ai_suggested_priority && (
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize border ${PRIORITY_BADGE[sel.ai_suggested_priority]}`}>
+                          Suggests {PRIORITY_LABEL[sel.ai_suggested_priority]}
+                        </span>
+                      )}
+                      {sel.ai_suggested_priority && sel.ai_suggested_priority !== sel.priority && (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 border border-amber-200 text-amber-800">
+                          differs from current ({PRIORITY_LABEL[sel.priority]})
+                        </span>
+                      )}
+                    </div>
+                    {sel.ai_summary && <p className="text-sm text-ink">{sel.ai_summary}</p>}
+                    {sel.ai_recommendation && <p className="text-xs text-mute leading-relaxed">{sel.ai_recommendation}</p>}
+                    <p className="text-[10px] text-mute">AI-generated guidance — advisory only.</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-mute">Not triaged yet.</p>
+                    <button
+                      type="button" onClick={() => handleTriage(sel.id)} disabled={triaging === sel.id}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg disabled:opacity-50"
+                    >
+                      {triaging === sel.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} /> : <Sparkles className="w-3.5 h-3.5" strokeWidth={2} />}
+                      Run AI triage
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="border-t border-gray-100 pt-4 space-y-3">
               <p className="text-sm font-semibold text-gray-800">Update request</p>
 
@@ -410,6 +519,35 @@ export default function ManagerMaintenance() {
                   placeholder="Add a note visible to the tenant…"
                 />
               </FormField>
+
+              {/* Cost capture → optional Repairs expense */}
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Cost (optional)">
+                  <input
+                    type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={cost} onChange={(e) => setCost(e.target.value)}
+                  />
+                </FormField>
+                <FormField label="Vendor (optional)">
+                  <input
+                    type="text" placeholder="e.g. ABC Plumbing"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={vendor} onChange={(e) => setVendor(e.target.value)}
+                  />
+                </FormField>
+              </div>
+              {selectedRequest.expense_id ? (
+                <p className="text-xs text-emerald-700">✓ Logged as a Repairs expense.</p>
+              ) : cost.trim() && Number(cost) > 0 ? (
+                <label className="flex items-start gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox" checked={logExpense} onChange={(e) => setLogExpense(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>Log {formatUsdCents(Number(cost))} as a <strong>Repairs</strong> expense on this property — flows into Expenses &amp; Schedule E.</span>
+                </label>
+              ) : null}
             </div>
 
             <div className="flex gap-3">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Trash2, FileText, Loader2, Wallet } from 'lucide-react'
+import { Plus, Trash2, FileText, Loader2, Wallet, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getProperties } from '@findstoop/shared/api/properties'
 import { getExpenses, createExpense, deleteExpense } from '@findstoop/shared/api/expenses'
@@ -93,6 +93,9 @@ export default function Expenses() {
     <div className="max-w-4xl space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
+          <Link to="/manager/reports" className="inline-flex items-center gap-1.5 text-sm text-mute hover:text-ink mb-2">
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Back to Reports
+          </Link>
           <h1 className="text-2xl font-semibold text-ink flex items-center gap-2">
             <Wallet className="w-6 h-6 text-brand-600" strokeWidth={1.75} /> Expenses
           </h1>

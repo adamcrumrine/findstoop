@@ -85,6 +85,7 @@ const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
 const ManagerDocuments    = lazy(() => import('./pages/manager/Documents'))
 const ManagerReports      = lazy(() => import('./pages/manager/Reports'))
 const ManagerExpenses     = lazy(() => import('./pages/manager/Expenses'))
+const ManagerDownloadCenter = lazy(() => import('./pages/manager/DownloadCenter'))
 const ManagerBilling      = lazy(() => import('./pages/manager/Billing'))
 const ManagerSettings     = lazy(() => import('./pages/manager/Settings'))
 
@@ -226,6 +227,7 @@ export default function App() {
             <Route path="messages"     element={<ManagerMessages />} />
             <Route path="documents"    element={<ManagerDocuments />} />
             <Route path="reports"      element={<ManagerReports />} />
+            <Route path="download-center" element={<ManagerDownloadCenter />} />
             <Route path="expenses"     element={<ManagerExpenses />} />
             <Route path="billing"      element={<ManagerBilling />} />
             <Route path="settings"     element={<ManagerSettings />} />

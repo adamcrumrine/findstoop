@@ -8,6 +8,7 @@ import { usePayments } from '@findstoop/shared/hooks/usePayments'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
+import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
 import type { Payment, PaymentType, PaymentStatus } from '@findstoop/shared/types/payment'
 import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import Modal from '../../components/shared/Modal'
@@ -602,6 +603,9 @@ export default function ManagerPayments() {
           </div>
         </div>
       )}
+
+      {/* Late-rent series prompts — one per lease with overdue rent (5+ days). */}
+      {!loading && <LatePaymentBanner payments={payments} leases={leases} units={units} />}
 
       {/* Filters */}
       {!loading && payments.length > 0 && (

@@ -721,6 +721,49 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   const unitMap = Object.fromEntries(units.map((u) => [u.id, u]))
   const leaseMap = Object.fromEntries(leases.map((l) => [l.id, l]))
 
+  // Rent is split across every primary tenant — each row is billed to its OWN
+  // primary (payment.tenant_id), not the lease's single legacy primary. Resolve
+  // names per payment, otherwise a 4-way split shows the same name four times.
+  const [tenantNameById, setTenantNameById] = useState<Record<string, string>>({})
+  const payerTenantIds = useMemo(
+    () => Array.from(new Set(payments.map((p) => p.tenant_id).filter(Boolean))),
+    [payments],
+  )
+  const payerKey = payerTenantIds.join(',')
+  useEffect(() => {
+    if (payerTenantIds.length === 0) { setTenantNameById({}); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name, email').in('id', payerTenantIds)
+      if (cancelled) return
+      const map: Record<string, string> = {}
+      for (const r of (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
+        map[r.id] = r.full_name ?? r.email ?? '—'
+      }
+      setTenantNameById(map)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payerKey])
+
+  const payerName = (p: { tenant_id: string; lease_id: string }) =>
+    tenantNameById[p.tenant_id]
+      ?? leaseMap[p.lease_id]?.profile?.full_name
+      ?? leaseMap[p.lease_id]?.profile?.email
+      ?? '—'
+
+  // Distinct primaries each lease's rent is split across (for the "+N" hint).
+  const splitCountByLease = useMemo(() => {
+    const sets: Record<string, Set<string>> = {}
+    for (const p of payments) {
+      if (p.type !== 'rent') continue
+      ;(sets[p.lease_id] ??= new Set()).add(p.tenant_id)
+    }
+    const out: Record<string, number> = {}
+    for (const k of Object.keys(sets)) out[k] = sets[k].size
+    return out
+  }, [payments])
+
   // Same buckets the Payments page + Dashboard use. Sorted by paymentAnchor()
   // ascending for upcoming (next due first) and descending for completed.
   const upcoming = payments
@@ -751,6 +794,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
             {leases.map((l) => {
               const unit = unitMap[l.unit_id]
               const tenantName = l.profile?.full_name ?? l.profile?.email ?? 'Tenant'
+              const splitExtra = (splitCountByLease[l.id] ?? 1) - 1
               const dueDay = (l as any).payment_due_day ?? 1
               const generated = (l as any).payment_schedule_generated_at != null
               return (
@@ -765,6 +809,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                           {tenantName}
                         </Link>
                       ) : tenantName}
+                      {splitExtra > 0 && <span className="text-mute font-normal"> +{splitExtra}</span>}
                       <span className="text-mute font-normal"> · Unit {unit?.unit_number ?? '—'}</span>
                     </p>
                     <Link
@@ -810,7 +855,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                 <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-ink truncate">{l?.profile?.full_name ?? l?.profile?.email ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
+                      <p className="text-ink truncate">{payerName(p)} · Unit {unit?.unit_number ?? '—'}</p>
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
                         {status.label}
                       </span>
@@ -846,7 +891,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                 <div key={p.id} className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-ink truncate">{l?.profile?.full_name ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
+                      <p className="text-ink truncate">{payerName(p)} · Unit {unit?.unit_number ?? '—'}</p>
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
                         {status.label}
                       </span>

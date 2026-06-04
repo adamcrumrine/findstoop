@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
+import { getPartner } from '../../lib/renterPartners'
 import type { LeaseAnalysis, ExplainLeaseResponse, RedFlagSeverity } from '@findstoop/shared/types/leaseAnalysis'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import {
@@ -36,6 +37,7 @@ const SEV: Record<RedFlagSeverity, { dot: string; chip: string; label: string }>
 export default function RenterCheck() {
   const [params] = useSearchParams()
   const ref = params.get('ref') // channel attribution (e.g. ?ref=osu)
+  const partner = getPartner(ref) // co-brand when a known partner referred
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle')
   const [error, setError] = useState('')
   const [analysis, setAnalysis] = useState<LeaseAnalysis | null>(null)
@@ -111,9 +113,26 @@ export default function RenterCheck() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header — leaves room for a partner co-brand on the right */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-mute">Renter Check</span>
+        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+          {partner ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                {partner.logoUrl
+                  ? <img src={partner.logoUrl} alt={partner.name} className="h-8 w-auto" />
+                  : <span className="font-semibold text-ink text-sm truncate">{partner.name}</span>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] uppercase tracking-wider text-mute hidden sm:inline">Renter Check</span>
+                <span className="text-gray-300 hidden sm:inline">·</span>
+                <PoweredByStoop />
+              </div>
+            </>
+          ) : (
+            <>
+              <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-mute">Renter Check</span>
+            </>
+          )}
         </div>
       </header>
 
@@ -126,6 +145,9 @@ export default function RenterCheck() {
               Upload a lease and we'll explain what you're agreeing to — your obligations, the red flags,
               and your rights as an Ohio tenant. Free, and we don't keep your file.
             </p>
+            {partner?.tagline && (
+              <p className="text-xs text-brand-700 mt-2 font-medium">{partner.tagline}</p>
+            )}
           </div>
         )}
 

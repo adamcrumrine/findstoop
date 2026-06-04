@@ -211,6 +211,7 @@ Deno.serve(async (req) => {
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: `FindStoop <${RESEND_FROM}>`,
       to: cleanEmail,
+      bcc: callerProfile.email ?? undefined, // owning landlord gets a copy
       subject,
       html,
       replyTo: callerProfile.email ?? undefined,

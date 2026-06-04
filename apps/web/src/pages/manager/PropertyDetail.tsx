@@ -803,14 +803,22 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
     return { label: 'Upcoming', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
   }
 
-  // Lease-status filter for the whole tab. Past = expired/terminated.
+  // Lease-status filter for the whole tab. A charge counts as "Past" if its
+  // lease has ended OR it predates the lease's current term (leftover history
+  // from a reused/renewed lease record) — so old rows don't appear under Active.
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
-  const leaseMatches = (status: string | undefined) =>
-    leaseStatusFilter === 'all' ? true
-      : leaseStatusFilter === 'past' ? (status === 'expired' || status === 'terminated')
-      : status === leaseStatusFilter
-  const filteredLeases = leases.filter((l) => leaseMatches(l.status))
-  const visibleGroups = chargeGroups.filter((g) => leaseMatches(leaseMap[g.lease_id]?.status))
+  const statusOf = (leaseStatus?: string, dueDate?: string | null, leaseStart?: string | null): 'past' | 'upcoming' | 'active' => {
+    if (dueDate && leaseStart && dueDate < leaseStart) return 'past'
+    if (leaseStatus === 'expired' || leaseStatus === 'terminated') return 'past'
+    if (leaseStatus === 'upcoming' || leaseStatus === 'pending') return 'upcoming'
+    return 'active'
+  }
+  const matchesFilter = (st: string) => leaseStatusFilter === 'all' || st === leaseStatusFilter
+  const filteredLeases = leases.filter((l) => matchesFilter(statusOf(l.status)))
+  const visibleGroups = chargeGroups.filter((g) => {
+    const lease = leaseMap[g.lease_id]
+    return matchesFilter(statusOf(lease?.status, g.due_date, lease?.start_date))
+  })
 
   return (
     <div className="space-y-6">

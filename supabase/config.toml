@@ -368,6 +368,16 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Renter Check — public, no-login tenant lease explainer. Anonymous callers
+# have no JWT, so this function authorizes by IP rate-limit instead.
+[functions.explain-lease]
+verify_jwt = false
+
+# Renter Check funnel — email-my-summary + tenant-initiated landlord invite.
+# Anonymous; authorizes by a per-analysis capability token.
+[functions.renter-lead]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

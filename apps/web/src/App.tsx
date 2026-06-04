@@ -24,6 +24,7 @@ const EduFairHousing       = lazy(() => import('./pages/marketing/education/Fair
 const EduLeadPaint         = lazy(() => import('./pages/marketing/education/LeadBasedPaintDisclosure'))
 const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
+const RenterCheck          = lazy(() => import('./pages/public/RenterCheck'))
 const ScreeningTerms       = lazy(() => import('./pages/marketing/ScreeningTerms'))
 const Privacy              = lazy(() => import('./pages/marketing/Privacy'))
 const Terms                = lazy(() => import('./pages/marketing/Terms'))
@@ -42,6 +43,8 @@ const VerifyBackup   = lazy(() => import('./pages/auth/VerifyBackup'))
 
 // Shared (manager + tenant)
 const SignLease           = lazy(() => import('./pages/shared/SignLease'))
+const SignDocument        = lazy(() => import('./pages/shared/SignDocument'))
+const ViewDocument        = lazy(() => import('./pages/shared/ViewDocument'))
 const InspectionEditor    = lazy(() => import('./pages/shared/InspectionEditor'))
 const InspectionPdf       = lazy(() => import('./pages/shared/InspectionPdf'))
 
@@ -83,6 +86,10 @@ const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
 const ManagerDocuments    = lazy(() => import('./pages/manager/Documents'))
+const ManagerDocumentBuilder = lazy(() => import('./pages/manager/DocumentBuilder'))
+const ManagerDocumentDetail  = lazy(() => import('./pages/manager/DocumentDetail'))
+const ManagerDocumentPrint   = lazy(() => import('./pages/manager/DocumentPrint'))
+const ManagerEvictionPrep    = lazy(() => import('./pages/manager/EvictionPrep'))
 const ManagerReports      = lazy(() => import('./pages/manager/Reports'))
 const ManagerExpenses     = lazy(() => import('./pages/manager/Expenses'))
 const ManagerDownloadCenter = lazy(() => import('./pages/manager/DownloadCenter'))
@@ -161,6 +168,13 @@ export default function App() {
               of /manager and /tenant means it renders without a sidebar and
               can be opened cleanly in a new tab for printing. */}
           <Route path="/lease-pdf/:id"   element={<ManagerLeasePdf />} />
+          {/* Generated-document print/PDF — standalone (no sidebar); RLS scopes access. */}
+          <Route path="/document-print/:id" element={<ManagerDocumentPrint />} />
+          {/* Tenant-facing single-document pages — bare shell, no app nav, no upsell. */}
+          <Route path="/sign-document/:id" element={<SignDocument />} />
+          <Route path="/view/:id" element={<ViewDocument />} />
+          {/* Renter Check — public, no-login lease explainer (its own shell). */}
+          <Route path="/renter-check" element={<RenterCheck />} />
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
           {/* Annual Schedule E tax worksheet — standalone print page (RLS scopes data). */}
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />
@@ -225,7 +239,10 @@ export default function App() {
             <Route path="payments"     element={<ManagerPayments />} />
             <Route path="maintenance"  element={<ManagerMaintenance />} />
             <Route path="messages"     element={<ManagerMessages />} />
-            <Route path="documents"    element={<ManagerDocuments />} />
+            <Route path="documents"        element={<ManagerDocuments />} />
+            <Route path="documents/new"    element={<ManagerDocumentBuilder />} />
+            <Route path="documents/eviction-prep/:leaseId" element={<ManagerEvictionPrep />} />
+            <Route path="documents/:id"    element={<ManagerDocumentDetail />} />
             <Route path="reports"      element={<ManagerReports />} />
             <Route path="download-center" element={<ManagerDownloadCenter />} />
             <Route path="expenses"     element={<ManagerExpenses />} />

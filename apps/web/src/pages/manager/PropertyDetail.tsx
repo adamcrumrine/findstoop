@@ -43,6 +43,7 @@ export default function ManagerPropertyDetail() {
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabId>('overview')
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('all')
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -66,6 +67,26 @@ export default function ManagerPropertyDetail() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
   const { tenants, getActiveLease } = useTenants(unitIds)
+
+  // Per-unit scope. When a property has more than one unit, the manager can
+  // narrow every tab + the header stats to a single unit. 'all' = whole property.
+  const multiUnit = units.length > 1
+  const effectiveUnitId = selectedUnitId !== 'all' && units.some((u) => u.id === selectedUnitId)
+    ? selectedUnitId : 'all'
+  const scopedUnits = useMemo(
+    () => (effectiveUnitId === 'all' ? units : units.filter((u) => u.id === effectiveUnitId)),
+    [units, effectiveUnitId],
+  )
+  const scopedLeases = useMemo(
+    () => (effectiveUnitId === 'all' ? leases : leases.filter((l) => l.unit_id === effectiveUnitId)),
+    [leases, effectiveUnitId],
+  )
+  const scopedTenants = useMemo(() => {
+    if (effectiveUnitId === 'all') return tenants
+    const ids = new Set(scopedLeases.map((l) => l.tenant_id))
+    return tenants.filter((t) => ids.has(t.id))
+  }, [tenants, scopedLeases, effectiveUnitId])
+  const scopedUnitIds = useMemo(() => scopedUnits.map((u) => u.id), [scopedUnits])
 
   if (loading) {
     return (
@@ -99,8 +120,8 @@ export default function ManagerPropertyDetail() {
     )
   }
 
-  const activeLeases = leases.filter((l) => l.status === 'active')
-  const occupiedCount = units.filter((u) => u.status === 'occupied').length
+  const activeLeases = scopedLeases.filter((l) => l.status === 'active')
+  const occupiedCount = scopedUnits.filter((u) => u.status === 'occupied').length
   const totalRent = activeLeases.reduce((sum, l) => sum + Number(l.rent_amount), 0)
 
   return (
@@ -135,8 +156,8 @@ export default function ManagerPropertyDetail() {
           <p className="text-sm text-mute mt-0.5">{property.address}</p>
           <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
           <div className="mt-3 flex gap-6 text-xs">
-            <Stat label="Units" value={units.length} />
-            <Stat label="Occupied" value={`${occupiedCount}/${units.length}`} />
+            <Stat label="Units" value={scopedUnits.length} />
+            <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
             <Stat label="Active leases" value={activeLeases.length} />
             <Stat label="Monthly rent" value={`$${totalRent.toLocaleString()}`} />
           </div>
@@ -150,6 +171,25 @@ export default function ManagerPropertyDetail() {
           onCancel={() => setEditOpen(false)}
         />
       </Modal>
+
+      {/* Per-unit scope selector — only when the property has more than one unit.
+          Filters every tab + the header stats to the chosen unit. */}
+      {multiUnit && (
+        <div className="flex items-center justify-end gap-2 mb-3">
+          <label htmlFor="unit-scope" className="text-xs uppercase tracking-wider text-mute font-semibold">Viewing</label>
+          <select
+            id="unit-scope"
+            value={effectiveUnitId}
+            onChange={(e) => setSelectedUnitId(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">All units ({units.length})</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>Unit {u.unit_number}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto">
@@ -170,12 +210,12 @@ export default function ManagerPropertyDetail() {
       </div>
 
       {/* Tab content */}
-      {tab === 'overview' && <OverviewTab property={property} units={units} leases={leases} onPropertyUpdate={setProperty} />}
-      {tab === 'units' && <UnitsTab units={units} property={property} />}
-      {tab === 'leases' && <LeasesTab leases={leases} units={units} property={property} />}
-      {tab === 'tenants' && <TenantsTab tenants={tenants} getActiveLease={getActiveLease} units={units} />}
-      {tab === 'maintenance' && <MaintenanceTab unitIds={unitIds} units={units} />}
-      {tab === 'payments' && <PaymentsTab leases={leases} units={units} />}
+      {tab === 'overview' && <OverviewTab property={property} units={scopedUnits} leases={scopedLeases} onPropertyUpdate={setProperty} />}
+      {tab === 'units' && <UnitsTab units={scopedUnits} property={property} />}
+      {tab === 'leases' && <LeasesTab leases={scopedLeases} units={scopedUnits} property={property} />}
+      {tab === 'tenants' && <TenantsTab tenants={scopedTenants} getActiveLease={getActiveLease} units={scopedUnits} />}
+      {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
+      {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} />}
 
       {/* Danger zone — separated from the rest of the screen so it's hard to hit by accident. */}
       <section className="mt-10 pt-6 border-t border-red-100">

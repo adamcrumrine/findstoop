@@ -8,7 +8,8 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useUnitsByProperty } from '@findstoop/shared/hooks/useUnits'
 import { useLeases, useTenants } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
-import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { regenerateRentSchedule } from '@findstoop/shared/api/payments'
+import { formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
@@ -16,7 +17,7 @@ import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
-  ShieldCheck,
+  ShieldCheck, RefreshCw,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
@@ -581,8 +582,8 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
                 </div>
                 <p className="text-sm text-mute mt-0.5">Unit {unit?.unit_number ?? '—'}</p>
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-mute">
-                  <div><span className="text-mute-400">Start:</span> {new Date(l.start_date).toLocaleDateString()}</div>
-                  <div><span className="text-mute-400">End:</span> {new Date(l.end_date).toLocaleDateString()}</div>
+                  <div><span className="text-mute-400">Start:</span> {formatLocalDate(l.start_date)}</div>
+                  <div><span className="text-mute-400">End:</span> {formatLocalDate(l.end_date)}</div>
                   <div><span className="text-mute-400">Rent:</span> ${Number(l.rent_amount).toLocaleString()}/mo</div>
                 </div>
               </div>
@@ -715,7 +716,7 @@ function MaintenanceTab({ unitIds, units }: { unitIds: string[]; units: Unit[] }
 // ── Payments tab ──────────────────────────────────────────────────────────────
 function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['leases']; units: Unit[] }) {
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
-  const { payments, loading, markPaid } = usePayments(leaseIds)
+  const { payments, loading, markPaid, reload } = usePayments(leaseIds)
   const [scheduleTarget, setScheduleTarget] = useState<Lease | null>(null)
 
   const unitMap = Object.fromEntries(units.map((u) => [u.id, u]))
@@ -860,7 +861,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                         {status.label}
                       </span>
                     </div>
-                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {new Date(paymentAnchor(p)).toLocaleDateString()}</p>
+                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {formatLocalDate(paymentAnchor(p))}</p>
                   </div>
                   <div className="text-right shrink-0 flex items-center gap-2">
                     <p className="font-semibold text-ink">{formatUsdCents(Number(p.amount))}</p>
@@ -896,7 +897,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                         {status.label}
                       </span>
                     </div>
-                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {new Date(paymentAnchor(p)).toLocaleDateString()}</p>
+                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {formatLocalDate(paymentAnchor(p))}</p>
                   </div>
                   <p className="font-semibold text-ink shrink-0">{formatUsdCents(Number(p.amount))}</p>
                 </div>
@@ -911,6 +912,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
           <PaymentScheduleEditor
             lease={scheduleTarget}
             onClose={() => setScheduleTarget(null)}
+            onRebuilt={reload}
           />
         )}
       </Modal>
@@ -919,10 +921,31 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
 }
 
 // ── Payment schedule editor ───────────────────────────────────────────────────
-function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () => void }) {
+function PaymentScheduleEditor({ lease, onClose, onRebuilt }: { lease: Lease; onClose: () => void; onRebuilt?: () => void }) {
   const [dueDay, setDueDay] = useState<number>((lease as any).payment_due_day ?? 1)
   const [saving, setSaving] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
   const generated = (lease as any).payment_schedule_generated_at != null
+
+  // Rebuild the future rent schedule from the lease's current start date +
+  // primary tenants — used after the start date or the primaries change.
+  // Saves the due-day first so the rebuild picks it up. Paid/past rows are kept.
+  const handleRebuild = async () => {
+    setRebuilding(true)
+    try {
+      if (dueDay !== ((lease as any).payment_due_day ?? 1)) {
+        await supabase.from('leases').update({ payment_due_day: dueDay }).eq('id', lease.id)
+      }
+      const r = await regenerateRentSchedule(lease.id)
+      toast.success(`Rebuilt ${r.created} rent row${r.created === 1 ? '' : 's'} · kept ${r.skippedPaid} paid`)
+      onRebuilt?.()
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not rebuild schedule')
+    } finally {
+      setRebuilding(false)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -943,7 +966,7 @@ function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () =
           <DollarSign className="w-3.5 h-3.5" strokeWidth={1.75} />
           ${Number(lease.rent_amount).toLocaleString()} / mo
         </p>
-        <p>Lease runs {new Date(lease.start_date).toLocaleDateString()} → {new Date(lease.end_date).toLocaleDateString()}</p>
+        <p>Lease runs {formatLocalDate(lease.start_date)} → {formatLocalDate(lease.end_date)}</p>
         {generated ? (
           <p className="text-green-700 mt-1 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} /> Schedule already generated</p>
         ) : lease.status === 'active' ? (
@@ -972,6 +995,23 @@ function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () =
         <button onClick={onClose} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-mute hover:bg-gray-50">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save schedule'}
+        </button>
+      </div>
+
+      <div className="pt-3 mt-1 border-t border-gray-100">
+        <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-1">Rebuild schedule</p>
+        <p className="text-[11px] text-mute mb-2 leading-relaxed">
+          Changed the start date or the primary tenants? Rebuild to re-split future rent across
+          the current primaries. Paid and past rows are kept — only future unpaid rent is replaced.
+        </p>
+        <button
+          type="button"
+          onClick={handleRebuild}
+          disabled={rebuilding}
+          className="w-full py-2 border border-brand-300 text-brand-700 rounded-lg text-sm font-medium hover:bg-brand-50 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+        >
+          {rebuilding ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <RefreshCw className="w-4 h-4" strokeWidth={1.75} />}
+          Rebuild payment schedule
         </button>
       </div>
     </div>

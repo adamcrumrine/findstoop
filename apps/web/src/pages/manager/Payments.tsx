@@ -5,7 +5,7 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
-import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
+import { formatUsd, formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
@@ -40,7 +40,7 @@ function exportCSV(payments: Payment[], leaseMap: Record<string, LeaseWithTenant
         p.type,
         p.amount,
         p.status,
-        p.due_date ? new Date(p.due_date).toLocaleDateString() : '',
+        p.due_date ? formatLocalDate(p.due_date) : '',
         p.paid_at ? new Date(p.paid_at).toLocaleDateString() : '',
       ].join(',')
     }),
@@ -423,7 +423,10 @@ export default function ManagerPayments() {
     const today = new Date().toISOString().split('T')[0]
     const mismatches: Array<{ lease: LeaseWithTenant; primaries: string[]; current: string[] }> = []
     for (const lease of leases) {
-      if (lease.status !== 'active') continue
+      // Active and upcoming leases both have a live future rent schedule that
+      // can drift out of sync after a primaries change (upcoming leases were
+      // previously missed, so a swap left stale rows billed to the old tenant).
+      if (lease.status !== 'active' && lease.status !== 'upcoming') continue
       const primaries = (primariesByLease[lease.id] ?? []).slice().sort()
       // Fall back to leases.tenant_id for legacy leases with no primary rows
       const effective = primaries.length === 0 ? [lease.tenant_id].sort() : primaries
@@ -799,7 +802,7 @@ function ApplyCreditForm({
         <p className="font-semibold text-ink capitalize">{target.type.replace(/_/g, ' ')} · {tenantName}</p>
         <p className="text-mute mt-0.5">
           Current amount: <strong>${Number(target.amount).toLocaleString()}</strong>
-          {target.due_date && <> · Due {new Date(target.due_date).toLocaleDateString()}</>}
+          {target.due_date && <> · Due {formatLocalDate(target.due_date)}</>}
         </p>
       </div>
 

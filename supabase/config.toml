@@ -378,8 +378,13 @@ verify_jwt = false
 [functions.renter-lead]
 verify_jwt = false
 
+# Disabled for local dev: the Logflare analytics + vector logging stack is the
+# main cause of flaky `supabase start` healthcheck failures (storage/realtime
+# reported unhealthy on a contended startup). It isn't needed for local app or
+# storage work. Local-only — no effect on the hosted project. Flip back to true
+# if you specifically need local Logflare.
 [analytics]
-enabled = true
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"

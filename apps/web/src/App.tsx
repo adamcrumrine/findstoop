@@ -82,6 +82,7 @@ const AdminSubscriptions  = lazy(() => import('./pages/admin/Subscriptions'))
 const AdminFunnel         = lazy(() => import('./pages/admin/Funnel'))
 const AdminMfaSetup       = lazy(() => import('./pages/admin/MfaSetup'))
 const AdminVisitors       = lazy(() => import('./pages/admin/Visitors'))
+const AdminRenterCheck     = lazy(() => import('./pages/admin/RenterCheck'))
 const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
@@ -213,6 +214,7 @@ export default function App() {
             <Route path="subscriptions"  element={<AdminSubscriptions />} />
             <Route path="revenue"        element={<AdminRevenue />} />
             <Route path="funnel"         element={<AdminFunnel />} />
+            <Route path="renter-check"   element={<AdminRenterCheck />} />
             <Route path="screening"      element={<AdminScreening />} />
             <Route path="system"         element={<AdminSystem />} />
             <Route path="feedback"       element={<AdminFeedback />} />

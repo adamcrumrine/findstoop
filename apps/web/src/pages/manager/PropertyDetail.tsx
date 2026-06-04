@@ -14,10 +14,11 @@ import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
+import type { Payment } from '@findstoop/shared/types/payment'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
-  ShieldCheck, RefreshCw,
+  ShieldCheck, RefreshCw, ChevronDown,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
@@ -747,11 +748,17 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payerKey])
 
-  const payerName = (p: { tenant_id: string; lease_id: string }) =>
-    tenantNameById[p.tenant_id]
-      ?? leaseMap[p.lease_id]?.profile?.full_name
-      ?? leaseMap[p.lease_id]?.profile?.email
-      ?? '—'
+  const payerName = (p: Payment) => {
+    const lease = leaseMap[p.lease_id]
+    // Rent dated before the lease's current term is leftover history (the lease
+    // record was reused/renewed) — the tenants then may differ from now, so we
+    // don't guess. Also never fall back to a name we can't actually resolve.
+    if (lease?.start_date && p.due_date && p.due_date < lease.start_date) return 'Unknown tenant'
+    return tenantNameById[p.tenant_id]
+      ?? lease?.profile?.full_name
+      ?? lease?.profile?.email
+      ?? 'Unknown tenant'
+  }
 
   // Distinct primaries each lease's rent is split across (for the "+N" hint).
   const splitCountByLease = useMemo(() => {
@@ -765,18 +772,66 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
     return out
   }, [payments])
 
-  // Same buckets the Payments page + Dashboard use. Sorted by paymentAnchor()
-  // ascending for upcoming (next due first) and descending for completed.
-  const upcoming = payments
-    .filter((p) => p.status === 'pending')
-    .sort((a, b) => paymentAnchor(a).localeCompare(paymentAnchor(b)))
-  const completed = payments
-    .filter((p) => p.status === 'completed' || p.status === 'processing' || p.status === 'failed')
-    .sort((a, b) => paymentAnchor(b).localeCompare(paymentAnchor(a)))
-    .slice(0, 5)
+  // One collapsible row per monthly charge: group every payment by
+  // (lease, due-date, type). Collapsed shows the full month's total + % collected;
+  // expand to see each primary's individual share. Covers past, current & upcoming.
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+  const toggle = (k: string) => setExpandedKeys((s) => {
+    const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n
+  })
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const chargeGroups = useMemo(() => {
+    const map = new Map<string, { key: string; lease_id: string; due_date: string; type: string; rows: Payment[] }>()
+    for (const p of payments) {
+      const dd = (p.due_date ?? paymentAnchor(p)).slice(0, 10)
+      const key = `${p.lease_id}|${dd}|${p.type}`
+      if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, type: p.type, rows: [] })
+      map.get(key)!.rows.push(p)
+    }
+    return Array.from(map.values()).map((g) => {
+      const total = g.rows.reduce((s, r) => s + Number(r.amount), 0)
+      const paid = g.rows.filter((r) => r.status === 'completed').reduce((s, r) => s + Number(r.amount), 0)
+      return { ...g, total, paid, balance: total - paid, pct: total > 0 ? (paid / total) * 100 : 0 }
+    }).sort((a, b) => a.due_date.localeCompare(b.due_date) || a.type.localeCompare(b.type))
+  }, [payments])
+  const monthStatus = (g: { pct: number; rows: Payment[] }) => {
+    if (g.pct >= 100) return { label: 'Paid', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
+    const pastDue = g.rows.some((r) => r.status === 'pending'
+      && (((r as Payment & { scheduled_for?: string | null }).scheduled_for ?? r.due_date ?? '') < todayStr))
+    if (pastDue) return { label: 'Past due', cls: 'text-red-700 bg-red-50 border-red-200' }
+    if (g.pct > 0) return { label: 'Partial', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
+    return { label: 'Upcoming', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
+  }
+
+  // Lease-status filter for the whole tab. Past = expired/terminated.
+  const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
+  const leaseMatches = (status: string | undefined) =>
+    leaseStatusFilter === 'all' ? true
+      : leaseStatusFilter === 'past' ? (status === 'expired' || status === 'terminated')
+      : status === leaseStatusFilter
+  const filteredLeases = leases.filter((l) => leaseMatches(l.status))
+  const visibleGroups = chargeGroups.filter((g) => leaseMatches(leaseMap[g.lease_id]?.status))
 
   return (
     <div className="space-y-6">
+      {/* Lease-status filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {(['all', 'past', 'active', 'upcoming'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setLeaseStatusFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+              leaseStatusFilter === f
+                ? 'bg-brand-600 text-white border border-brand-600'
+                : 'bg-white border border-gray-200 text-mute hover:border-gray-300'
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
       {/* Per-lease payment schedule */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-3">
@@ -788,11 +843,11 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
           </div>
         </div>
 
-        {leases.length === 0 ? (
-          <p className="text-sm text-mute">No leases at this property yet.</p>
+        {filteredLeases.length === 0 ? (
+          <p className="text-sm text-mute">No {leaseStatusFilter === 'all' ? '' : `${leaseStatusFilter} `}leases at this property.</p>
         ) : (
           <div className="space-y-2">
-            {leases.map((l) => {
+            {filteredLeases.map((l) => {
               const unit = unitMap[l.unit_id]
               const tenantName = l.profile?.full_name ?? l.profile?.email ?? 'Tenant'
               const splitExtra = (splitCountByLease[l.id] ?? 1) - 1
@@ -839,73 +894,86 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
         )}
       </section>
 
-      {/* Upcoming — same row layout the Payments page uses */}
+      {/* Payments ledger — one collapsible row per monthly charge. */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Upcoming payments</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Payments</h2>
         {loading ? (
           <Loader2 className="w-5 h-5 animate-spin text-mute" strokeWidth={1.75} />
-        ) : upcoming.length === 0 ? (
-          <p className="text-sm text-mute">No upcoming payments scheduled.</p>
+        ) : visibleGroups.length === 0 ? (
+          <p className="text-sm text-mute">No payments for {leaseStatusFilter === 'all' ? 'this property' : `${leaseStatusFilter} leases`}.</p>
         ) : (
           <div className="space-y-2">
-            {upcoming.slice(0, 10).map((p) => {
-              const l = leaseMap[p.lease_id]
+            {visibleGroups.map((g) => {
+              const l = leaseMap[g.lease_id]
               const unit = l ? unitMap[l.unit_id] : undefined
-              const status = rowStatus(p)
+              const open = expandedKeys.has(g.key)
+              const { mon, day, monthYear } = monthDay(g.due_date)
+              const st = monthStatus(g)
+              const title = CHARGE_LABEL[g.type] ?? 'Charge'
+              const sub = g.type === 'rent'
+                ? `${monthYear} · Unit ${unit?.unit_number ?? '—'}`
+                : `Unit ${unit?.unit_number ?? '—'}`
               return (
-                <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-ink truncate">{payerName(p)} · Unit {unit?.unit_number ?? '—'}</p>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
-                        {status.label}
-                      </span>
+                <div key={g.key} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggle(g.key)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="w-9 text-center shrink-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-mute leading-none">{mon}</p>
+                      <p className="text-lg font-bold text-ink leading-tight">{day}</p>
                     </div>
-                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {formatLocalDate(paymentAnchor(p))}</p>
-                  </div>
-                  <div className="text-right shrink-0 flex items-center gap-2">
-                    <p className="font-semibold text-ink">{formatUsdCents(Number(p.amount))}</p>
-                    <button
-                      onClick={() => markPaid(p.id).then(() => toast.success('Marked paid')).catch((e) => toast.error(e.message))}
-                      className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
-                    >
-                      Mark paid
-                    </button>
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-ink">{title}</p>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                        {g.rows.length > 1 && <span className="text-[10px] text-mute">{g.rows.length} tenants</span>}
+                      </div>
+                      <p className="text-xs text-mute truncate">{sub}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-ink">{formatUsdCents(g.total)}</p>
+                      <p className="text-[11px] text-mute">Balance: {formatUsdCents(g.balance)}</p>
+                    </div>
+                    <ProgressRing pct={g.pct} />
+                    <ChevronDown className={`w-4 h-4 text-mute shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} strokeWidth={1.75} />
+                  </button>
+                  {open && (
+                    <div className="px-3 py-2 bg-gray-50/60 border-t border-gray-100 space-y-1">
+                      {g.rows
+                        .slice()
+                        .sort((a, b) => payerName(a).localeCompare(payerName(b)))
+                        .map((p) => {
+                          const rs = rowStatus(p)
+                          return (
+                            <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <p className="text-ink truncate">{payerName(p)}</p>
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <p className="font-medium text-ink">{formatUsdCents(Number(p.amount))}</p>
+                                {p.status === 'pending' && (
+                                  <button
+                                    onClick={() => markPaid(p.id).then(() => toast.success('Marked paid')).catch((e) => toast.error(e.message))}
+                                    className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
+                                  >
+                                    Mark paid
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
         )}
       </section>
-
-      {/* Recently moved (completed / processing / failed) */}
-      {completed.length > 0 && (
-        <section className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Recent activity</h2>
-          <div className="space-y-2 text-sm">
-            {completed.map((p) => {
-              const l = leaseMap[p.lease_id]
-              const unit = l ? unitMap[l.unit_id] : undefined
-              const status = rowStatus(p)
-              return (
-                <div key={p.id} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-ink truncate">{payerName(p)} · Unit {unit?.unit_number ?? '—'}</p>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
-                        {status.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {formatLocalDate(paymentAnchor(p))}</p>
-                  </div>
-                  <p className="font-semibold text-ink shrink-0">{formatUsdCents(Number(p.amount))}</p>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
 
       <Modal open={!!scheduleTarget} onClose={() => setScheduleTarget(null)} title="Payment schedule">
         {scheduleTarget && (
@@ -1311,5 +1379,44 @@ function PropertyDeleteForm({
         </button>
       </div>
     </div>
+  )
+}
+
+// ── Payments-ledger helpers ───────────────────────────────────────────────────
+
+// Monthly-charge type labels.
+const CHARGE_LABEL: Record<string, string> = {
+  rent: 'Rent', late_fee: 'Late fee', pet_fee: 'Pet fee', pet_deposit: 'Pet deposit',
+  utility: 'Utility', fee: 'Fee', fine: 'Fine', credit: 'Credit', other: 'Other',
+}
+
+// Parse a 'YYYY-MM-DD' (or timestamp) into display parts without the UTC shift.
+function monthDay(dateStr: string) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(dateStr + 'T00:00:00') : new Date(dateStr)
+  return {
+    mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+    day: d.toLocaleDateString('en-US', { day: '2-digit' }),
+    monthYear: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+  }
+}
+
+// Circular collection ring — green when fully collected, brand teal while partial.
+function ProgressRing({ pct, size = 30 }: { pct: number; size?: number }) {
+  const r = (size - 5) / 2
+  const c = 2 * Math.PI * r
+  const clamped = Math.max(0, Math.min(100, pct))
+  const full = clamped >= 100
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e5e7eb" strokeWidth="3" />
+      {clamped > 0 && (
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={full ? '#16a34a' : '#008275'} strokeWidth="3" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c - (clamped / 100) * c}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      )}
+    </svg>
   )
 }

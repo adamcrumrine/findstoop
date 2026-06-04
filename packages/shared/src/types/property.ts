@@ -15,4 +15,8 @@ export interface Property {
   require_criminal_check: boolean
   require_eviction_check: boolean
   require_credit_self_disclosed: boolean
+  // Student / off-campus housing mode — landlord self-enables to give this
+  // property's tenants the renter-help tools (lease explainer, rights, deposit
+  // protection). No university partnership required.
+  student_housing?: boolean
 }

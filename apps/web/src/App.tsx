@@ -102,6 +102,7 @@ const TenantDashboard   = lazy(() => import('./pages/tenant/Dashboard'))
 const TenantPayRent     = lazy(() => import('./pages/tenant/PayRent'))
 const TenantMaintenance = lazy(() => import('./pages/tenant/Maintenance'))
 const TenantDocuments   = lazy(() => import('./pages/tenant/Documents'))
+const TenantResources   = lazy(() => import('./pages/tenant/RenterResources'))
 const TenantMessages    = lazy(() => import('./pages/tenant/Messages'))
 const TenantSettings    = lazy(() => import('./pages/tenant/Settings'))
 
@@ -265,6 +266,7 @@ export default function App() {
             <Route path="pay-rent"    element={<TenantPayRent />} />
             <Route path="maintenance" element={<TenantMaintenance />} />
             <Route path="documents"   element={<TenantDocuments />} />
+            <Route path="resources"   element={<TenantResources />} />
             <Route path="messages"    element={<TenantMessages />} />
             <Route path="settings"    element={<TenantSettings />} />
             <Route path="sign-lease/:id" element={<SignLease />} />

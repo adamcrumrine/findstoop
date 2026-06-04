@@ -18,7 +18,7 @@ import type { Payment } from '@findstoop/shared/types/payment'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
-  ShieldCheck, RefreshCw, ChevronDown,
+  ShieldCheck, RefreshCw, ChevronDown, GraduationCap,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
@@ -327,9 +327,58 @@ function OverviewTab({ property, units, leases, onPropertyUpdate }: {
       </Card>
 
       <div className="sm:col-span-2">
+        <StudentHousingCard property={property} onUpdate={onPropertyUpdate} />
+      </div>
+
+      <div className="sm:col-span-2">
         <ScreeningPrefsCard property={property} onUpdate={onPropertyUpdate} />
       </div>
     </div>
+  )
+}
+
+// ── Student housing toggle (Overview tab) ──────────────────────────────────
+// Self-serve "Student Housing mode": flips on the renter-help tools for this
+// property's tenants. No university partnership required.
+function StudentHousingCard({ property, onUpdate }: { property: Property; onUpdate: (p: Property) => void }) {
+  const on = !!property.student_housing
+  const toggle = async () => {
+    const next = !on
+    onUpdate({ ...property, student_housing: next })
+    const { error } = await supabase.from('properties').update({ student_housing: next }).eq('id', property.id)
+    if (error) {
+      onUpdate({ ...property, student_housing: on })
+      toast.error(error.message)
+    } else {
+      toast.success(next ? 'Student housing mode on' : 'Student housing mode off')
+    }
+  }
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+            <h2 className="text-sm font-semibold text-ink">Student housing</h2>
+          </div>
+          <p className="text-xs text-mute mt-1.5 leading-relaxed">
+            Turn this on for a student / off-campus rental. Your tenants get free renter tools in
+            their portal — a plain-English lease explainer, their Ohio tenant rights, move-in
+            documentation, and deposit protection. Powered by Stoop.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Student housing mode"
+          onClick={toggle}
+          className={`shrink-0 mt-1 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? 'bg-brand-600' : 'bg-gray-300'}`}
+        >
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+    </section>
   )
 }
 

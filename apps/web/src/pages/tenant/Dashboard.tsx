@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
-import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle } from 'lucide-react'
+import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle, GraduationCap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
@@ -338,6 +338,23 @@ export default function TenantDashboard() {
           Hides itself once all required steps are done. */}
       {!loading && lease && (
         <SetupChecklist lease={lease} paymentMethodSetup={paymentMethodSetup} autopayEnabled={autopayEnabled} />
+      )}
+
+      {/* Renter resources — only when the landlord enabled student-housing mode. */}
+      {!loading && lease?.unit?.properties?.student_housing && (
+        <button
+          onClick={() => navigate('/tenant/resources')}
+          className="w-full bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-brand-100 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <GraduationCap className="w-5 h-5 text-brand-700 shrink-0" strokeWidth={1.75} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-brand-900">Renter resources</p>
+              <p className="text-xs text-brand-700">Understand your lease, know your rights, and protect your deposit.</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-brand-600 shrink-0" strokeWidth={2} />
+        </button>
       )}
 
       {/* Rent CTA card */}

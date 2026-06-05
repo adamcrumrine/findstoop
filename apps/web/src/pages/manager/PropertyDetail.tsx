@@ -8,15 +8,17 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useUnitsByProperty } from '@findstoop/shared/hooks/useUnits'
 import { useLeases, useTenants } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
-import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { regenerateRentSchedule } from '@findstoop/shared/api/payments'
+import { formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
+import type { Payment } from '@findstoop/shared/types/payment'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
-  ShieldCheck,
+  ShieldCheck, RefreshCw, ChevronDown, GraduationCap,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
@@ -43,6 +45,7 @@ export default function ManagerPropertyDetail() {
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabId>('overview')
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('all')
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -66,6 +69,26 @@ export default function ManagerPropertyDetail() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
   const { tenants, getActiveLease } = useTenants(unitIds)
+
+  // Per-unit scope. When a property has more than one unit, the manager can
+  // narrow every tab + the header stats to a single unit. 'all' = whole property.
+  const multiUnit = units.length > 1
+  const effectiveUnitId = selectedUnitId !== 'all' && units.some((u) => u.id === selectedUnitId)
+    ? selectedUnitId : 'all'
+  const scopedUnits = useMemo(
+    () => (effectiveUnitId === 'all' ? units : units.filter((u) => u.id === effectiveUnitId)),
+    [units, effectiveUnitId],
+  )
+  const scopedLeases = useMemo(
+    () => (effectiveUnitId === 'all' ? leases : leases.filter((l) => l.unit_id === effectiveUnitId)),
+    [leases, effectiveUnitId],
+  )
+  const scopedTenants = useMemo(() => {
+    if (effectiveUnitId === 'all') return tenants
+    const ids = new Set(scopedLeases.map((l) => l.tenant_id))
+    return tenants.filter((t) => ids.has(t.id))
+  }, [tenants, scopedLeases, effectiveUnitId])
+  const scopedUnitIds = useMemo(() => scopedUnits.map((u) => u.id), [scopedUnits])
 
   if (loading) {
     return (
@@ -99,8 +122,8 @@ export default function ManagerPropertyDetail() {
     )
   }
 
-  const activeLeases = leases.filter((l) => l.status === 'active')
-  const occupiedCount = units.filter((u) => u.status === 'occupied').length
+  const activeLeases = scopedLeases.filter((l) => l.status === 'active')
+  const occupiedCount = scopedUnits.filter((u) => u.status === 'occupied').length
   const totalRent = activeLeases.reduce((sum, l) => sum + Number(l.rent_amount), 0)
 
   return (
@@ -135,8 +158,8 @@ export default function ManagerPropertyDetail() {
           <p className="text-sm text-mute mt-0.5">{property.address}</p>
           <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
           <div className="mt-3 flex gap-6 text-xs">
-            <Stat label="Units" value={units.length} />
-            <Stat label="Occupied" value={`${occupiedCount}/${units.length}`} />
+            <Stat label="Units" value={scopedUnits.length} />
+            <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
             <Stat label="Active leases" value={activeLeases.length} />
             <Stat label="Monthly rent" value={`$${totalRent.toLocaleString()}`} />
           </div>
@@ -150,6 +173,25 @@ export default function ManagerPropertyDetail() {
           onCancel={() => setEditOpen(false)}
         />
       </Modal>
+
+      {/* Per-unit scope selector — only when the property has more than one unit.
+          Filters every tab + the header stats to the chosen unit. */}
+      {multiUnit && (
+        <div className="flex items-center justify-end gap-2 mb-3">
+          <label htmlFor="unit-scope" className="text-xs uppercase tracking-wider text-mute font-semibold">Viewing</label>
+          <select
+            id="unit-scope"
+            value={effectiveUnitId}
+            onChange={(e) => setSelectedUnitId(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">All units ({units.length})</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>Unit {u.unit_number}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto">
@@ -170,12 +212,12 @@ export default function ManagerPropertyDetail() {
       </div>
 
       {/* Tab content */}
-      {tab === 'overview' && <OverviewTab property={property} units={units} leases={leases} onPropertyUpdate={setProperty} />}
-      {tab === 'units' && <UnitsTab units={units} property={property} />}
-      {tab === 'leases' && <LeasesTab leases={leases} units={units} property={property} />}
-      {tab === 'tenants' && <TenantsTab tenants={tenants} getActiveLease={getActiveLease} units={units} />}
-      {tab === 'maintenance' && <MaintenanceTab unitIds={unitIds} units={units} />}
-      {tab === 'payments' && <PaymentsTab leases={leases} units={units} />}
+      {tab === 'overview' && <OverviewTab property={property} units={scopedUnits} leases={scopedLeases} onPropertyUpdate={setProperty} />}
+      {tab === 'units' && <UnitsTab units={scopedUnits} property={property} />}
+      {tab === 'leases' && <LeasesTab leases={scopedLeases} units={scopedUnits} property={property} />}
+      {tab === 'tenants' && <TenantsTab tenants={scopedTenants} getActiveLease={getActiveLease} units={scopedUnits} />}
+      {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
+      {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} />}
 
       {/* Danger zone — separated from the rest of the screen so it's hard to hit by accident. */}
       <section className="mt-10 pt-6 border-t border-red-100">
@@ -285,9 +327,58 @@ function OverviewTab({ property, units, leases, onPropertyUpdate }: {
       </Card>
 
       <div className="sm:col-span-2">
+        <StudentHousingCard property={property} onUpdate={onPropertyUpdate} />
+      </div>
+
+      <div className="sm:col-span-2">
         <ScreeningPrefsCard property={property} onUpdate={onPropertyUpdate} />
       </div>
     </div>
+  )
+}
+
+// ── Student housing toggle (Overview tab) ──────────────────────────────────
+// Self-serve "Student Housing mode": flips on the renter-help tools for this
+// property's tenants. No university partnership required.
+function StudentHousingCard({ property, onUpdate }: { property: Property; onUpdate: (p: Property) => void }) {
+  const on = !!property.student_housing
+  const toggle = async () => {
+    const next = !on
+    onUpdate({ ...property, student_housing: next })
+    const { error } = await supabase.from('properties').update({ student_housing: next }).eq('id', property.id)
+    if (error) {
+      onUpdate({ ...property, student_housing: on })
+      toast.error(error.message)
+    } else {
+      toast.success(next ? 'Student housing mode on' : 'Student housing mode off')
+    }
+  }
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+            <h2 className="text-sm font-semibold text-ink">Student housing</h2>
+          </div>
+          <p className="text-xs text-mute mt-1.5 leading-relaxed">
+            Turn this on for a student / off-campus rental. Your tenants get free renter tools in
+            their portal — a plain-English lease explainer, their Ohio tenant rights, move-in
+            documentation, and deposit protection. Powered by Stoop.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Student housing mode"
+          onClick={toggle}
+          className={`shrink-0 mt-1 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? 'bg-brand-600' : 'bg-gray-300'}`}
+        >
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -541,8 +632,8 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
                 </div>
                 <p className="text-sm text-mute mt-0.5">Unit {unit?.unit_number ?? '—'}</p>
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-mute">
-                  <div><span className="text-mute-400">Start:</span> {new Date(l.start_date).toLocaleDateString()}</div>
-                  <div><span className="text-mute-400">End:</span> {new Date(l.end_date).toLocaleDateString()}</div>
+                  <div><span className="text-mute-400">Start:</span> {formatLocalDate(l.start_date)}</div>
+                  <div><span className="text-mute-400">End:</span> {formatLocalDate(l.end_date)}</div>
                   <div><span className="text-mute-400">Rent:</span> ${Number(l.rent_amount).toLocaleString()}/mo</div>
                 </div>
               </div>
@@ -675,24 +766,129 @@ function MaintenanceTab({ unitIds, units }: { unitIds: string[]; units: Unit[] }
 // ── Payments tab ──────────────────────────────────────────────────────────────
 function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['leases']; units: Unit[] }) {
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
-  const { payments, loading, markPaid } = usePayments(leaseIds)
+  const { payments, loading, markPaid, reload } = usePayments(leaseIds)
   const [scheduleTarget, setScheduleTarget] = useState<Lease | null>(null)
 
   const unitMap = Object.fromEntries(units.map((u) => [u.id, u]))
   const leaseMap = Object.fromEntries(leases.map((l) => [l.id, l]))
 
-  // Same buckets the Payments page + Dashboard use. Sorted by paymentAnchor()
-  // ascending for upcoming (next due first) and descending for completed.
-  const upcoming = payments
-    .filter((p) => p.status === 'pending')
-    .sort((a, b) => paymentAnchor(a).localeCompare(paymentAnchor(b)))
-  const completed = payments
-    .filter((p) => p.status === 'completed' || p.status === 'processing' || p.status === 'failed')
-    .sort((a, b) => paymentAnchor(b).localeCompare(paymentAnchor(a)))
-    .slice(0, 5)
+  // Rent is split across every primary tenant — each row is billed to its OWN
+  // primary (payment.tenant_id), not the lease's single legacy primary. Resolve
+  // names per payment, otherwise a 4-way split shows the same name four times.
+  const [tenantNameById, setTenantNameById] = useState<Record<string, string>>({})
+  const payerTenantIds = useMemo(
+    () => Array.from(new Set(payments.map((p) => p.tenant_id).filter(Boolean))),
+    [payments],
+  )
+  const payerKey = payerTenantIds.join(',')
+  useEffect(() => {
+    if (payerTenantIds.length === 0) { setTenantNameById({}); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name, email').in('id', payerTenantIds)
+      if (cancelled) return
+      const map: Record<string, string> = {}
+      for (const r of (data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
+        map[r.id] = r.full_name ?? r.email ?? '—'
+      }
+      setTenantNameById(map)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payerKey])
+
+  const payerName = (p: Payment) => {
+    const lease = leaseMap[p.lease_id]
+    // Rent dated before the lease's current term is leftover history (the lease
+    // record was reused/renewed) — the tenants then may differ from now, so we
+    // don't guess. Also never fall back to a name we can't actually resolve.
+    if (lease?.start_date && p.due_date && p.due_date < lease.start_date) return 'Unknown tenant'
+    return tenantNameById[p.tenant_id]
+      ?? lease?.profile?.full_name
+      ?? lease?.profile?.email
+      ?? 'Unknown tenant'
+  }
+
+  // Distinct primaries each lease's rent is split across (for the "+N" hint).
+  const splitCountByLease = useMemo(() => {
+    const sets: Record<string, Set<string>> = {}
+    for (const p of payments) {
+      if (p.type !== 'rent') continue
+      ;(sets[p.lease_id] ??= new Set()).add(p.tenant_id)
+    }
+    const out: Record<string, number> = {}
+    for (const k of Object.keys(sets)) out[k] = sets[k].size
+    return out
+  }, [payments])
+
+  // One collapsible row per monthly charge: group every payment by
+  // (lease, due-date, type). Collapsed shows the full month's total + % collected;
+  // expand to see each primary's individual share. Covers past, current & upcoming.
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+  const toggle = (k: string) => setExpandedKeys((s) => {
+    const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n
+  })
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const chargeGroups = useMemo(() => {
+    const map = new Map<string, { key: string; lease_id: string; due_date: string; type: string; rows: Payment[] }>()
+    for (const p of payments) {
+      const dd = (p.due_date ?? paymentAnchor(p)).slice(0, 10)
+      const key = `${p.lease_id}|${dd}|${p.type}`
+      if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, type: p.type, rows: [] })
+      map.get(key)!.rows.push(p)
+    }
+    return Array.from(map.values()).map((g) => {
+      const total = g.rows.reduce((s, r) => s + Number(r.amount), 0)
+      const paid = g.rows.filter((r) => r.status === 'completed').reduce((s, r) => s + Number(r.amount), 0)
+      return { ...g, total, paid, balance: total - paid, pct: total > 0 ? (paid / total) * 100 : 0 }
+    }).sort((a, b) => a.due_date.localeCompare(b.due_date) || a.type.localeCompare(b.type))
+  }, [payments])
+  const monthStatus = (g: { pct: number; rows: Payment[] }) => {
+    if (g.pct >= 100) return { label: 'Paid', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
+    const pastDue = g.rows.some((r) => r.status === 'pending'
+      && (((r as Payment & { scheduled_for?: string | null }).scheduled_for ?? r.due_date ?? '') < todayStr))
+    if (pastDue) return { label: 'Past due', cls: 'text-red-700 bg-red-50 border-red-200' }
+    if (g.pct > 0) return { label: 'Partial', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
+    return { label: 'Upcoming', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
+  }
+
+  // Lease-status filter for the whole tab. A charge counts as "Past" if its
+  // lease has ended OR it predates the lease's current term (leftover history
+  // from a reused/renewed lease record) — so old rows don't appear under Active.
+  const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
+  const statusOf = (leaseStatus?: string, dueDate?: string | null, leaseStart?: string | null): 'past' | 'upcoming' | 'active' => {
+    if (dueDate && leaseStart && dueDate < leaseStart) return 'past'
+    if (leaseStatus === 'expired' || leaseStatus === 'terminated') return 'past'
+    if (leaseStatus === 'upcoming' || leaseStatus === 'pending') return 'upcoming'
+    return 'active'
+  }
+  const matchesFilter = (st: string) => leaseStatusFilter === 'all' || st === leaseStatusFilter
+  const filteredLeases = leases.filter((l) => matchesFilter(statusOf(l.status)))
+  const visibleGroups = chargeGroups.filter((g) => {
+    const lease = leaseMap[g.lease_id]
+    return matchesFilter(statusOf(lease?.status, g.due_date, lease?.start_date))
+  })
 
   return (
     <div className="space-y-6">
+      {/* Lease-status filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {(['all', 'past', 'active', 'upcoming'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setLeaseStatusFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+              leaseStatusFilter === f
+                ? 'bg-brand-600 text-white border border-brand-600'
+                : 'bg-white border border-gray-200 text-mute hover:border-gray-300'
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
       {/* Per-lease payment schedule */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-3">
@@ -704,13 +900,14 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
           </div>
         </div>
 
-        {leases.length === 0 ? (
-          <p className="text-sm text-mute">No leases at this property yet.</p>
+        {filteredLeases.length === 0 ? (
+          <p className="text-sm text-mute">No {leaseStatusFilter === 'all' ? '' : `${leaseStatusFilter} `}leases at this property.</p>
         ) : (
           <div className="space-y-2">
-            {leases.map((l) => {
+            {filteredLeases.map((l) => {
               const unit = unitMap[l.unit_id]
               const tenantName = l.profile?.full_name ?? l.profile?.email ?? 'Tenant'
+              const splitExtra = (splitCountByLease[l.id] ?? 1) - 1
               const dueDay = (l as any).payment_due_day ?? 1
               const generated = (l as any).payment_schedule_generated_at != null
               return (
@@ -725,6 +922,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                           {tenantName}
                         </Link>
                       ) : tenantName}
+                      {splitExtra > 0 && <span className="text-mute font-normal"> +{splitExtra}</span>}
                       <span className="text-mute font-normal"> · Unit {unit?.unit_number ?? '—'}</span>
                     </p>
                     <Link
@@ -753,39 +951,80 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
         )}
       </section>
 
-      {/* Upcoming — same row layout the Payments page uses */}
+      {/* Payments ledger — one collapsible row per monthly charge. */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Upcoming payments</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Payments</h2>
         {loading ? (
           <Loader2 className="w-5 h-5 animate-spin text-mute" strokeWidth={1.75} />
-        ) : upcoming.length === 0 ? (
-          <p className="text-sm text-mute">No upcoming payments scheduled.</p>
+        ) : visibleGroups.length === 0 ? (
+          <p className="text-sm text-mute">No payments for {leaseStatusFilter === 'all' ? 'this property' : `${leaseStatusFilter} leases`}.</p>
         ) : (
           <div className="space-y-2">
-            {upcoming.slice(0, 10).map((p) => {
-              const l = leaseMap[p.lease_id]
+            {visibleGroups.map((g) => {
+              const l = leaseMap[g.lease_id]
               const unit = l ? unitMap[l.unit_id] : undefined
-              const status = rowStatus(p)
+              const open = expandedKeys.has(g.key)
+              const { mon, day, monthYear } = monthDay(g.due_date)
+              const st = monthStatus(g)
+              const title = CHARGE_LABEL[g.type] ?? 'Charge'
+              const sub = g.type === 'rent'
+                ? `${monthYear} · Unit ${unit?.unit_number ?? '—'}`
+                : `Unit ${unit?.unit_number ?? '—'}`
               return (
-                <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-ink truncate">{l?.profile?.full_name ?? l?.profile?.email ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
-                        {status.label}
-                      </span>
+                <div key={g.key} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggle(g.key)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="w-9 text-center shrink-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-mute leading-none">{mon}</p>
+                      <p className="text-lg font-bold text-ink leading-tight">{day}</p>
                     </div>
-                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {new Date(paymentAnchor(p)).toLocaleDateString()}</p>
-                  </div>
-                  <div className="text-right shrink-0 flex items-center gap-2">
-                    <p className="font-semibold text-ink">{formatUsdCents(Number(p.amount))}</p>
-                    <button
-                      onClick={() => markPaid(p.id).then(() => toast.success('Marked paid')).catch((e) => toast.error(e.message))}
-                      className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
-                    >
-                      Mark paid
-                    </button>
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-ink">{title}</p>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
+                        {g.rows.length > 1 && <span className="text-[10px] text-mute">{g.rows.length} tenants</span>}
+                      </div>
+                      <p className="text-xs text-mute truncate">{sub}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-ink">{formatUsdCents(g.total)}</p>
+                      <p className="text-[11px] text-mute">Balance: {formatUsdCents(g.balance)}</p>
+                    </div>
+                    <ProgressRing pct={g.pct} />
+                    <ChevronDown className={`w-4 h-4 text-mute shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} strokeWidth={1.75} />
+                  </button>
+                  {open && (
+                    <div className="px-3 py-2 bg-gray-50/60 border-t border-gray-100 space-y-1">
+                      {g.rows
+                        .slice()
+                        .sort((a, b) => payerName(a).localeCompare(payerName(b)))
+                        .map((p) => {
+                          const rs = rowStatus(p)
+                          return (
+                            <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <p className="text-ink truncate">{payerName(p)}</p>
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <p className="font-medium text-ink">{formatUsdCents(Number(p.amount))}</p>
+                                {p.status === 'pending' && (
+                                  <button
+                                    onClick={() => markPaid(p.id).then(() => toast.success('Marked paid')).catch((e) => toast.error(e.message))}
+                                    className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
+                                  >
+                                    Mark paid
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -793,39 +1032,12 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
         )}
       </section>
 
-      {/* Recently moved (completed / processing / failed) */}
-      {completed.length > 0 && (
-        <section className="bg-white rounded-2xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Recent activity</h2>
-          <div className="space-y-2 text-sm">
-            {completed.map((p) => {
-              const l = leaseMap[p.lease_id]
-              const unit = l ? unitMap[l.unit_id] : undefined
-              const status = rowStatus(p)
-              return (
-                <div key={p.id} className="flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-ink truncate">{l?.profile?.full_name ?? '—'} · Unit {unit?.unit_number ?? '—'}</p>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
-                        {status.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-mute capitalize">{p.type.replace(/_/g, ' ')} · {new Date(paymentAnchor(p)).toLocaleDateString()}</p>
-                  </div>
-                  <p className="font-semibold text-ink shrink-0">{formatUsdCents(Number(p.amount))}</p>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
       <Modal open={!!scheduleTarget} onClose={() => setScheduleTarget(null)} title="Payment schedule">
         {scheduleTarget && (
           <PaymentScheduleEditor
             lease={scheduleTarget}
             onClose={() => setScheduleTarget(null)}
+            onRebuilt={reload}
           />
         )}
       </Modal>
@@ -834,10 +1046,31 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
 }
 
 // ── Payment schedule editor ───────────────────────────────────────────────────
-function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () => void }) {
+function PaymentScheduleEditor({ lease, onClose, onRebuilt }: { lease: Lease; onClose: () => void; onRebuilt?: () => void }) {
   const [dueDay, setDueDay] = useState<number>((lease as any).payment_due_day ?? 1)
   const [saving, setSaving] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
   const generated = (lease as any).payment_schedule_generated_at != null
+
+  // Rebuild the future rent schedule from the lease's current start date +
+  // primary tenants — used after the start date or the primaries change.
+  // Saves the due-day first so the rebuild picks it up. Paid/past rows are kept.
+  const handleRebuild = async () => {
+    setRebuilding(true)
+    try {
+      if (dueDay !== ((lease as any).payment_due_day ?? 1)) {
+        await supabase.from('leases').update({ payment_due_day: dueDay }).eq('id', lease.id)
+      }
+      const r = await regenerateRentSchedule(lease.id)
+      toast.success(`Rebuilt ${r.created} rent row${r.created === 1 ? '' : 's'} · kept ${r.skippedPaid} paid`)
+      onRebuilt?.()
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not rebuild schedule')
+    } finally {
+      setRebuilding(false)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -858,7 +1091,7 @@ function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () =
           <DollarSign className="w-3.5 h-3.5" strokeWidth={1.75} />
           ${Number(lease.rent_amount).toLocaleString()} / mo
         </p>
-        <p>Lease runs {new Date(lease.start_date).toLocaleDateString()} → {new Date(lease.end_date).toLocaleDateString()}</p>
+        <p>Lease runs {formatLocalDate(lease.start_date)} → {formatLocalDate(lease.end_date)}</p>
         {generated ? (
           <p className="text-green-700 mt-1 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} /> Schedule already generated</p>
         ) : lease.status === 'active' ? (
@@ -887,6 +1120,23 @@ function PaymentScheduleEditor({ lease, onClose }: { lease: Lease; onClose: () =
         <button onClick={onClose} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-mute hover:bg-gray-50">Cancel</button>
         <button onClick={handleSave} disabled={saving} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save schedule'}
+        </button>
+      </div>
+
+      <div className="pt-3 mt-1 border-t border-gray-100">
+        <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-1">Rebuild schedule</p>
+        <p className="text-[11px] text-mute mb-2 leading-relaxed">
+          Changed the start date or the primary tenants? Rebuild to re-split future rent across
+          the current primaries. Paid and past rows are kept — only future unpaid rent is replaced.
+        </p>
+        <button
+          type="button"
+          onClick={handleRebuild}
+          disabled={rebuilding}
+          className="w-full py-2 border border-brand-300 text-brand-700 rounded-lg text-sm font-medium hover:bg-brand-50 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+        >
+          {rebuilding ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <RefreshCw className="w-4 h-4" strokeWidth={1.75} />}
+          Rebuild payment schedule
         </button>
       </div>
     </div>
@@ -1186,5 +1436,44 @@ function PropertyDeleteForm({
         </button>
       </div>
     </div>
+  )
+}
+
+// ── Payments-ledger helpers ───────────────────────────────────────────────────
+
+// Monthly-charge type labels.
+const CHARGE_LABEL: Record<string, string> = {
+  rent: 'Rent', late_fee: 'Late fee', pet_fee: 'Pet fee', pet_deposit: 'Pet deposit',
+  utility: 'Utility', fee: 'Fee', fine: 'Fine', credit: 'Credit', other: 'Other',
+}
+
+// Parse a 'YYYY-MM-DD' (or timestamp) into display parts without the UTC shift.
+function monthDay(dateStr: string) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(dateStr + 'T00:00:00') : new Date(dateStr)
+  return {
+    mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+    day: d.toLocaleDateString('en-US', { day: '2-digit' }),
+    monthYear: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+  }
+}
+
+// Circular collection ring — green when fully collected, brand teal while partial.
+function ProgressRing({ pct, size = 30 }: { pct: number; size?: number }) {
+  const r = (size - 5) / 2
+  const c = 2 * Math.PI * r
+  const clamped = Math.max(0, Math.min(100, pct))
+  const full = clamped >= 100
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e5e7eb" strokeWidth="3" />
+      {clamped > 0 && (
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={full ? '#16a34a' : '#008275'} strokeWidth="3" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c - (clamped / 100) * c}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      )}
+    </svg>
   )
 }

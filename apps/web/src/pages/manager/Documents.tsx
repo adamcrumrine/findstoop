@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
@@ -7,6 +8,7 @@ import { useManagerDocuments } from '@findstoop/shared/hooks/useDocuments'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
+import GeneratedDocumentsList from '../../components/documents/GeneratedDocumentsList'
 import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import toast from 'react-hot-toast'
 import {
@@ -53,6 +55,7 @@ function Skeleton() {
 
 export default function ManagerDocuments() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const managerId = user?.id
   const { properties, loading: propsLoading } = useProperties(managerId)
   const propertyIds = properties.map((p) => p.id)
@@ -64,6 +67,8 @@ export default function ManagerDocuments() {
 
   const loading = propsLoading || unitsLoading || leasesLoading || docsLoading
 
+  // Top-level tab: existing uploaded files vs. generated letters & notices.
+  const [docTab, setDocTab] = useState<'files' | 'notices'>('files')
   const [showUpload, setShowUpload] = useState(false)
   const [docToDelete, setDocToDelete] = useState<Document | null>(null)
   // Grouping organizes the list into labeled sections; the lease-status
@@ -195,16 +200,56 @@ export default function ManagerDocuments() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{documents.length} document{documents.length !== 1 ? 's' : ''} across all leases</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {docTab === 'files'
+              ? `${documents.length} file${documents.length !== 1 ? 's' : ''} across all leases`
+              : 'Generate and send letters & notices'}
+          </p>
         </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          disabled={activeLeases.length === 0}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
-        >
-          + Upload
-        </button>
+        {docTab === 'files' ? (
+          <button
+            onClick={() => setShowUpload(true)}
+            disabled={activeLeases.length === 0}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-40"
+          >
+            + Upload
+          </button>
+        ) : (
+          <button
+            onClick={() => navigate('/manager/documents/new')}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+          >
+            + New document
+          </button>
+        )}
       </div>
+
+      {/* Tabs: uploaded files vs. generated letters & notices */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([
+          { key: 'files', label: 'Files' },
+          { key: 'notices', label: 'Letters & Notices' },
+        ] as const).map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setDocTab(key)}
+            className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
+              docTab === key
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-mute hover:text-ink'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {docTab === 'notices' && (
+        <GeneratedDocumentsList properties={properties.map((p) => ({ id: p.id, name: p.name }))} />
+      )}
+
+      {docTab === 'files' && (<>
 
       {activeLeases.length === 0 && !loading && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
@@ -329,6 +374,8 @@ export default function ManagerDocuments() {
           ))}
         </div>
       )}
+
+      </>)}
 
       {/* Upload Modal */}
       <Modal open={showUpload} onClose={() => { setShowUpload(false); resetForm() }} title="Upload Document">

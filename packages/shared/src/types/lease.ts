@@ -35,6 +35,7 @@ export interface Lease {
       city: string | null
       state: string | null
       zip: string | null
+      student_housing?: boolean | null
     } | null
   } | null
 }

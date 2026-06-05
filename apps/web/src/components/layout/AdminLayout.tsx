@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Users, DollarSign, ShieldCheck,
-  HeartHandshake, Cpu, LogOut, CreditCard, Funnel, MapPin, Menu, X,
+  HeartHandshake, Cpu, LogOut, CreditCard, Funnel, MapPin, Menu, X, GraduationCap,
 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 
@@ -18,6 +18,7 @@ const navLinks = [
   { to: '/admin/subscriptions', label: 'Subscriptions', Icon: CreditCard },
   { to: '/admin/revenue',       label: 'Revenue',       Icon: DollarSign },
   { to: '/admin/funnel',        label: 'Funnel',        Icon: Funnel },
+  { to: '/admin/renter-check',  label: 'Renter Check',  Icon: GraduationCap },
   { to: '/admin/screening',     label: 'Screening',     Icon: ShieldCheck },
   { to: '/admin/system',        label: 'System',        Icon: Cpu },
   { to: '/admin/feedback',      label: 'Feedback',      Icon: HeartHandshake },

@@ -24,6 +24,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import {
   ArrowLeft, AlertTriangle, Save, Send, FileSignature, Loader2, CheckCircle2,
   FileText, ExternalLink, ClipboardList, ArrowRight, Check, ShieldCheck,
+  Scale, ChevronRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
@@ -1275,6 +1276,19 @@ function InspectionsPanel({ leaseId, fullySigned }: { leaseId: string; fullySign
           locked={!fullySigned}
         />
       </div>
+      {moveIn.inspection && moveOut.inspection && (
+        <Link
+          to={`/manager/lease/${leaseId}/inspection-compare`}
+          className="mt-3 flex items-center gap-2.5 rounded-xl border border-gray-200 hover:border-brand-300 px-4 py-3 transition-colors group"
+        >
+          <Scale className="w-4 h-4 text-brand-600 shrink-0" strokeWidth={1.75} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-ink">Compare move-in vs move-out</p>
+            <p className="text-xs text-mute">See where the condition changed before deciding on deposit deductions.</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-mute-400 group-hover:text-brand-600" strokeWidth={1.75} />
+        </Link>
+      )}
     </section>
   )
 }

@@ -24,6 +24,9 @@ const EduFairHousing       = lazy(() => import('./pages/marketing/education/Fair
 const EduLeadPaint         = lazy(() => import('./pages/marketing/education/LeadBasedPaintDisclosure'))
 const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
+const RenterCheck          = lazy(() => import('./pages/public/RenterCheck'))
+const DepositDemand        = lazy(() => import('./pages/public/DepositDemand'))
+const DepositCheck         = lazy(() => import('./pages/public/DepositCheck'))
 const ScreeningTerms       = lazy(() => import('./pages/marketing/ScreeningTerms'))
 const Privacy              = lazy(() => import('./pages/marketing/Privacy'))
 const Terms                = lazy(() => import('./pages/marketing/Terms'))
@@ -42,7 +45,10 @@ const VerifyBackup   = lazy(() => import('./pages/auth/VerifyBackup'))
 
 // Shared (manager + tenant)
 const SignLease           = lazy(() => import('./pages/shared/SignLease'))
+const SignDocument        = lazy(() => import('./pages/shared/SignDocument'))
+const ViewDocument        = lazy(() => import('./pages/shared/ViewDocument'))
 const InspectionEditor    = lazy(() => import('./pages/shared/InspectionEditor'))
+const InspectionCompare   = lazy(() => import('./pages/shared/InspectionCompare'))
 const InspectionPdf       = lazy(() => import('./pages/shared/InspectionPdf'))
 
 // Legal / compliance pages (federal disclosures, EPA pamphlet, etc.)
@@ -79,10 +85,15 @@ const AdminSubscriptions  = lazy(() => import('./pages/admin/Subscriptions'))
 const AdminFunnel         = lazy(() => import('./pages/admin/Funnel'))
 const AdminMfaSetup       = lazy(() => import('./pages/admin/MfaSetup'))
 const AdminVisitors       = lazy(() => import('./pages/admin/Visitors'))
+const AdminRenterCheck     = lazy(() => import('./pages/admin/RenterCheck'))
 const ManagerPayments     = lazy(() => import('./pages/manager/Payments'))
 const ManagerMaintenance  = lazy(() => import('./pages/manager/Maintenance'))
 const ManagerMessages     = lazy(() => import('./pages/manager/Messages'))
 const ManagerDocuments    = lazy(() => import('./pages/manager/Documents'))
+const ManagerDocumentBuilder = lazy(() => import('./pages/manager/DocumentBuilder'))
+const ManagerDocumentDetail  = lazy(() => import('./pages/manager/DocumentDetail'))
+const ManagerDocumentPrint   = lazy(() => import('./pages/manager/DocumentPrint'))
+const ManagerEvictionPrep    = lazy(() => import('./pages/manager/EvictionPrep'))
 const ManagerReports      = lazy(() => import('./pages/manager/Reports'))
 const ManagerExpenses     = lazy(() => import('./pages/manager/Expenses'))
 const ManagerDownloadCenter = lazy(() => import('./pages/manager/DownloadCenter'))
@@ -94,6 +105,7 @@ const TenantDashboard   = lazy(() => import('./pages/tenant/Dashboard'))
 const TenantPayRent     = lazy(() => import('./pages/tenant/PayRent'))
 const TenantMaintenance = lazy(() => import('./pages/tenant/Maintenance'))
 const TenantDocuments   = lazy(() => import('./pages/tenant/Documents'))
+const TenantResources   = lazy(() => import('./pages/tenant/RenterResources'))
 const TenantMessages    = lazy(() => import('./pages/tenant/Messages'))
 const TenantSettings    = lazy(() => import('./pages/tenant/Settings'))
 
@@ -161,6 +173,16 @@ export default function App() {
               of /manager and /tenant means it renders without a sidebar and
               can be opened cleanly in a new tab for printing. */}
           <Route path="/lease-pdf/:id"   element={<ManagerLeasePdf />} />
+          {/* Generated-document print/PDF — standalone (no sidebar); RLS scopes access. */}
+          <Route path="/document-print/:id" element={<ManagerDocumentPrint />} />
+          {/* Tenant-facing single-document pages — bare shell, no app nav, no upsell. */}
+          <Route path="/sign-document/:id" element={<SignDocument />} />
+          <Route path="/view/:id" element={<ViewDocument />} />
+          {/* Renter Check — public, no-login lease explainer (its own shell). */}
+          <Route path="/renter-check" element={<RenterCheck />} />
+          {/* Tenant deposit tools — fairness check + demand letter (own shells). */}
+          <Route path="/deposit-check" element={<DepositCheck />} />
+          <Route path="/deposit-demand" element={<DepositDemand />} />
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
           {/* Annual Schedule E tax worksheet — standalone print page (RLS scopes data). */}
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />
@@ -199,6 +221,7 @@ export default function App() {
             <Route path="subscriptions"  element={<AdminSubscriptions />} />
             <Route path="revenue"        element={<AdminRevenue />} />
             <Route path="funnel"         element={<AdminFunnel />} />
+            <Route path="renter-check"   element={<AdminRenterCheck />} />
             <Route path="screening"      element={<AdminScreening />} />
             <Route path="system"         element={<AdminSystem />} />
             <Route path="feedback"       element={<AdminFeedback />} />
@@ -225,7 +248,10 @@ export default function App() {
             <Route path="payments"     element={<ManagerPayments />} />
             <Route path="maintenance"  element={<ManagerMaintenance />} />
             <Route path="messages"     element={<ManagerMessages />} />
-            <Route path="documents"    element={<ManagerDocuments />} />
+            <Route path="documents"        element={<ManagerDocuments />} />
+            <Route path="documents/new"    element={<ManagerDocumentBuilder />} />
+            <Route path="documents/eviction-prep/:leaseId" element={<ManagerEvictionPrep />} />
+            <Route path="documents/:id"    element={<ManagerDocumentDetail />} />
             <Route path="reports"      element={<ManagerReports />} />
             <Route path="download-center" element={<ManagerDownloadCenter />} />
             <Route path="expenses"     element={<ManagerExpenses />} />
@@ -234,6 +260,7 @@ export default function App() {
             <Route path="import"       element={<ManagerImport />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
             <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
+            <Route path="lease/:leaseId/inspection-compare" element={<InspectionCompare />} />
           </Route>
 
           <Route path="/tenant" element={
@@ -246,10 +273,12 @@ export default function App() {
             <Route path="pay-rent"    element={<TenantPayRent />} />
             <Route path="maintenance" element={<TenantMaintenance />} />
             <Route path="documents"   element={<TenantDocuments />} />
+            <Route path="resources"   element={<TenantResources />} />
             <Route path="messages"    element={<TenantMessages />} />
             <Route path="settings"    element={<TenantSettings />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
             <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
+            <Route path="lease/:leaseId/inspection-compare" element={<InspectionCompare />} />
           </Route>
         </Routes>
       </Suspense>

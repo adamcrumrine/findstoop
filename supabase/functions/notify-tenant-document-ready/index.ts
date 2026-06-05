@@ -1,11 +1,11 @@
-// notify-tenant-lease-ready
+// notify-tenant-document-ready
 //
-// Triggered by the manager from the lease card. Verifies caller owns the
-// property, then sends a branded "your lease is ready to review and sign"
-// email to the tenant with a deep link into the signing page on their portal.
+// Triggered by the manager from the document builder's Deliver step. Verifies
+// the caller owns the property the document belongs to, stamps sent_at + a
+// 'sent' audit event, then emails the tenant a deep link — to the signing page
+// for e-sign documents, or the read-only view for everything else.
 //
-// Idempotent: re-sending updates a timestamp on the lease (sent_for_signature_at)
-// and just sends another email — useful as a "nudge" button.
+// Mirrors notify-tenant-lease-ready. Idempotent — re-sending acts as a nudge.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
@@ -53,30 +53,23 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single()
     if (!caller || (caller.role !== 'manager' && caller.role !== 'admin')) {
-      return json({ error: 'Only landlords can send leases for signature' }, { status: 403 })
+      return json({ error: 'Only landlords can send documents' }, { status: 403 })
     }
 
-    const { leaseId } = await req.json() as { leaseId?: string }
-    if (!leaseId) return json({ error: 'leaseId required' }, { status: 400 })
+    const { documentId } = await req.json() as { documentId?: string }
+    if (!documentId) return json({ error: 'documentId required' }, { status: 400 })
 
-    const { data: lease } = await admin
-      .from('leases')
-      .select('id, tenant_id, unit_id, start_date, end_date, rent_amount, status')
-      .eq('id', leaseId)
+    const { data: doc } = await admin
+      .from('generated_documents')
+      .select('id, property_id, tenant_id, title, requires_signature, status')
+      .eq('id', documentId)
       .single()
-    if (!lease) return json({ error: 'Lease not found' }, { status: 404 })
-
-    const { data: unit } = await admin
-      .from('units')
-      .select('id, unit_number, property_id')
-      .eq('id', lease.unit_id)
-      .single()
-    if (!unit) return json({ error: 'Unit not found' }, { status: 404 })
+    if (!doc) return json({ error: 'Document not found' }, { status: 404 })
 
     const { data: property } = await admin
       .from('properties')
       .select('id, manager_id, name, address, city, state, zip')
-      .eq('id', unit.property_id)
+      .eq('id', doc.property_id)
       .single()
     if (!property) return json({ error: 'Property not found' }, { status: 404 })
 
@@ -87,48 +80,56 @@ Deno.serve(async (req) => {
     const { data: tenant } = await admin
       .from('profiles')
       .select('id, full_name, email')
-      .eq('id', lease.tenant_id)
+      .eq('id', doc.tenant_id)
       .single()
     if (!tenant?.email) return json({ error: 'Tenant has no email on file' }, { status: 400 })
 
-    // Stamp the lease so we know it was sent for signature.
+    const wantsSignature = doc.requires_signature
+    const link = wantsSignature
+      ? `${APP_URL}/sign-document/${documentId}`
+      : `${APP_URL}/view/${documentId}`
+
+    // Stamp sent + log the audit event (service role bypasses RLS).
     await admin
-      .from('leases')
-      .update({ sent_for_signature_at: new Date().toISOString() })
-      .eq('id', leaseId)
+      .from('generated_documents')
+      .update({ status: 'sent', delivery_method: wantsSignature ? 'esign' : 'email', sent_at: new Date().toISOString() })
+      .eq('id', documentId)
+    await admin.from('generated_document_events').insert({
+      document_id: documentId,
+      actor_id: user.id,
+      event: 'sent',
+      meta: { method: wantsSignature ? 'esign' : 'email' },
+    })
 
     const landlordName  = caller.full_name ?? 'Your landlord'
     const companyName   = caller.company_name ?? landlordName
-    const tenantName    = tenant.full_name ?? 'there'
-    const tenantFirst   = tenantName.split(' ')[0] || 'there'
-    const signLink      = `${APP_URL}/tenant/sign-lease/${leaseId}`
-    const propertyLabel = `${property.name} — Unit ${unit.unit_number}`
+    const tenantFirst   = (tenant.full_name ?? 'there').split(' ')[0] || 'there'
+    const propertyLabel = property.name ?? property.address
     const propertyAddr  = `${property.address}, ${property.city}, ${property.state} ${property.zip}`
+    const cta           = wantsSignature ? 'Review & sign' : 'View document'
 
-    const subject = `Your lease is ready to review and sign`
+    const subject = wantsSignature
+      ? `${escapeHtml(doc.title)} — please review and sign`
+      : `${escapeHtml(doc.title)} from ${escapeHtml(companyName)}`
+
     const html = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
         <div style="text-align:center;padding:24px 0;border-bottom:1px solid #eee;margin-bottom:24px">
           <span style="font-size:24px;font-weight:700;color:#00A896;letter-spacing:-0.02em">FindStoop</span>
         </div>
-        <h1 style="font-size:22px;font-weight:700;color:#3A3A3C;margin:0 0 16px 0">Your lease is ready to sign</h1>
+        <h1 style="font-size:22px;font-weight:700;color:#3A3A3C;margin:0 0 16px 0">${escapeHtml(doc.title)}</h1>
         <p>Hi ${escapeHtml(tenantFirst)},</p>
-        <p><strong>${escapeHtml(landlordName)}</strong> has sent you a lease to review and sign for:</p>
+        <p><strong>${escapeHtml(landlordName)}</strong> sent you a document about your home:</p>
         <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0;font-weight:600;color:#00736B">${escapeHtml(propertyLabel)}</p>
           <p style="margin:4px 0 0 0;color:#3A3A3C;font-size:13px">${escapeHtml(propertyAddr)}</p>
-          <p style="margin:8px 0 0 0;color:#3A3A3C;font-size:13px">
-            ${new Date(lease.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            – ${new Date(lease.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            · $${Number(lease.rent_amount).toLocaleString()}/mo
-          </p>
         </div>
-        <p>Read the lease carefully, then sign electronically. You'll get a copy emailed to you once both parties have signed.</p>
+        ${wantsSignature ? '<p>Please read it carefully, then add your signature.</p>' : '<p>Please take a moment to read it.</p>'}
         <p style="text-align:center;margin:28px 0">
-          <a href="${signLink}" style="display:inline-block;background:#00A896;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">Review & sign lease</a>
+          <a href="${link}" style="display:inline-block;background:#00A896;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">${cta}</a>
         </p>
-        <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link:<br><a href="${signLink}" style="color:#00A896;word-break:break-all">${signLink}</a></p>
-        <p style="color:#8E8E93;font-size:12px;margin-top:24px">Questions about the lease? Reply directly to this email — it goes to ${escapeHtml(companyName)}.</p>
+        <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link:<br><a href="${link}" style="color:#00A896;word-break:break-all">${link}</a></p>
+        <p style="color:#8E8E93;font-size:12px;margin-top:24px">Questions? Reply directly to this email — it goes to ${escapeHtml(companyName)}.</p>
       </div>
     `
 

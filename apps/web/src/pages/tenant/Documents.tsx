@@ -34,7 +34,7 @@ function DocIcon({ type, className = 'w-5 h-5' }: { type: DocumentType; classNam
   return <Icon className={className} strokeWidth={1.75} />
 }
 
-// Per-type icon tile color. Notices use the FindStoop brand green —
+// Per-type icon tile color. Notices use the Stoop brand green —
 // they're shared reference material with no pending state, so they
 // render as "complete" the moment they're attached.
 const DOC_TYPE_COLOR: Record<DocumentType, string> = {

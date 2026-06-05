@@ -86,7 +86,7 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
   // the first tenant if no primary is set in the join table.
   const primaryName = lease.profile?.full_name ?? lease.profile?.email ?? tenants[0]?.full_name ?? tenants[0]?.email ?? 'Unknown tenant'
   // "Executed externally" means: the lease has been recorded as active but
-  // FindStoop's e-sign flow never ran. We can't always distinguish from
+  // Stoop's e-sign flow never ran. We can't always distinguish from
   // here without fetching documents, so we approximate: status='active'
   // and no signed_at means the lease was either imported, M2M, or had its
   // PDF attached out-of-band. All cases should NOT read "Draft — not yet

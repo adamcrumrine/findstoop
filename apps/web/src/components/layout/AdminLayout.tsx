@@ -45,7 +45,7 @@ export default function AdminLayout() {
       <div className="px-5 pt-6 pb-5 border-b border-slate-800 flex items-start justify-between gap-2">
         <div>
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-bold text-white tracking-tight">FindStoop</span>
+            <span className="text-lg font-bold text-white tracking-tight">Stoop</span>
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
               admin
             </span>
@@ -143,7 +143,7 @@ export default function AdminLayout() {
           >
             <Menu className="w-5 h-5" strokeWidth={1.75} />
           </button>
-          <span className="text-sm font-bold tracking-tight">FindStoop</span>
+          <span className="text-sm font-bold tracking-tight">Stoop</span>
           <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
             admin
           </span>

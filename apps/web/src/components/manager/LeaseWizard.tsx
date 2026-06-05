@@ -80,7 +80,7 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
     try {
       const tenantProfile = await getProfileByEmail(email)
       if (!tenantProfile) {
-        toast.error("Tenant isn't in FindStoop yet — invite them from Tenants first.")
+        toast.error("Tenant isn't in Stoop yet — invite them from Tenants first.")
         return
       }
       setForm((s) => ({
@@ -287,7 +287,7 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
 
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-mute">Lease terms. All tenants must already be in FindStoop — invite them from Tenants first if not. Add each tenant by their email below.</p>
+              <p className="text-sm text-mute">Lease terms. All tenants must already be in Stoop — invite them from Tenants first if not. Add each tenant by their email below.</p>
 
               <Field label={`Tenants on this lease${form.tenants.length > 0 ? ` (${form.tenants.length})` : ''}`}>
                 <div className="space-y-2">

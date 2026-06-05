@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'robots.txt', 'sitemap.xml'],
       manifest: {
-        name: 'FindStoop — Property Management',
-        short_name: 'FindStoop',
+        name: 'Stoop — Property Management',
+        short_name: 'Stoop',
         description: 'Property management software built for landlords with a handful of units. Listings, screening, e-sign leases, online rent, maintenance.',
         theme_color: '#00A896',
         background_color: '#ffffff',
@@ -35,7 +35,7 @@ export default defineConfig({
       workbox: {
         // Cache app shell + JS/CSS, but skip the marketing illustrations —
         // they're large PNGs that don't need to live in the offline cache.
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icons/*.png', 'favicon-*.png', 'apple-touch-icon.png', 'findstoop-logo*.png'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icons/*.png', 'favicon-*.png', 'apple-touch-icon.png', 'stoop_logo*.png'],
         globIgnores: ['**/illustrations/**'],
         // Network-first for API calls, cache-first for assets
         runtimeCaching: [

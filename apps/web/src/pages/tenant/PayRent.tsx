@@ -317,7 +317,7 @@ export default function TenantPayRent() {
   //   • no payment method → red (trumps everything)
   //   • >7 days past due  → red
   //   • 0–7 days past due → burnt orange
-  //   • upcoming, autopay ON  → filled FindStoop brand green
+  //   • upcoming, autopay ON  → filled Stoop brand green
   //   • upcoming, autopay OFF → ghost (white card + brand-green ring glow)
   const daysOverdue = daysUntilDue !== null && daysUntilDue < 0 ? Math.abs(daysUntilDue) : 0
   const heroTone =
@@ -544,11 +544,11 @@ export default function TenantPayRent() {
               </button>
               <div className="flex items-center gap-2.5 mb-3">
                 <img
-                  src="/findstoop-logo-square.png"
-                  alt="FindStoop"
+                  src="/stoop_logo_square_trans.png"
+                  alt="Stoop"
                   className="w-10 h-10 object-contain brightness-0 invert"
                 />
-                <span className="text-sm font-medium tracking-wide opacity-90">FindStoop</span>
+                <span className="text-sm font-medium tracking-wide opacity-90">Stoop</span>
               </div>
               <h2 className="text-2xl font-bold tracking-tight">Pay rent</h2>
               <p className="text-sm text-white/90 mt-1.5 leading-relaxed">

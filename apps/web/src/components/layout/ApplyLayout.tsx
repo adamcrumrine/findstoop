@@ -1,6 +1,6 @@
 // Layout for the public rental application (`/apply/:unitId`).
 // Intentionally minimal — no marketing nav, no "My Account", no auth redirect.
-// The prospect probably doesn't have a FindStoop account yet, and even if a
+// The prospect probably doesn't have a Stoop account yet, and even if a
 // signed-in user (e.g. the landlord testing the link, or a tenant with a
 // different rental) lands here, we don't want to redirect them away from
 // the application they're trying to fill out.
@@ -12,8 +12,8 @@ export default function ApplyLayout() {
     <div className="min-h-screen flex flex-col bg-white">
       <header className="border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" aria-label="FindStoop home" className="block">
-            <img src="/findstoop-logo.png" alt="FindStoop" className="h-9 w-auto" />
+          <Link to="/" aria-label="Stoop home" className="block">
+            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-9 w-auto" />
           </Link>
           <p className="text-xs uppercase tracking-wider text-mute font-semibold">
             Rental application
@@ -27,7 +27,7 @@ export default function ApplyLayout() {
 
       <footer className="border-t border-gray-100">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 py-4 text-xs text-mute flex flex-col sm:flex-row justify-between gap-1">
-          <p>© {new Date().getFullYear()} FindStoop</p>
+          <p>© {new Date().getFullYear()} Stoop</p>
           <p>Your information is shared only with the landlord who sent you this link.</p>
         </div>
       </footer>

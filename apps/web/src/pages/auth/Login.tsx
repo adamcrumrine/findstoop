@@ -161,8 +161,8 @@ export default function Login({ role }: Props) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
         {/* Logo — click returns to the marketing landing page */}
-        <Link to="/" aria-label="FindStoop home" className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-20 w-auto" />
+        <Link to="/" aria-label="Stoop home" className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-20 w-auto" />
         </Link>
 
         {/* Heading */}

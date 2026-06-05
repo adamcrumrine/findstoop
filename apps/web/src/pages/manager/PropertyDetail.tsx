@@ -1200,7 +1200,7 @@ function PropertyEditForm({
     if (field === 'state' && isBlockedState(value)) {
       setErrors((e) => ({
         ...e,
-        state: `FindStoop isn't yet available for properties in ${blockedStateName(value)}.`,
+        state: `Stoop isn't yet available for properties in ${blockedStateName(value)}.`,
       }))
       return
     }

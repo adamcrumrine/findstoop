@@ -202,9 +202,9 @@ export default function ManagerDashboard() {
               <CreditCard className="w-5 h-5 text-red-700" strokeWidth={1.75} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-red-900">Action required — set up FindStoop billing</p>
+              <p className="font-semibold text-red-900">Action required — set up Stoop billing</p>
               <p className="text-sm text-red-800 mt-0.5 leading-relaxed">
-                You have at least one signed lease. To unlock the formatted lease PDF, open your tenant's portal (rent payments, maintenance, documents), and start collecting rent through FindStoop, set up your subscription now.
+                You have at least one signed lease. To unlock the formatted lease PDF, open your tenant's portal (rent payments, maintenance, documents), and start collecting rent through Stoop, set up your subscription now.
                 $9/unit per month, billed only on active units.
               </p>
               <Link

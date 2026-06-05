@@ -1315,7 +1315,7 @@ function DocumentsStep({ joinedLeases, properties, pdfs, matches, pdfHints, pdfS
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2">
           <p className="font-bold text-ink text-lg leading-tight">{statusCounts.pending}</p>
-          <p className="text-mute text-[11px]"><strong>Pending</strong><br/><span className="text-mute/80">needs FindStoop lease</span></p>
+          <p className="text-mute text-[11px]"><strong>Pending</strong><br/><span className="text-mute/80">needs Stoop lease</span></p>
         </div>
       </div>
 
@@ -1873,11 +1873,11 @@ function ReviewStep({ properties, joinedLeases, matches, pdfStartDates, extraLea
         <p className="font-semibold inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-brand-600" />When you click Import</p>
         <ul className="list-disc pl-5 mt-2 text-xs text-mute leading-relaxed space-y-1">
           <li>Properties + units appear in your dashboard</li>
-          <li>Every matched tenant gets a "your landlord moved to FindStoop" email</li>
+          <li>Every matched tenant gets a "your landlord moved to Stoop" email</li>
           {statusCounts.active > 0 && <li><strong>{statusCounts.active} Active</strong> — signed PDF, current term — go live immediately</li>}
           {statusCounts.active_m2m > 0 && <li><strong>{statusCounts.active_m2m} Month-to-month</strong> — term ended but tenant is still there — also go live immediately</li>}
           {statusCounts.upcoming > 0 && <li><strong>{statusCounts.upcoming} Upcoming</strong> — signed, future start — wait until move-in to bill</li>}
-          {statusCounts.pending > 0 && <li><strong>{statusCounts.pending} Pending</strong> — no signed PDF — generate a FindStoop lease before activating</li>}
+          {statusCounts.pending > 0 && <li><strong>{statusCounts.pending} Pending</strong> — no signed PDF — generate a Stoop lease before activating</li>}
           <li>Co-tenants on the same lease share one lease record</li>
           {stripeBumpCount > 0 && <li className="text-amber-800"><strong>Heads up:</strong> {stripeBumpCount} lease{stripeBumpCount === 1 ? '' : 's'} will count toward your Stripe subscription right away</li>}
         </ul>
@@ -1920,7 +1920,7 @@ function DoneStep({ result, onOpenLeases, onDashboard }: {
       <CheckCircle2 className="w-14 h-14 mx-auto text-emerald-600 mb-3" strokeWidth={1.5} />
       <h2 className="text-2xl font-bold text-ink">Portfolio imported.</h2>
       <p className="text-sm text-mute mt-2 max-w-md mx-auto">
-        Tenants are getting their migration emails now. Leases with existing signed PDFs are already <strong>Active</strong>; the rest stay <strong>Pending</strong> until you generate a FindStoop agreement.
+        Tenants are getting their migration emails now. Leases with existing signed PDFs are already <strong>Active</strong>; the rest stay <strong>Pending</strong> until you generate a Stoop agreement.
       </p>
       <div className="grid sm:grid-cols-4 gap-3 mt-6">
         <DoneStat label="Properties"        value={result.counts.properties_created} />

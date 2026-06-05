@@ -104,7 +104,7 @@ export default function Billing() {
 
   // Once a stored return URL exists and billing is active, redirect there
   // and clear the stash. Used to send the manager straight back to the
-  // sign-lease page after they finish FindStoop subscription setup.
+  // sign-lease page after they finish Stoop subscription setup.
   useEffect(() => {
     if (!state) return
     const active = state.status === 'active' || state.status === 'trialing'
@@ -162,7 +162,7 @@ export default function Billing() {
         return
       }
       if (data?.status === 'manage') {
-        // Already subscribed — open the FindStoop-branded manage modal
+        // Already subscribed — open the Stoop-branded manage modal
         // instead of redirecting to Stripe's (Prospekteer-branded) portal.
         setManageModalOpen(true)
         return
@@ -220,7 +220,7 @@ export default function Billing() {
         <h1 className="text-2xl font-semibold text-ink">Billing</h1>
         <p className="text-sm text-mute mt-1">
           {state.complimentary
-            ? 'All FindStoop features unlocked at no charge.'
+            ? 'All Stoop features unlocked at no charge.'
             : `${formatUsd(PER_UNIT)} per active unit per month. Or save 16.7% with annual prepay (${formatUsd(PER_UNIT * 10)}/unit/year, non-refundable).`}
         </p>
       </header>
@@ -392,7 +392,7 @@ export default function Billing() {
           <CreditCard className="w-5 h-5 text-brand-600 mt-0.5" strokeWidth={1.75} />
           <div className="flex-1">
             <p className="font-semibold text-ink">
-              FindStoop — {state.interval === 'year' ? 'annual prepay' : 'monthly'}
+              Stoop — {state.interval === 'year' ? 'annual prepay' : 'monthly'}
               {state.interval === 'year' && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full align-middle">
                   Non-refundable
@@ -495,7 +495,7 @@ function getStatusInfo(status: string | null, subscriptionId: string | null, com
   if (!subscriptionId || !status) {
     return {
       heading: 'Subscription required',
-      subtitle: 'FindStoop is $9 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through FindStoop.',
+      subtitle: 'Stoop is $9 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through Stoop.',
       Icon: AlertTriangle,
       bannerCls: 'bg-red-50 border-red-200',
       iconCls: 'text-red-700',

@@ -129,7 +129,7 @@ export default function RenterCheck() {
             </>
           ) : (
             <>
-              <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
+              <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-8 w-auto" />
               <span className="text-xs font-semibold uppercase tracking-wider text-mute">Renter Check</span>
             </>
           )}
@@ -316,7 +316,7 @@ export default function RenterCheck() {
                   </h2>
                   {lead.onPlatform ? (
                     <p className="text-sm text-ink">
-                      Good news — your landlord already uses FindStoop, so you can pay rent and handle documents in one place.{' '}
+                      Good news — your landlord already uses Stoop, so you can pay rent and handle documents in one place.{' '}
                       <Link to="/login/renter" className="text-brand-600 font-medium underline">Renter sign in</Link>
                     </p>
                   ) : analysis.parties.landlord_email ? (

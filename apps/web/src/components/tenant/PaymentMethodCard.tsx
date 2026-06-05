@@ -305,8 +305,8 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
                 <X className="w-4 h-4" strokeWidth={2} />
               </button>
               <div className="flex items-center gap-2.5 mb-3">
-                <img src="/findstoop-logo-square.png" alt="FindStoop" className="w-10 h-10 object-contain brightness-0 invert" />
-                <span className="text-sm font-medium tracking-wide opacity-90">FindStoop</span>
+                <img src="/stoop_logo_square_trans.png" alt="Stoop" className="w-10 h-10 object-contain brightness-0 invert" />
+                <span className="text-sm font-medium tracking-wide opacity-90">Stoop</span>
               </div>
               <h2 className="text-2xl font-bold tracking-tight">Save a payment method</h2>
               <p className="text-sm text-white/90 mt-1.5 leading-relaxed">

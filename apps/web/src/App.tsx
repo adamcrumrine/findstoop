@@ -48,6 +48,7 @@ const SignLease           = lazy(() => import('./pages/shared/SignLease'))
 const SignDocument        = lazy(() => import('./pages/shared/SignDocument'))
 const ViewDocument        = lazy(() => import('./pages/shared/ViewDocument'))
 const InspectionEditor    = lazy(() => import('./pages/shared/InspectionEditor'))
+const InspectionCompare   = lazy(() => import('./pages/shared/InspectionCompare'))
 const InspectionPdf       = lazy(() => import('./pages/shared/InspectionPdf'))
 
 // Legal / compliance pages (federal disclosures, EPA pamphlet, etc.)
@@ -259,6 +260,7 @@ export default function App() {
             <Route path="import"       element={<ManagerImport />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
             <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
+            <Route path="lease/:leaseId/inspection-compare" element={<InspectionCompare />} />
           </Route>
 
           <Route path="/tenant" element={
@@ -276,6 +278,7 @@ export default function App() {
             <Route path="settings"    element={<TenantSettings />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
             <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />
+            <Route path="lease/:leaseId/inspection-compare" element={<InspectionCompare />} />
           </Route>
         </Routes>
       </Suspense>

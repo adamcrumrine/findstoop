@@ -136,8 +136,8 @@ export default function ManagerPropertyDetail() {
         <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Properties
       </button>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4 flex items-start gap-5">
-        <div className="w-20 h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 mb-4 flex items-start gap-4 sm:gap-5">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
           {property.thumbnail_url ? (
             <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -146,7 +146,7 @@ export default function ManagerPropertyDetail() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h1 className="text-2xl font-semibold text-ink">{property.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-ink">{property.name}</h1>
             <button
               type="button"
               onClick={() => setEditOpen(true)}
@@ -157,7 +157,7 @@ export default function ManagerPropertyDetail() {
           </div>
           <p className="text-sm text-mute mt-0.5">{property.address}</p>
           <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
-          <div className="mt-3 flex gap-6 text-xs">
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:flex sm:gap-6">
             <Stat label="Units" value={scopedUnits.length} />
             <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
             <Stat label="Active leases" value={activeLeases.length} />
@@ -193,8 +193,8 @@ export default function ManagerPropertyDetail() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto">
+      {/* Tabs — horizontal scroll on narrow screens, no visible scrollbar. */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto no-scrollbar">
         <div className="flex gap-1 min-w-max">
           {tabs.map(({ id: tid, label, Icon }) => (
             <button

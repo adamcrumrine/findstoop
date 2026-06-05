@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
+import { useRenterPartner } from '../../hooks/useRenterPartner'
 import type { DepositCheckResult, CheckDepositResponse, DeductionVerdict } from '@findstoop/shared/types/depositCheck'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import { Loader2, UploadCloud, Scale, RotateCcw, CheckCircle2, AlertTriangle, XCircle, Banknote, ArrowRight } from 'lucide-react'
@@ -33,6 +34,7 @@ const VERDICT: Record<DeductionVerdict, { Icon: typeof CheckCircle2; chip: strin
 export default function DepositCheck() {
   const [params] = useSearchParams()
   const ref = params.get('ref')
+  const partner = useRenterPartner(ref) // co-brand for a university or self-serve landlord
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle')
   const [error, setError] = useState('')
   const [text, setText] = useState('')
@@ -64,9 +66,26 @@ export default function DepositCheck() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-mute">Deposit Check</span>
+        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+          {partner ? (
+            <>
+              <div className="flex items-center gap-2.5 min-w-0">
+                {partner.logoUrl
+                  ? <img src={partner.logoUrl} alt={partner.name} className="h-8 w-auto" />
+                  : <span className="font-semibold text-ink text-sm truncate">{partner.name}</span>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] uppercase tracking-wider text-mute hidden sm:inline">Deposit Check</span>
+                <span className="text-gray-300 hidden sm:inline">·</span>
+                <PoweredByStoop />
+              </div>
+            </>
+          ) : (
+            <>
+              <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-mute">Deposit Check</span>
+            </>
+          )}
         </div>
       </header>
 
@@ -78,6 +97,7 @@ export default function DepositCheck() {
               Paste or upload the deduction letter your landlord sent. We'll check each charge against
               your Ohio rights and tell you what looks unfair — and what you may be owed back.
             </p>
+            {partner?.tagline && <p className="text-xs text-brand-700 mt-2 font-medium">{partner.tagline}</p>}
           </div>
         )}
 

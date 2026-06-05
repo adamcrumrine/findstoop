@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
-import { getPartner } from '../../lib/renterPartners'
+import { useRenterPartner } from '../../hooks/useRenterPartner'
 import type { LeaseAnalysis, ExplainLeaseResponse, RedFlagSeverity } from '@findstoop/shared/types/leaseAnalysis'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import {
@@ -36,8 +36,8 @@ const SEV: Record<RedFlagSeverity, { dot: string; chip: string; label: string }>
 
 export default function RenterCheck() {
   const [params] = useSearchParams()
-  const ref = params.get('ref') // channel attribution (e.g. ?ref=osu)
-  const partner = getPartner(ref) // co-brand when a known partner referred
+  const ref = params.get('ref') // channel attribution (e.g. ?ref=osu or a landlord code)
+  const partner = useRenterPartner(ref) // co-brand for a known university or self-serve landlord
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle')
   const [error, setError] = useState('')
   const [analysis, setAnalysis] = useState<LeaseAnalysis | null>(null)

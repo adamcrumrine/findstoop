@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import LeaseAddenda from '../../components/manager/LeaseAddenda'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { generateLeaseText, getStateNotes } from '@findstoop/shared/lib/leaseTemplates'
 import type { Lease } from '@findstoop/shared/types/lease'
@@ -717,6 +718,13 @@ export default function ReviewLease() {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Addenda — the sanctioned way to amend an executed lease. */}
+      {leaseExecuted && (
+        <div className="mb-4">
+          <LeaseAddenda leaseId={lease.id} />
         </div>
       )}
 

@@ -20,6 +20,7 @@ export type DocType =
   | 'maintenance_ack'
   | 'lease_violation'
   | 'entry_notice'
+  | 'addendum'
 
 export type DocEvent =
   | 'created'

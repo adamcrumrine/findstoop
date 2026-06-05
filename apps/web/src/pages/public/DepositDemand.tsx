@@ -6,7 +6,7 @@
 // keeps/sends it themselves. Surfaced from the student-housing Renter Resources hub.
 
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getTenantActiveLease } from '@findstoop/shared/api/leases'
 import type { Lease } from '@findstoop/shared/types/lease'
@@ -21,9 +21,16 @@ const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export default function DepositDemand() {
   const { user, profile } = useAuth()
+  const [params] = useSearchParams()
+  // Prefill the amount owed when arriving from the Deposit Check (?owed=…).
+  const owed = params.get('owed')
   const [lease, setLease] = useState<Lease | null>(null)
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState<Record<string, string>>({})
+  const [form, setForm] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    if (owed && Number(owed) > 0) init.amount_owed = owed
+    return init
+  })
 
   useEffect(() => {
     if (!user?.id) { setLoading(false); return }

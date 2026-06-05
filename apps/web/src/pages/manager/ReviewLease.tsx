@@ -24,7 +24,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import {
   ArrowLeft, AlertTriangle, Save, Send, FileSignature, Loader2, CheckCircle2,
   FileText, ExternalLink, ClipboardList, ArrowRight, Check, ShieldCheck,
-  Scale, ChevronRight,
+  Scale, ChevronRight, Lock,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
@@ -702,13 +702,31 @@ export default function ReviewLease() {
         </div>
       )}
 
+      {/* Executed-lease lock notice — a signed lease is binding, so its terms
+          can't be edited. Direct the manager to an addendum or termination. */}
+      {leaseExecuted && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" strokeWidth={1.75} />
+            <div className="text-sm text-amber-900">
+              <p className="font-semibold">This lease is fully executed — its terms are locked.</p>
+              <p className="mt-1 text-amber-800 leading-relaxed">
+                A signed lease is a binding agreement, so the fields below can’t be edited. To change the
+                terms, create a written <strong>addendum</strong> that every party on the lease signs — or
+                end the lease under your state’s notice rules (see the key rules above) and start a new one.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stacked layout: editable fields full-width on top, then document. */}
       <div className="space-y-4">
         {/* Editable structured fields — multi-column grid, full width */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-4">Lease details</h2>
 
-          <fieldset disabled={fullySigned} className={fullySigned ? 'opacity-60 pointer-events-none' : ''}>
+          <fieldset disabled={leaseExecuted} className={leaseExecuted ? 'opacity-60 pointer-events-none' : ''}>
             {/* ── Landlord ──────────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2">Landlord</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
@@ -746,7 +764,7 @@ export default function ReviewLease() {
                           <p className="text-[10px] text-mute truncate">{t.email ?? '—'}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {!fullySigned && (
+                          {!leaseExecuted && (
                             <button
                               type="button"
                               onClick={() => togglePrimary(t.id)}
@@ -758,7 +776,7 @@ export default function ReviewLease() {
                               {isPrimary ? 'Unmark primary' : 'Mark primary'}
                             </button>
                           )}
-                          {!isPrimary && !fullySigned && (
+                          {!isPrimary && !leaseExecuted && (
                             <button
                               type="button"
                               onClick={() => handleRemoveTenant(t.id)}
@@ -773,7 +791,7 @@ export default function ReviewLease() {
                     )
                   })}
                 </div>
-                {!fullySigned && (
+                {!leaseExecuted && (
                   <div className="mt-2 space-y-1.5">
                     <div className="flex gap-1.5">
                       <input
@@ -999,28 +1017,6 @@ export default function ReviewLease() {
               </label>
             </div>
 
-            {/* Tentative move-out date for month-to-month tenancies — the
-                lifecycle cron fires move-out reminders off this when the
-                tenant has given soft notice. Only shown for M2M leases
-                since for fixed-term leases, end_date already does the job. */}
-            {lease.month_to_month && (
-              <div className="mb-5">
-                <FormField label="Tentative move-out date (optional)">
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={fields.tentative_move_out_date}
-                    onChange={(e) => set('tentative_move_out_date', e.target.value)}
-                  />
-                </FormField>
-                <p className="text-[11px] text-mute mt-1 leading-relaxed">
-                  If your tenant has given notice they plan to move out, set the date here. We'll fire
-                  the same move-out reminders we use for fixed-term leases (deposit return prep,
-                  move-out inspection scheduling, etc.).
-                </p>
-              </div>
-            )}
-
             {/* ── Notes ─────────────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">Notes</p>
             <FormField label="Utility notes (optional)">
@@ -1028,6 +1024,29 @@ export default function ReviewLease() {
             </FormField>
           </fieldset>
         </section>
+
+        {/* Move-out notice — month-to-month only. Stays editable even on an
+            executed lease: recording a tenant's notice to vacate isn't a change
+            to the lease terms, and the lifecycle cron fires move-out reminders
+            (deposit return prep, inspection scheduling) off this date. */}
+        {lease.month_to_month && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Move-out notice</h2>
+            <FormField label="Tentative move-out date (optional)">
+              <input
+                type="date"
+                className={inputClass}
+                value={fields.tentative_move_out_date}
+                onChange={(e) => set('tentative_move_out_date', e.target.value)}
+              />
+            </FormField>
+            <p className="text-[11px] text-mute mt-1 leading-relaxed">
+              If your tenant has given notice they plan to move out, set the date here. We'll fire
+              the same move-out reminders we use for fixed-term leases (deposit return prep,
+              move-out inspection scheduling, etc.).
+            </p>
+          </section>
+        )}
 
         {/* Lease document — either the externally-imported signed PDF (if
             this lease was migrated in with an executed agreement), or the

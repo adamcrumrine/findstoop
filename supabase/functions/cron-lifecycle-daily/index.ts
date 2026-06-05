@@ -288,6 +288,9 @@ interface FireTriggerParams {
   recipientEmail: string
   dedupToken: string
   templateVars: TemplateVars
+  // When set, the owning landlord is BCC'd so they have a copy of what their
+  // tenant received. Resolved per-lease (cached) at the call site.
+  bccEmail?: string
 }
 
 async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'duplicate' | 'no_template' | 'send_failed'> {
@@ -313,6 +316,7 @@ async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'd
     const { data, error } = await resend.emails.send({
       from: `FindStoop <${RESEND_FROM}>`,
       to: p.recipientEmail,
+      bcc: p.bccEmail || undefined,
       subject,
       html,
     })
@@ -353,6 +357,18 @@ Deno.serve(async (req) => {
   interface Outcome { triggerKey: string; sent: number; duplicate: number; paused: number; failed: number; skipped: number }
   const totals: Outcome[] = []
 
+  // Resolve the owning landlord's email for a lease (cached per run) so tenant
+  // notifications BCC the manager who owns the property.
+  const mgrEmailCache = new Map<string, string | null>()
+  async function bccForLease(leaseId: string | null | undefined): Promise<string | undefined> {
+    if (!leaseId) return undefined
+    if (!mgrEmailCache.has(leaseId)) {
+      const { data } = await admin.rpc('manager_email_for_lease', { p_lease_id: leaseId })
+      mgrEmailCache.set(leaseId, typeof data === 'string' ? data : null)
+    }
+    return mgrEmailCache.get(leaseId) || undefined
+  }
+
   // ── Rent reminders: 3d / 1d / due today ────────────────────────────────
   for (const daysBefore of [3, 1, 0] as const) {
     const triggerKey = `rent_reminder_${daysBefore}d`
@@ -373,6 +389,7 @@ Deno.serve(async (req) => {
         triggerKey,
         userId: row.tenant_id,
         recipientEmail: row.tenant_email,
+        bccEmail: await bccForLease(row.lease_id),
         dedupToken: `payment:${row.payment_id}:${daysBefore}d`,
         templateVars: {
           first_name: firstName,
@@ -429,6 +446,7 @@ Deno.serve(async (req) => {
             triggerKey: 'lease_renewal_tenant',
             userId: row.tenant_id,
             recipientEmail: row.tenant_email,
+            bccEmail: row.manager_email || undefined,
             dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
             templateVars: {
               first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
@@ -478,6 +496,7 @@ Deno.serve(async (req) => {
         triggerKey,
         userId: row.tenant_id,
         recipientEmail: row.tenant_email,
+        bccEmail: await bccForLease(row.lease_id),
         dedupToken: `late_fee:payment:${row.payment_id}`,
         templateVars: {
           first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
@@ -660,6 +679,7 @@ Deno.serve(async (req) => {
             triggerKey: 'autopay_failed',
             userId: row.tenant_id,
             recipientEmail: tenant.email,
+            bccEmail: await bccForLease(row.lease_id),
             // Date-stamped so a retry on a later day can re-alert if it fails again.
             dedupToken: `autopay_failed:${row.id}:${new Date().toISOString().split('T')[0]}`,
             templateVars: {

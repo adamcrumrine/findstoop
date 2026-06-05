@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
+import RenterToolsShare from '../../components/manager/RenterToolsShare'
 
 interface LandlordSettings {
   full_name: string
@@ -261,6 +262,9 @@ export default function ManagerSettings() {
           </div>
         </div>
       </section>
+
+      {/* Share renter tools (landlord co-brand) */}
+      <RenterToolsShare companyName={settings.company_name} />
 
       {/* Notifications */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">

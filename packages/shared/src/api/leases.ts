@@ -15,7 +15,7 @@ import type { Profile } from '../types/profile'
 // Upcoming was missed when that status was introduced, which left
 // tenants on signed-but-future leases with an empty portal.
 export async function getTenantActiveLease(tenantId: string): Promise<Lease | null> {
-  const selection = '*, unit:units(unit_number, properties(name, address, city, state, zip))'
+  const selection = '*, unit:units(unit_number, properties(name, address, city, state, zip, student_housing))'
   const { data: active } = await supabase
     .from('leases')
     .select(selection)

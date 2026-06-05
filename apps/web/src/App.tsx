@@ -25,6 +25,7 @@ const EduLeadPaint         = lazy(() => import('./pages/marketing/education/Lead
 const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
 const RenterCheck          = lazy(() => import('./pages/public/RenterCheck'))
+const DepositDemand        = lazy(() => import('./pages/public/DepositDemand'))
 const ScreeningTerms       = lazy(() => import('./pages/marketing/ScreeningTerms'))
 const Privacy              = lazy(() => import('./pages/marketing/Privacy'))
 const Terms                = lazy(() => import('./pages/marketing/Terms'))
@@ -177,6 +178,8 @@ export default function App() {
           <Route path="/view/:id" element={<ViewDocument />} />
           {/* Renter Check — public, no-login lease explainer (its own shell). */}
           <Route path="/renter-check" element={<RenterCheck />} />
+          {/* Tenant deposit-demand letter generator (own shell for clean print). */}
+          <Route path="/deposit-demand" element={<DepositDemand />} />
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
           {/* Annual Schedule E tax worksheet — standalone print page (RLS scopes data). */}
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />

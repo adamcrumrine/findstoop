@@ -9,7 +9,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getTenantActiveLease } from '@findstoop/shared/api/leases'
 import type { Lease } from '@findstoop/shared/types/lease'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
-import { FileSearch, ScrollText, Camera, ShieldCheck, Loader2, GraduationCap, ChevronRight, type LucideIcon } from 'lucide-react'
+import { FileSearch, ScrollText, Camera, ShieldCheck, Banknote, Loader2, GraduationCap, ChevronRight, type LucideIcon } from 'lucide-react'
 
 export default function RenterResources() {
   const { user } = useAuth()
@@ -46,7 +46,8 @@ export default function RenterResources() {
     { icon: FileSearch, title: 'Understand your lease', desc: "Upload your lease for a plain-English breakdown — your obligations, the red flags, and your rights.", to: '/renter-check', external: true },
     { icon: ScrollText, title: 'Know your rights', desc: 'Your rights as an Ohio renter — repairs, entry, deposits, and more.', to: '/legal/ohio-tenant-rights', external: true },
     { icon: Camera, title: 'Document your move-in', desc: 'Photograph the place room-by-room so your security deposit is protected.', to: leaseId ? `/tenant/lease/${leaseId}/inspection/move_in` : '#' },
-    { icon: ShieldCheck, title: 'Protect your deposit', desc: 'At move-out, document the condition so any deductions can be checked for fairness.', to: leaseId ? `/tenant/lease/${leaseId}/inspection/move_out` : '#' },
+    { icon: ShieldCheck, title: 'Document your move-out', desc: 'At move-out, photograph the condition so any deductions can be checked for fairness.', to: leaseId ? `/tenant/lease/${leaseId}/inspection/move_out` : '#' },
+    { icon: Banknote, title: 'Get your deposit back', desc: 'Build a print-ready demand letter that cites your Ohio rights (ORC 5321.16).', to: '/deposit-demand', external: true },
   ]
 
   return (

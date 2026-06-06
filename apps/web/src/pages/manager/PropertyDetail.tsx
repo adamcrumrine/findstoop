@@ -832,12 +832,12 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   })
   const todayStr = new Date().toISOString().slice(0, 10)
   const chargeGroups = useMemo(() => {
-    const map = new Map<string, { key: string; lease_id: string; due_date: string; type: string; rows: Payment[] }>()
+    const map = new Map<string, { key: string; lease_id: string; due_date: string; rows: Payment[] }>()
     for (const p of payments) {
       const dd = (p.due_date ?? paymentAnchor(p)).slice(0, 10)
-      const ym = dd.slice(0, 7) // group by the month the charge applies to
-      const key = `${p.lease_id}|${ym}|${p.type}`
-      if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, type: p.type, rows: [] })
+      const ym = dd.slice(0, 7) // group by the month the charge applies to — all types
+      const key = `${p.lease_id}|${ym}`
+      if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, rows: [] })
       const g = map.get(key)!
       if (dd < g.due_date) g.due_date = dd // earliest day in the month, for display + sort
       g.rows.push(p)
@@ -846,7 +846,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
       const total = g.rows.reduce((s, r) => s + Number(r.amount), 0)
       const paid = g.rows.filter((r) => r.status === 'completed').reduce((s, r) => s + Number(r.amount), 0)
       return { ...g, total, paid, balance: total - paid, pct: total > 0 ? (paid / total) * 100 : 0 }
-    }).sort((a, b) => a.due_date.localeCompare(b.due_date) || a.type.localeCompare(b.type))
+    }).sort((a, b) => a.due_date.localeCompare(b.due_date))
   }, [payments])
   const monthStatus = (g: { pct: number; rows: Payment[] }) => {
     if (g.pct >= 100) return { label: 'Paid', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
@@ -971,10 +971,13 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
               const open = expandedKeys.has(g.key)
               const { mon, year, monthYear } = monthDay(g.due_date)
               const st = monthStatus(g)
-              const title = CHARGE_LABEL[g.type] ?? 'Charge'
-              const sub = g.type === 'rent'
-                ? `${monthYear} · Unit ${unit?.unit_number ?? '—'}`
-                : `Unit ${unit?.unit_number ?? '—'}`
+              // The month rolls up every charge type. Title reflects what's in it.
+              const types = new Set(g.rows.map((r) => r.type))
+              const title = types.has('rent')
+                ? (types.size > 1 ? 'Rent + fees' : 'Rent')
+                : (types.size === 1 ? (CHARGE_LABEL[[...types][0]] ?? 'Charge') : 'Charges')
+              const sub = `${monthYear} · Unit ${unit?.unit_number ?? '—'}`
+              const payerCount = new Set(g.rows.map((r) => r.tenant_id)).size
               return (
                 <div key={g.key} className="border border-gray-100 rounded-xl overflow-hidden">
                   <button
@@ -990,7 +993,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-ink">{title}</p>
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
-                        {g.rows.length > 1 && <span className="text-[10px] text-mute">{g.rows.length} tenants</span>}
+                        {payerCount > 1 && <span className="text-[10px] text-mute">{payerCount} tenants</span>}
                       </div>
                       <p className="text-xs text-mute truncate">{sub}</p>
                     </div>
@@ -1012,6 +1015,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                             <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1">
                               <div className="flex items-center gap-2 min-w-0">
                                 <p className="text-ink truncate">{payerName(p)}</p>
+                                <span className="text-[11px] text-mute shrink-0">{CHARGE_LABEL[p.type] ?? 'Charge'}</span>
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">

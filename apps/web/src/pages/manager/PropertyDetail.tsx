@@ -822,8 +822,10 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   }, [payments])
 
   // One collapsible row per monthly charge: group every payment by
-  // (lease, due-date, type). Collapsed shows the full month's total + % collected;
-  // expand to see each primary's individual share. Covers past, current & upcoming.
+  // (lease, due-MONTH, type) — so a lease's primaries collapse into a single
+  // month even when their individual payments fall on staggered due dates.
+  // Collapsed shows the full month's total + % collected; expand to see each
+  // primary's individual share. Covers past, current & upcoming.
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const toggle = (k: string) => setExpandedKeys((s) => {
     const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n
@@ -833,9 +835,12 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
     const map = new Map<string, { key: string; lease_id: string; due_date: string; type: string; rows: Payment[] }>()
     for (const p of payments) {
       const dd = (p.due_date ?? paymentAnchor(p)).slice(0, 10)
-      const key = `${p.lease_id}|${dd}|${p.type}`
+      const ym = dd.slice(0, 7) // group by the month the charge applies to
+      const key = `${p.lease_id}|${ym}|${p.type}`
       if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, type: p.type, rows: [] })
-      map.get(key)!.rows.push(p)
+      const g = map.get(key)!
+      if (dd < g.due_date) g.due_date = dd // earliest day in the month, for display + sort
+      g.rows.push(p)
     }
     return Array.from(map.values()).map((g) => {
       const total = g.rows.reduce((s, r) => s + Number(r.amount), 0)
@@ -964,7 +969,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
               const l = leaseMap[g.lease_id]
               const unit = l ? unitMap[l.unit_id] : undefined
               const open = expandedKeys.has(g.key)
-              const { mon, day, monthYear } = monthDay(g.due_date)
+              const { mon, year, monthYear } = monthDay(g.due_date)
               const st = monthStatus(g)
               const title = CHARGE_LABEL[g.type] ?? 'Charge'
               const sub = g.type === 'rent'
@@ -977,9 +982,9 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                     onClick={() => toggle(g.key)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
                   >
-                    <div className="w-9 text-center shrink-0">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-mute leading-none">{mon}</p>
-                      <p className="text-lg font-bold text-ink leading-tight">{day}</p>
+                    <div className="w-12 text-center shrink-0">
+                      <p className="text-[10px] font-medium text-mute leading-none">{year}</p>
+                      <p className="text-base font-bold uppercase tracking-wide text-ink leading-tight mt-0.5">{mon}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1453,6 +1458,7 @@ function monthDay(dateStr: string) {
   return {
     mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
     day: d.toLocaleDateString('en-US', { day: '2-digit' }),
+    year: d.toLocaleDateString('en-US', { year: 'numeric' }),
     monthYear: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
   }
 }

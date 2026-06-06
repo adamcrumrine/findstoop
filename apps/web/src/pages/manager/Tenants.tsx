@@ -201,7 +201,7 @@ export default function ManagerTenants() {
       const result = await inviteTenant(inviteForm.email, inviteForm.fullName, inviteForm.applyUnitId || undefined)
       if (result.alreadyExists) {
         const who = result.name && result.name !== inviteForm.email ? `${result.name} (${inviteForm.email})` : inviteForm.email
-        toast(`${who} is already on FindStoop — no invite email sent. Add them to a lease from the Leases page.`, {
+        toast(`${who} is already on Stoop — no invite email sent. Add them to a lease from the Leases page.`, {
           icon: 'ℹ️',
           duration: 6000,
         })

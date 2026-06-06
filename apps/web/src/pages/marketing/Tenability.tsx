@@ -21,7 +21,7 @@ import { useSeo } from '../../lib/useSeo'
 export default function Tenability() {
   useSeo({
     title: 'Tenability™ — the 0–100 AI rentability score (from $5)',
-    description: 'Tenability™ is FindStoop\'s private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.',
+    description: 'Tenability™ is Stoop\'s private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.',
     path: '/tenability',
   })
 
@@ -239,7 +239,7 @@ export default function Tenability() {
           </h2>
           <div className="space-y-6">
             <Faq q="What is a Tenability™ score?">
-              Tenability™ is FindStoop's private 0–100 rentability score for a rental applicant. It combines
+              Tenability™ is Stoop's private 0–100 rentability score for a rental applicant. It combines
               verified income, identity verification, document consistency, and the applicant's self-reported
               history into one number a landlord can read in seconds — alongside a plain-English summary of
               what drove it. Higher is better. It is generated using a proprietary AI pipeline configured to
@@ -249,7 +249,7 @@ export default function Tenability() {
               No. A Tenability™ score is not a FICO or VantageScore and has no relationship to either. It does
               not pull or read your credit report. <strong>Tenability™ Pro</strong> additionally asks the applicant
               to upload their own free AnnualCreditReport.gov PDF and runs an authenticity check on it — that
-              document originates from the applicant, not from a bureau pulled by FindStoop.
+              document originates from the applicant, not from a bureau pulled by Stoop.
             </Faq>
             <Faq q="What's the difference between Tenability™ and Tenability™ Pro?">
               Tenability™ ($5) gives every applicant a 0–100 score based on verified income, ID, and document
@@ -270,7 +270,7 @@ export default function Tenability() {
             </Faq>
             <Faq q="Who pays — landlord or applicant?">
               The applicant pays for their Tenability™ fee directly — $5 for Standard, $25 for Pro. Landlords
-              pay $9 per unit per month for the FindStoop platform and never pay for individual applications.
+              pay $9 per unit per month for the Stoop platform and never pay for individual applications.
             </Faq>
             <Faq q="How long does scoring take?">
               Typically under 60 seconds from the moment the applicant finishes uploading their income docs and

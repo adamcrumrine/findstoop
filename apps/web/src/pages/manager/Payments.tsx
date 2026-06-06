@@ -5,7 +5,7 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
-import { formatUsd, formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
+import { formatUsd, formatUsdCents, formatLocalDate, formatMonthYear } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
@@ -233,7 +233,7 @@ function PaymentRow({ payment, tenantName, tenantAutopay, splitMismatch, onMarkP
             <RefreshCw className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.75} aria-label="Tenant auto-pay" />
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-0.5">{tenantName} · {new Date(anchor).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{tenantName} · {formatMonthYear(payment.due_date ?? anchor)}</p>
         {payment.memo && (
           <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
         )}

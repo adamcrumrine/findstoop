@@ -144,13 +144,13 @@ export default function InvoicePdf() {
                 )}
               </div>
             </div>
-            <img src="/findstoop-logo.png" alt="FindStoop" className="h-10" />
+            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-10" />
           </div>
 
           {/* Parties */}
           <div className="grid grid-cols-2 gap-8 mb-10 text-sm">
             <div>
-              <p className="font-bold text-ink mb-1">FindStoop</p>
+              <p className="font-bold text-ink mb-1">Stoop</p>
               <p className="text-mute">Property management software</p>
               <p className="text-mute">findstoop.com</p>
             </div>
@@ -194,7 +194,7 @@ export default function InvoicePdf() {
               {invoice.lines.map((line) => (
                 <tr key={line.id} className="align-top">
                   <td className="py-3">
-                    <p>{line.description ?? 'FindStoop subscription'}</p>
+                    <p>{line.description ?? 'Stoop subscription'}</p>
                     {line.periodStart && line.periodEnd && (
                       <p className="text-xs text-mute mt-0.5">
                         {fmtDate(line.periodStart)} – {fmtDate(line.periodEnd)}
@@ -247,7 +247,7 @@ export default function InvoicePdf() {
 
           {/* Footer */}
           <div className="mt-12 pt-6 border-t border-gray-200 text-xs text-mute text-center">
-            <p>Thank you for using FindStoop. Questions? hello@findstoop.com</p>
+            <p>Thank you for using Stoop. Questions? hello@findstoop.com</p>
           </div>
         </div>
       </div>

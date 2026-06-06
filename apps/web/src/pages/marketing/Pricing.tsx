@@ -80,7 +80,7 @@ export default function Pricing() {
 
             <div className="grid md:grid-cols-2 gap-10 mt-2">
               <div>
-                <p className="text-xs uppercase tracking-wider text-mute font-semibold">FindStoop</p>
+                <p className="text-xs uppercase tracking-wider text-mute font-semibold">Stoop</p>
                 <div className="mt-3 flex items-baseline gap-1.5">
                   <span className="text-5xl font-bold text-ink">${PER_UNIT_MONTHLY}</span>
                   <span className="text-mute">/ unit / month</span>

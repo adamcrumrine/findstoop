@@ -1,7 +1,7 @@
 // Focused, single-document shell for tenant-facing pages (view + sign).
 //
-// Deliberately bare: FindStoop logo, who sent it, the document, and a way to
-// reach the landlord. No app navigation, no upsell, no "sign up for FindStoop"
+// Deliberately bare: Stoop logo, who sent it, the document, and a way to
+// reach the landlord. No app navigation, no upsell, no "sign up for Stoop"
 // — tenants meet the product on their own terms.
 
 import type { ReactNode } from 'react'
@@ -19,7 +19,7 @@ export default function DocPageShell({ senderName, propertyAddress, contactEmail
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
+          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-8 w-auto" />
           <p className="text-xs text-mute text-right truncate">
             Sent by {senderName}{propertyAddress ? <> · <span className="hidden sm:inline">{propertyAddress}</span></> : null}
           </p>

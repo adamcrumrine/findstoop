@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { getDocumentForView, logEvent, type DocViewBundle } from '@findstoop/shared/api/generatedDocuments'
+import { getDocumentForView, getDocumentSignatures, logEvent, type DocViewBundle } from '@findstoop/shared/api/generatedDocuments'
 import Letterhead from '../../components/documents/Letterhead'
 import DocPageShell from '../../components/documents/DocPageShell'
 import DisclaimerBanner from '../../components/documents/DisclaimerBanner'
@@ -43,6 +43,7 @@ export default function SignDocument() {
   const [hasInk, setHasInk] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [completed, setCompleted] = useState(false)
+  const [progress, setProgress] = useState<{ signed: number; required: number } | null>(null)
 
   useEffect(() => {
     if (!id || authLoading) return
@@ -56,6 +57,17 @@ export default function SignDocument() {
         if (b && user?.id && profile?.role === 'tenant' && b.doc.tenant_id === user.id && !opened.current) {
           opened.current = true
           logEvent(id, 'opened', user.id).catch(() => {})
+        }
+        // Multi-party docs (addenda): show progress, and don't re-prompt a
+        // signer who already signed before everyone else finishes.
+        const required = ((b?.doc.meta as { required_signer_ids?: string[] })?.required_signer_ids ?? []).length
+        if (b && required > 0) {
+          try {
+            const sigs = await getDocumentSignatures(id)
+            if (cancelled) return
+            setProgress({ signed: sigs.length, required })
+            if (user?.id && sigs.some((s) => s.signer_id === user.id)) setCompleted(true)
+          } catch { /* ignore */ }
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -125,7 +137,11 @@ export default function SignDocument() {
           <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
             <CheckCircle2 className="w-10 h-10 text-green-600 mx-auto mb-2" strokeWidth={1.5} />
             <h3 className="text-lg font-semibold text-green-800">You've signed</h3>
-            <p className="text-sm text-green-700 mt-1">Thanks — your landlord has a record of your signature.</p>
+            <p className="text-sm text-green-700 mt-1">
+              {progress && doc.status !== 'signed'
+                ? 'Your signature is recorded. This takes effect once every party has signed.'
+                : 'Thanks — your landlord has a record of your signature.'}
+            </p>
             <a
               href={`/document-print/${doc.id}`}
               target="_blank"

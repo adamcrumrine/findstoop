@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
+import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
@@ -45,6 +46,9 @@ export default function ManagerPropertyDetail() {
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabId>('overview')
+  // Lease-status filter for the Payments tab — lifted here so it can sit inline
+  // with the unit "Viewing" selector instead of taking its own row.
+  const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all')
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -136,8 +140,8 @@ export default function ManagerPropertyDetail() {
         <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Properties
       </button>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4 flex items-start gap-5">
-        <div className="w-20 h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 mb-4 flex items-start gap-4 sm:gap-5">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
           {property.thumbnail_url ? (
             <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -146,7 +150,7 @@ export default function ManagerPropertyDetail() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h1 className="text-2xl font-semibold text-ink">{property.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-ink">{property.name}</h1>
             <button
               type="button"
               onClick={() => setEditOpen(true)}
@@ -157,7 +161,7 @@ export default function ManagerPropertyDetail() {
           </div>
           <p className="text-sm text-mute mt-0.5">{property.address}</p>
           <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
-          <div className="mt-3 flex gap-6 text-xs">
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:flex sm:gap-6">
             <Stat label="Units" value={scopedUnits.length} />
             <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
             <Stat label="Active leases" value={activeLeases.length} />
@@ -174,27 +178,47 @@ export default function ManagerPropertyDetail() {
         />
       </Modal>
 
-      {/* Per-unit scope selector — only when the property has more than one unit.
-          Filters every tab + the header stats to the chosen unit. */}
-      {multiUnit && (
-        <div className="flex items-center justify-end gap-2 mb-3">
-          <label htmlFor="unit-scope" className="text-xs uppercase tracking-wider text-mute font-semibold">Viewing</label>
-          <select
-            id="unit-scope"
-            value={effectiveUnitId}
-            onChange={(e) => setSelectedUnitId(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All units ({units.length})</option>
-            {units.map((u) => (
-              <option key={u.id} value={u.id}>Unit {u.unit_number}</option>
-            ))}
-          </select>
+      {/* Controls row — unit scope selector (multi-unit only) + the Payments
+          lease-status filter, kept on one line to save vertical space. */}
+      {(multiUnit || tab === 'payments') && (
+        <div className="flex items-center justify-end gap-3 mb-3 flex-wrap">
+          {tab === 'payments' && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="lease-status" className="text-xs uppercase tracking-wider text-mute font-semibold">Leases</label>
+              <select
+                id="lease-status"
+                value={leaseStatusFilter}
+                onChange={(e) => setLeaseStatusFilter(e.target.value as typeof leaseStatusFilter)}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 capitalize"
+              >
+                <option value="active">Active</option>
+                <option value="all">All</option>
+                <option value="past">Past</option>
+                <option value="upcoming">Upcoming</option>
+              </select>
+            </div>
+          )}
+          {multiUnit && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="unit-scope" className="text-xs uppercase tracking-wider text-mute font-semibold">Viewing</label>
+              <select
+                id="unit-scope"
+                value={effectiveUnitId}
+                onChange={(e) => setSelectedUnitId(e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="all">All units ({units.length})</option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>Unit {u.unit_number}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto">
+      {/* Tabs — horizontal scroll on narrow screens, no visible scrollbar. */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto no-scrollbar">
         <div className="flex gap-1 min-w-max">
           {tabs.map(({ id: tid, label, Icon }) => (
             <button
@@ -217,7 +241,7 @@ export default function ManagerPropertyDetail() {
       {tab === 'leases' && <LeasesTab leases={scopedLeases} units={scopedUnits} property={property} />}
       {tab === 'tenants' && <TenantsTab tenants={scopedTenants} getActiveLease={getActiveLease} units={scopedUnits} />}
       {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
-      {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} />}
+      {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} leaseStatusFilter={leaseStatusFilter} />}
 
       {/* Danger zone — separated from the rest of the screen so it's hard to hit by accident. */}
       <section className="mt-10 pt-6 border-t border-red-100">
@@ -764,7 +788,7 @@ function MaintenanceTab({ unitIds, units }: { unitIds: string[]; units: Unit[] }
 }
 
 // ── Payments tab ──────────────────────────────────────────────────────────────
-function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['leases']; units: Unit[] }) {
+function PaymentsTab({ leases, units, leaseStatusFilter }: { leases: ReturnType<typeof useLeases>['leases']; units: Unit[]; leaseStatusFilter: 'all' | 'past' | 'active' | 'upcoming' }) {
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
   const { payments, loading, markPaid, reload } = usePayments(leaseIds)
   const [scheduleTarget, setScheduleTarget] = useState<Lease | null>(null)
@@ -822,26 +846,31 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   }, [payments])
 
   // One collapsible row per monthly charge: group every payment by
-  // (lease, due-date, type). Collapsed shows the full month's total + % collected;
-  // expand to see each primary's individual share. Covers past, current & upcoming.
+  // (lease, due-MONTH, type) — so a lease's primaries collapse into a single
+  // month even when their individual payments fall on staggered due dates.
+  // Collapsed shows the full month's total + % collected; expand to see each
+  // primary's individual share. Covers past, current & upcoming.
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const toggle = (k: string) => setExpandedKeys((s) => {
     const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n
   })
   const todayStr = new Date().toISOString().slice(0, 10)
   const chargeGroups = useMemo(() => {
-    const map = new Map<string, { key: string; lease_id: string; due_date: string; type: string; rows: Payment[] }>()
+    const map = new Map<string, { key: string; lease_id: string; due_date: string; rows: Payment[] }>()
     for (const p of payments) {
       const dd = (p.due_date ?? paymentAnchor(p)).slice(0, 10)
-      const key = `${p.lease_id}|${dd}|${p.type}`
-      if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, type: p.type, rows: [] })
-      map.get(key)!.rows.push(p)
+      const ym = dd.slice(0, 7) // group by the month the charge applies to — all types
+      const key = `${p.lease_id}|${ym}`
+      if (!map.has(key)) map.set(key, { key, lease_id: p.lease_id, due_date: dd, rows: [] })
+      const g = map.get(key)!
+      if (dd < g.due_date) g.due_date = dd // earliest day in the month, for display + sort
+      g.rows.push(p)
     }
     return Array.from(map.values()).map((g) => {
       const total = g.rows.reduce((s, r) => s + Number(r.amount), 0)
       const paid = g.rows.filter((r) => r.status === 'completed').reduce((s, r) => s + Number(r.amount), 0)
       return { ...g, total, paid, balance: total - paid, pct: total > 0 ? (paid / total) * 100 : 0 }
-    }).sort((a, b) => a.due_date.localeCompare(b.due_date) || a.type.localeCompare(b.type))
+    }).sort((a, b) => a.due_date.localeCompare(b.due_date))
   }, [payments])
   const monthStatus = (g: { pct: number; rows: Payment[] }) => {
     if (g.pct >= 100) return { label: 'Paid', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
@@ -852,11 +881,11 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
     return { label: 'Upcoming', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
   }
 
-  // Lease-status filter for the whole tab. A charge counts as "Past" if its
-  // lease has ended OR it predates the lease's current term (leftover history
-  // from a reused/renewed lease record) — so old rows don't appear under Active.
-  const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
-  const statusOf = (leaseStatus?: string, dueDate?: string | null, leaseStart?: string | null): 'past' | 'upcoming' | 'active' => {
+  // Lease-status filter (value lifted to the parent so it sits inline with the
+  // Viewing selector). A charge counts as "Past" if its lease has ended OR it
+  // predates the lease's current term (leftover history from a reused/renewed
+  // lease record) — so old rows don't appear under Active.
+  const statusOf =(leaseStatus?: string, dueDate?: string | null, leaseStart?: string | null): 'past' | 'upcoming' | 'active' => {
     if (dueDate && leaseStart && dueDate < leaseStart) return 'past'
     if (leaseStatus === 'expired' || leaseStatus === 'terminated') return 'past'
     if (leaseStatus === 'upcoming' || leaseStatus === 'pending') return 'upcoming'
@@ -870,27 +899,14 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   })
 
   return (
-    <div className="space-y-6">
-      {/* Lease-status filter */}
-      <div className="flex gap-1.5 flex-wrap">
-        {(['all', 'past', 'active', 'upcoming'] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setLeaseStatusFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-              leaseStatusFilter === f
-                ? 'bg-brand-600 text-white border border-brand-600'
-                : 'bg-white border border-gray-200 text-mute hover:border-gray-300'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
+    <div className="flex flex-col gap-6">
+      {/* Current-month payment breakdown — same donut as the main Payments screen. */}
+      <div className="order-1">
+        <MonthlyDonut payments={payments} loading={loading} />
       </div>
 
-      {/* Per-lease payment schedule */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      {/* Per-lease payment schedule — pushed below the ledger via flex order. */}
+      <section className="order-3 bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Payment schedules</h2>
@@ -952,7 +968,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
       </section>
 
       {/* Payments ledger — one collapsible row per monthly charge. */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <section className="order-2 bg-white rounded-2xl border border-gray-200 p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Payments</h2>
         {loading ? (
           <Loader2 className="w-5 h-5 animate-spin text-mute" strokeWidth={1.75} />
@@ -964,12 +980,15 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
               const l = leaseMap[g.lease_id]
               const unit = l ? unitMap[l.unit_id] : undefined
               const open = expandedKeys.has(g.key)
-              const { mon, day, monthYear } = monthDay(g.due_date)
+              const { mon, year, monthYear } = monthDay(g.due_date)
               const st = monthStatus(g)
-              const title = CHARGE_LABEL[g.type] ?? 'Charge'
-              const sub = g.type === 'rent'
-                ? `${monthYear} · Unit ${unit?.unit_number ?? '—'}`
-                : `Unit ${unit?.unit_number ?? '—'}`
+              // The month rolls up every charge type. Title reflects what's in it.
+              const types = new Set(g.rows.map((r) => r.type))
+              const title = types.has('rent')
+                ? (types.size > 1 ? 'Rent + fees' : 'Rent')
+                : (types.size === 1 ? (CHARGE_LABEL[[...types][0]] ?? 'Charge') : 'Charges')
+              const sub = `${monthYear} · Unit ${unit?.unit_number ?? '—'}`
+              const payerCount = new Set(g.rows.map((r) => r.tenant_id)).size
               return (
                 <div key={g.key} className="border border-gray-100 rounded-xl overflow-hidden">
                   <button
@@ -977,15 +996,15 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                     onClick={() => toggle(g.key)}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
                   >
-                    <div className="w-9 text-center shrink-0">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-mute leading-none">{mon}</p>
-                      <p className="text-lg font-bold text-ink leading-tight">{day}</p>
+                    <div className="w-12 text-center shrink-0">
+                      <p className="text-[10px] font-medium text-mute leading-none">{year}</p>
+                      <p className="text-base font-bold uppercase tracking-wide text-ink leading-tight mt-0.5">{mon}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-ink">{title}</p>
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.cls}`}>{st.label}</span>
-                        {g.rows.length > 1 && <span className="text-[10px] text-mute">{g.rows.length} tenants</span>}
+                        {payerCount > 1 && <span className="text-[10px] text-mute">{payerCount} tenants</span>}
                       </div>
                       <p className="text-xs text-mute truncate">{sub}</p>
                     </div>
@@ -1007,6 +1026,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
                             <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1">
                               <div className="flex items-center gap-2 min-w-0">
                                 <p className="text-ink truncate">{payerName(p)}</p>
+                                <span className="text-[11px] text-mute shrink-0">{CHARGE_LABEL[p.type] ?? 'Charge'}</span>
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
@@ -1200,7 +1220,7 @@ function PropertyEditForm({
     if (field === 'state' && isBlockedState(value)) {
       setErrors((e) => ({
         ...e,
-        state: `FindStoop isn't yet available for properties in ${blockedStateName(value)}.`,
+        state: `Stoop isn't yet available for properties in ${blockedStateName(value)}.`,
       }))
       return
     }
@@ -1453,6 +1473,7 @@ function monthDay(dateStr: string) {
   return {
     mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
     day: d.toLocaleDateString('en-US', { day: '2-digit' }),
+    year: d.toLocaleDateString('en-US', { year: 'numeric' }),
     monthYear: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
   }
 }

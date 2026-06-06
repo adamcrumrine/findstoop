@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import LeaseAddenda from '../../components/manager/LeaseAddenda'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { generateLeaseText, getStateNotes } from '@findstoop/shared/lib/leaseTemplates'
 import type { Lease } from '@findstoop/shared/types/lease'
@@ -24,7 +25,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import {
   ArrowLeft, AlertTriangle, Save, Send, FileSignature, Loader2, CheckCircle2,
   FileText, ExternalLink, ClipboardList, ArrowRight, Check, ShieldCheck,
-  Scale, ChevronRight,
+  Scale, ChevronRight, Lock,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
@@ -105,7 +106,7 @@ export default function ReviewLease() {
   // Set when this lease has a `documents` row of type='lease' (i.e. an
   // externally-signed PDF was attached during portfolio import or via
   // /manager/leases/attach). When present AND lease.document_url is null
-  // (no FindStoop-drafted body), we treat the lease as ALREADY EXECUTED
+  // (no Stoop-drafted body), we treat the lease as ALREADY EXECUTED
   // and skip the draft/send/sign workflow.
   const [attachedSignedDoc, setAttachedSignedDoc] = useState<{ id: string; name: string; storage_url: string } | null>(null)
   const [attachedDocUrl, setAttachedDocUrl] = useState<string | null>(null)
@@ -245,9 +246,9 @@ export default function ReviewLease() {
   const stateCode = lease?.unit?.property?.state ?? ''
   const stateNotes = getStateNotes(stateCode.toLowerCase())
   const fullySigned = !!lease?.signed_at
-  // External signed PDF on file AND no FindStoop-drafted body. This is the
+  // External signed PDF on file AND no Stoop-drafted body. This is the
   // "migrated lease" case — the agreement is already executed off-platform,
-  // we just store the PDF and skip the FindStoop draft/sign workflow.
+  // we just store the PDF and skip the Stoop draft/sign workflow.
   const hasExternalSignedPdf = !!attachedSignedDoc && !lease?.document_url
   // Either kind of "lease is executed" — both gate the inspections /
   // compliance checklists and the resend buttons.
@@ -382,12 +383,12 @@ export default function ReviewLease() {
       prorate_rent: fields.prorate_rent,
     }
 
-    // 2) Re-render the FindStoop-templated document from the merge fields
-    //    — BUT ONLY for leases that are using the FindStoop draft as the
+    // 2) Re-render the Stoop-templated document from the merge fields
+    //    — BUT ONLY for leases that are using the Stoop draft as the
     //    authoritative document. For externally-executed leases (an
     //    imported signed PDF lives in the documents table), we must NOT
     //    touch document_url — doing so erases the connection to the
-    //    executed PDF and the UI starts showing the FindStoop boilerplate
+    //    executed PDF and the UI starts showing the Stoop boilerplate
     //    instead of the actual signed lease. The signed PDF stays as the
     //    document of record.
     let newDocUrl: string | undefined
@@ -444,7 +445,7 @@ export default function ReviewLease() {
   }
 
   // Two-mode add: first try to attach by email alone (fast path for tenants
-  // already in FindStoop). If no profile is found, expand the form to ask
+  // already in Stoop). If no profile is found, expand the form to ask
   // for a name + phone and auto-invite via the invite-tenant edge function.
   // The new profile is attached to the lease in the same submit.
   const [addTenantStep, setAddTenantStep] = useState<'email' | 'invite'>('email')
@@ -533,9 +534,9 @@ export default function ReviewLease() {
     try {
       const tenantProfile = await (await import('@findstoop/shared/api/profiles')).getProfileByEmail(email)
       if (!tenantProfile) {
-        // Not in FindStoop yet — expand to invite form.
+        // Not in Stoop yet — expand to invite form.
         setAddTenantStep('invite')
-        toast(`${email} isn't in FindStoop yet — add their name to send an invite.`, { icon: 'ℹ️' })
+        toast(`${email} isn't in Stoop yet — add their name to send an invite.`, { icon: 'ℹ️' })
         return
       }
       const ok = await attachExistingTenant(tenantProfile)
@@ -702,13 +703,38 @@ export default function ReviewLease() {
         </div>
       )}
 
+      {/* Executed-lease lock notice — a signed lease is binding, so its terms
+          can't be edited. Direct the manager to an addendum or termination. */}
+      {leaseExecuted && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="flex items-start gap-2.5">
+            <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" strokeWidth={1.75} />
+            <div className="text-sm text-amber-900">
+              <p className="font-semibold">This lease is fully executed — its terms are locked.</p>
+              <p className="mt-1 text-amber-800 leading-relaxed">
+                A signed lease is a binding agreement, so the fields below can’t be edited. To change the
+                terms, create a written <strong>addendum</strong> that every party on the lease signs — or
+                end the lease under your state’s notice rules (see the key rules above) and start a new one.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Addenda — the sanctioned way to amend an executed lease. */}
+      {leaseExecuted && (
+        <div className="mb-4">
+          <LeaseAddenda leaseId={lease.id} />
+        </div>
+      )}
+
       {/* Stacked layout: editable fields full-width on top, then document. */}
       <div className="space-y-4">
         {/* Editable structured fields — multi-column grid, full width */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-4">Lease details</h2>
 
-          <fieldset disabled={fullySigned} className={fullySigned ? 'opacity-60 pointer-events-none' : ''}>
+          <fieldset disabled={leaseExecuted} className={leaseExecuted ? 'opacity-60 pointer-events-none' : ''}>
             {/* ── Landlord ──────────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2">Landlord</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
@@ -746,7 +772,7 @@ export default function ReviewLease() {
                           <p className="text-[10px] text-mute truncate">{t.email ?? '—'}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {!fullySigned && (
+                          {!leaseExecuted && (
                             <button
                               type="button"
                               onClick={() => togglePrimary(t.id)}
@@ -758,7 +784,7 @@ export default function ReviewLease() {
                               {isPrimary ? 'Unmark primary' : 'Mark primary'}
                             </button>
                           )}
-                          {!isPrimary && !fullySigned && (
+                          {!isPrimary && !leaseExecuted && (
                             <button
                               type="button"
                               onClick={() => handleRemoveTenant(t.id)}
@@ -773,7 +799,7 @@ export default function ReviewLease() {
                     )
                   })}
                 </div>
-                {!fullySigned && (
+                {!leaseExecuted && (
                   <div className="mt-2 space-y-1.5">
                     <div className="flex gap-1.5">
                       <input
@@ -808,7 +834,7 @@ export default function ReviewLease() {
                     {addTenantStep === 'invite' && (
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-2 space-y-1.5">
                         <p className="text-[11px] text-blue-900">
-                          <strong>{addTenantEmail}</strong> isn't on FindStoop yet — add their name and we'll send an invite email + add them to this lease.
+                          <strong>{addTenantEmail}</strong> isn't on Stoop yet — add their name and we'll send an invite email + add them to this lease.
                         </p>
                         <div className="grid grid-cols-2 gap-1.5">
                           <input
@@ -999,28 +1025,6 @@ export default function ReviewLease() {
               </label>
             </div>
 
-            {/* Tentative move-out date for month-to-month tenancies — the
-                lifecycle cron fires move-out reminders off this when the
-                tenant has given soft notice. Only shown for M2M leases
-                since for fixed-term leases, end_date already does the job. */}
-            {lease.month_to_month && (
-              <div className="mb-5">
-                <FormField label="Tentative move-out date (optional)">
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={fields.tentative_move_out_date}
-                    onChange={(e) => set('tentative_move_out_date', e.target.value)}
-                  />
-                </FormField>
-                <p className="text-[11px] text-mute mt-1 leading-relaxed">
-                  If your tenant has given notice they plan to move out, set the date here. We'll fire
-                  the same move-out reminders we use for fixed-term leases (deposit return prep,
-                  move-out inspection scheduling, etc.).
-                </p>
-              </div>
-            )}
-
             {/* ── Notes ─────────────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">Notes</p>
             <FormField label="Utility notes (optional)">
@@ -1029,9 +1033,32 @@ export default function ReviewLease() {
           </fieldset>
         </section>
 
+        {/* Move-out notice — month-to-month only. Stays editable even on an
+            executed lease: recording a tenant's notice to vacate isn't a change
+            to the lease terms, and the lifecycle cron fires move-out reminders
+            (deposit return prep, inspection scheduling) off this date. */}
+        {lease.month_to_month && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Move-out notice</h2>
+            <FormField label="Tentative move-out date (optional)">
+              <input
+                type="date"
+                className={inputClass}
+                value={fields.tentative_move_out_date}
+                onChange={(e) => set('tentative_move_out_date', e.target.value)}
+              />
+            </FormField>
+            <p className="text-[11px] text-mute mt-1 leading-relaxed">
+              If your tenant has given notice they plan to move out, set the date here. We'll fire
+              the same move-out reminders we use for fixed-term leases (deposit return prep,
+              move-out inspection scheduling, etc.).
+            </p>
+          </section>
+        )}
+
         {/* Lease document — either the externally-imported signed PDF (if
             this lease was migrated in with an executed agreement), or the
-            live-rendered FindStoop template preview. */}
+            live-rendered Stoop template preview. */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
           {hasExternalSignedPdf ? (
             <>
@@ -1072,11 +1099,11 @@ export default function ReviewLease() {
                     {attachedSignedDoc?.name ?? 'Signed lease.pdf'}
                   </p>
                   <p className="mt-1 text-emerald-900/80 leading-relaxed">
-                    This lease was already executed before migrating to FindStoop. The signed PDF is stored in
+                    This lease was already executed before migrating to Stoop. The signed PDF is stored in
                     {' '}
                     <Link to="/manager/documents" className="underline font-medium">Documents</Link>
-                    {' '}as the authoritative agreement. No FindStoop draft or e-signature step is required —
-                    when this term ends (or at renewal), you'll generate a new FindStoop lease.
+                    {' '}as the authoritative agreement. No Stoop draft or e-signature step is required —
+                    when this term ends (or at renewal), you'll generate a new Stoop lease.
                   </p>
                 </div>
               </div>
@@ -1108,7 +1135,7 @@ export default function ReviewLease() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3 text-[11px] text-amber-900 flex items-start gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.75} />
                 <span>
-                  Boilerplate is verbatim from FindStoop's lease template — not edited here. The document below re-renders live as you change fields above.
+                  Boilerplate is verbatim from Stoop's lease template — not edited here. The document below re-renders live as you change fields above.
                 </span>
               </div>
 
@@ -1131,7 +1158,7 @@ export default function ReviewLease() {
       </div>
 
       {/* Inspections — move-in + move-out checklists. Available as soon as
-          the lease is executed (FindStoop-signed OR externally-signed). */}
+          the lease is executed (Stoop-signed OR externally-signed). */}
       <InspectionsPanel leaseId={lease.id} fullySigned={leaseExecuted} />
 
       {/* Federal compliance — built-before-1978 toggle + disclosure / insurance status */}
@@ -1139,7 +1166,7 @@ export default function ReviewLease() {
 
       {/* Action footer — Save is automatic now (~0.8s debounce). The
           passive indicator on the left reflects current state; the
-          right side only renders the e-sign actions for FindStoop-drafted
+          right side only renders the e-sign actions for Stoop-drafted
           leases that still need to be sent. */}
       <section className="bg-white rounded-2xl border border-gray-200 p-5 mt-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="text-xs text-mute inline-flex items-center gap-2">
@@ -1503,7 +1530,7 @@ function CompliancePanel({ leaseId, fullySigned: _fullySigned, hasExternalSigned
             label="Lead-Based Paint Disclosure"
             status={
               // Imported / externally-executed leases came with the
-              // disclosure as part of the signed packet — no FindStoop
+              // disclosure as part of the signed packet — no Stoop
               // signature flow is required. Otherwise fall back to the
               // standard lifecycle states.
               hasExternalSignedPdf                              ? 'ok' :

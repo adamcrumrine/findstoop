@@ -217,7 +217,7 @@ function TaxCenter() {
         </a>
       </div>
       <p className="text-xs text-gray-500 mt-3">
-        Income is auto-filled from rent FindStoop recorded as received. Confirm figures with your tax professional.
+        Income is auto-filled from rent Stoop recorded as received. Confirm figures with your tax professional.
       </p>
     </div>
   )

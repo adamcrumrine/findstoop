@@ -69,7 +69,7 @@ export default function Apply() {
   // landlords, not public landing pages, and they leak unit detail.
   useSeo({
     title: 'Apply',
-    description: 'Apply for a rental on FindStoop. One application, instant submission, decision back from the landlord within days.',
+    description: 'Apply for a rental on Stoop. One application, instant submission, decision back from the landlord within days.',
     path: `/apply/${unitId ?? ''}`,
     noindex: true,
   })
@@ -152,7 +152,7 @@ export default function Apply() {
           This application link doesn't match an active listing. Reach out to the landlord
           who shared the link — they may need to resend it.
         </p>
-        <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to FindStoop</Link>
+        <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to Stoop</Link>
       </div>
     )
   }

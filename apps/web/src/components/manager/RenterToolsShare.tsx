@@ -147,7 +147,7 @@ export default function RenterToolsShare({ companyName }: { companyName: string 
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </label>
-          {!active && <p className="text-xs text-mute -mt-2">Links still work but show the FindStoop brand, not yours.</p>}
+          {!active && <p className="text-xs text-mute -mt-2">Links still work but show the Stoop brand, not yours.</p>}
         </div>
       )}
     </section>

@@ -18,7 +18,7 @@ export default function FairHousingGuide() {
       relatedLinks={[
         { to: '/education/how-to-screen-tenants', label: 'How to screen tenants — complete guide' },
         { to: '/education/lead-based-paint-disclosure', label: 'Federal lead-based paint disclosure' },
-        { to: '/fair-housing', label: 'FindStoop\'s Fair Housing posture' },
+        { to: '/fair-housing', label: 'Stoop\'s Fair Housing posture' },
       ]}
     >
       <p>

@@ -296,14 +296,130 @@ export async function getDocumentForView(id: string): Promise<DocViewBundle | nu
   return { doc, propertyName, propertyAddress, managerName, managerEmail }
 }
 
-// Send the document to the tenant (email or e-sign) via the edge function,
-// which stamps sent_at + logs the audit event server-side.
-export async function sendDocumentReady(documentId: string): Promise<void> {
+// Send the document to a tenant (email or e-sign) via the edge function, which
+// stamps sent_at + logs the audit event server-side. `recipientId` overrides
+// the default addressee (doc.tenant_id) — used to notify each co-signer of an
+// addendum individually.
+export async function sendDocumentReady(documentId: string, recipientId?: string): Promise<void> {
   const { data, error } = await supabase.functions.invoke('notify-tenant-document-ready', {
-    body: { documentId },
+    body: { documentId, recipientId },
   })
   if (error) throw new Error(error.message)
   if (data && (data as any).error) throw new Error((data as any).error)
+}
+
+// ── Lease addenda (amend an executed lease, signed by all parties) ──────────
+
+export interface LeaseSigner {
+  id: string
+  name: string
+  email: string | null
+  role: 'manager' | 'tenant'
+}
+
+// The landlord + every primary tenant on a lease — the parties who must sign an
+// addendum. Falls back to leases.tenant_id when a lease has no lease_tenants rows.
+export async function getLeaseSigners(leaseId: string): Promise<{ manager: LeaseSigner | null; primaries: LeaseSigner[] }> {
+  const { data: lt } = await supabase
+    .from('lease_tenants')
+    .select('is_primary, profile:profiles!lease_tenants_tenant_id_fkey(id, full_name, email)')
+    .eq('lease_id', leaseId)
+    .eq('is_primary', true)
+  let primaries: LeaseSigner[] = ((lt ?? []) as any[])
+    .filter((r) => r.profile)
+    .map((r) => ({ id: r.profile.id, name: r.profile.full_name ?? r.profile.email ?? 'Tenant', email: r.profile.email ?? null, role: 'tenant' as const }))
+
+  const { data: lease } = await supabase
+    .from('leases')
+    .select('tenant_id, tenant:profiles!leases_tenant_id_fkey(id, full_name, email), unit:units(property:properties(manager_id))')
+    .eq('id', leaseId)
+    .single()
+
+  if (primaries.length === 0 && (lease as any)?.tenant) {
+    const t = (lease as any).tenant
+    primaries = [{ id: t.id, name: t.full_name ?? t.email ?? 'Tenant', email: t.email ?? null, role: 'tenant' }]
+  }
+
+  const managerId = (lease as any)?.unit?.property?.manager_id ?? null
+  let manager: LeaseSigner | null = null
+  if (managerId) {
+    const { data: m } = await supabase.from('profiles').select('id, full_name, company_name, email').eq('id', managerId).maybeSingle()
+    if (m) manager = { id: m.id, name: (m.company_name?.trim() || m.full_name) ?? 'Landlord', email: m.email ?? null, role: 'manager' }
+  }
+  return { manager, primaries }
+}
+
+export interface DocSignatureRow { signer_id: string; signer_role: string; signed_at: string }
+
+export async function getDocumentSignatures(documentId: string): Promise<DocSignatureRow[]> {
+  const { data, error } = await supabase
+    .from('generated_document_signatures')
+    .select('signer_id, signer_role, signed_at')
+    .eq('document_id', documentId)
+  if (error) throw new Error(error.message)
+  return (data ?? []) as DocSignatureRow[]
+}
+
+// Insert the calling user's signature on a document. RLS lets the manager sign
+// their own property's docs and any lease party sign an addendum.
+export async function recordDocumentSignature(
+  documentId: string,
+  signerId: string,
+  role: 'manager' | 'tenant',
+  signatureData: string,
+): Promise<void> {
+  const { error } = await supabase.from('generated_document_signatures').insert({
+    document_id: documentId,
+    signer_id: signerId,
+    signer_role: role,
+    signature_data: signatureData,
+    intent_acknowledged: true,
+    user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export interface CreateAddendumInput {
+  bundle: LeaseDocBundle
+  title: string
+  effectiveDate: string
+  body: string
+  generatedBody: string      // pre-rendered HTML (renderAddendumLetter)
+  manager: LeaseSigner
+  managerSignatureData: string
+  primaries: LeaseSigner[]
+}
+
+// Create an addendum, capture the landlord's signature, and email each primary
+// tenant a link to sign. It finalizes (status='signed') only once everyone has
+// signed (the multi-party finalize trigger).
+export async function createAddendum(input: CreateAddendumInput): Promise<GeneratedDocument> {
+  const requiredIds = [input.manager.id, ...input.primaries.map((p) => p.id)]
+  const doc = await createDraft({
+    property_id: input.bundle.property_id,
+    unit_id: input.bundle.unit_id,
+    lease_id: input.bundle.lease_id,
+    tenant_id: input.primaries[0]?.id ?? input.bundle.tenant_id,
+    type: 'addendum',
+    template_key: 'addendum',
+    template_version: '1',
+    title: input.title,
+    field_values: { title: input.title, effective_date: input.effectiveDate, body: input.body },
+    generated_body: input.generatedBody,
+    requires_signature: true,
+    created_by: input.manager.id,
+    meta: {
+      required_signer_ids: requiredIds,
+      effective_date: input.effectiveDate,
+      signer_names: input.primaries.map((p) => p.name),
+    },
+  })
+  await recordDocumentSignature(doc.id, input.manager.id, 'manager', input.managerSignatureData)
+  await markSent(doc.id, 'esign', input.manager.id)
+  for (const p of input.primaries) {
+    try { await sendDocumentReady(doc.id, p.id) } catch { /* email failure surfaced by caller via retry */ }
+  }
+  return doc
 }
 
 // ── Audit ─────────────────────────────────────────────────────────────────

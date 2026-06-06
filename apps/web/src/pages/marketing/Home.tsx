@@ -162,7 +162,7 @@ export default function Home() {
         eyebrow="Messaging"
         status="live"
         title="Every tenant conversation, in one thread per lease."
-        body="Stop digging through email. FindStoop Messages keeps each tenant's history with you in one searchable place, with unread badges across every device."
+        body="Stop digging through email. Stoop Messages keeps each tenant's history with you in one searchable place, with unread badges across every device."
         learnMore="/features"
         Icon={MessageSquare}
         illustrationName="messages"
@@ -193,7 +193,7 @@ export default function Home() {
           </div>
 
           <PlanCard
-            name="FindStoop"
+            name="Stoop"
             price="$9"
             priceSub="/ unit / month"
             tagline="Or $90/unit/year with annual prepay (non-refundable). Every feature included."

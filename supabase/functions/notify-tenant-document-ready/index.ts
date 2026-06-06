@@ -56,7 +56,9 @@ Deno.serve(async (req) => {
       return json({ error: 'Only landlords can send documents' }, { status: 403 })
     }
 
-    const { documentId } = await req.json() as { documentId?: string }
+    // `recipientId` lets an addendum notify each co-signer individually; it
+    // defaults to the document's addressed tenant.
+    const { documentId, recipientId } = await req.json() as { documentId?: string; recipientId?: string }
     if (!documentId) return json({ error: 'documentId required' }, { status: 400 })
 
     const { data: doc } = await admin
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
     const { data: tenant } = await admin
       .from('profiles')
       .select('id, full_name, email')
-      .eq('id', doc.tenant_id)
+      .eq('id', recipientId ?? doc.tenant_id)
       .single()
     if (!tenant?.email) return json({ error: 'Tenant has no email on file' }, { status: 400 })
 

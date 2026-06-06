@@ -15,8 +15,8 @@ import { useSeo } from '../../lib/useSeo'
 
 export default function Welcome() {
   useSeo({
-    title: 'Sign in to FindStoop',
-    description: 'Sign in as a landlord or renter to access your FindStoop dashboard, pay rent, sign leases, and manage your rental.',
+    title: 'Sign in to Stoop',
+    description: 'Sign in as a landlord or renter to access your Stoop dashboard, pay rent, sign leases, and manage your rental.',
     path: '/welcome',
   })
 
@@ -39,8 +39,8 @@ export default function Welcome() {
       <div className="relative w-full max-w-md">
         {/* Logo + heading */}
         <div className="text-center mb-8">
-          <Link to="/" aria-label="FindStoop home" className="inline-block hover:opacity-80 transition-opacity">
-            <img src="/findstoop-logo.png" alt="FindStoop" className="h-16 w-auto mx-auto" />
+          <Link to="/" aria-label="Stoop home" className="inline-block hover:opacity-80 transition-opacity">
+            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-16 w-auto mx-auto" />
           </Link>
           <h1 className="text-3xl font-bold text-ink mt-6 tracking-tight">Welcome back.</h1>
           <p className="text-sm text-mute mt-2">Pick the account type that fits, and we'll take you to the right place.</p>
@@ -66,7 +66,7 @@ export default function Welcome() {
 
         {/* New here? */}
         <div className="mt-8 text-center bg-white border border-gray-200 rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-2">New to FindStoop?</p>
+          <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-2">New to Stoop?</p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center">
             <Link
               to="/register"

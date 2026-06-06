@@ -147,11 +147,11 @@ export default function ManageBillingModal({ open, onClose, onChange }: Props) {
           </button>
           <div className="flex items-center gap-2.5 mb-3">
             <img
-              src="/findstoop-logo-square.png"
-              alt="FindStoop"
+              src="/stoop_logo_square_trans.png"
+              alt="Stoop"
               className="w-10 h-10 object-contain brightness-0 invert"
             />
-            <span className="text-sm font-medium tracking-wide opacity-90">FindStoop</span>
+            <span className="text-sm font-medium tracking-wide opacity-90">Stoop</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">Manage billing</h2>
           <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
@@ -368,11 +368,11 @@ function CancelConfirmSection({
   return (
     <div className="text-center py-2">
       <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" strokeWidth={1.5} />
-      <h3 className="text-lg font-bold text-ink">Cancel your FindStoop subscription?</h3>
+      <h3 className="text-lg font-bold text-ink">Cancel your Stoop subscription?</h3>
       <p className="text-sm text-mute mt-2 leading-relaxed max-w-md mx-auto">
         Your subscription will stay active through <strong>{fmtDate(periodEnd)}</strong>.
         After that, you'll lose access to the formatted lease PDF, the tenant portal,
-        and FindStoop rent payments. You can resume any time before that date.
+        and Stoop rent payments. You can resume any time before that date.
       </p>
       <div className="mt-5 flex gap-3">
         <button

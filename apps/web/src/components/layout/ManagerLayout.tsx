@@ -126,8 +126,8 @@ export default function ManagerLayout() {
       <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 shrink-0">
         {/* Logo */}
         <div className="px-4 py-5 border-b border-gray-100">
-          <Link to="/" aria-label="FindStoop home" className="block">
-            <img src="/findstoop-logo.png" alt="FindStoop" className="h-12 w-auto" />
+          <Link to="/" aria-label="Stoop home" className="block">
+            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-12 w-auto" />
           </Link>
           <p className="text-[11px] text-mute mt-1.5 font-medium uppercase tracking-wide">Manager Portal</p>
         </div>
@@ -189,8 +189,8 @@ export default function ManagerLayout() {
           className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0 z-10"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
         >
-          <Link to="/" aria-label="FindStoop home" className="block">
-            <img src="/findstoop-logo.png" alt="FindStoop" className="h-10 w-auto" />
+          <Link to="/" aria-label="Stoop home" className="block">
+            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-10 w-auto" />
           </Link>
           <div className="flex items-center gap-1">
             <NotificationsBell />

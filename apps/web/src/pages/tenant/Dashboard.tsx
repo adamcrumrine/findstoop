@@ -252,7 +252,7 @@ export default function TenantDashboard() {
   //   • > 7 days past due → red
   //   • 0–7 days past due → burnt orange
   //   • Otherwise:
-  //       autopay ON  → filled FindStoop brand green
+  //       autopay ON  → filled Stoop brand green
   //       autopay OFF → soft / white card with brand-green ring (ghost state)
   const daysOverdue = daysUntilDue !== null && daysUntilDue < 0 ? Math.abs(daysUntilDue) : 0
   const rentUrgency =

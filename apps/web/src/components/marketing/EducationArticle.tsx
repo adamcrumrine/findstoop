@@ -72,7 +72,7 @@ export default function EducationArticle({
 
       {/* Standard tail CTA */}
       <aside className="mt-10 bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-6">
-        <p className="text-sm uppercase tracking-wider text-brand-700 font-bold mb-1">Try FindStoop</p>
+        <p className="text-sm uppercase tracking-wider text-brand-700 font-bold mb-1">Try Stoop</p>
         <h3 className="text-xl font-bold text-ink">Everything in this article — automated.</h3>
         <p className="mt-2 text-sm text-mute">
           $9 per unit per month, every feature included. Applicants pay $5 for verified pre-qualification with a Tenability™ score.

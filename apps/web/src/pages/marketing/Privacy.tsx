@@ -12,13 +12,13 @@ import { useSeo } from '../../lib/useSeo'
 export default function Privacy() {
   useSeo({
     title: 'Privacy Policy',
-    description: 'How FindStoop collects, uses, and protects landlord, tenant, and applicant data. What we share, what we don\'t, and your rights.',
+    description: 'How Stoop collects, uses, and protects landlord, tenant, and applicant data. What we share, what we don\'t, and your rights.',
     path: '/privacy',
   })
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">
-      <Link to="/" className="text-sm text-brand-600 hover:underline">← FindStoop</Link>
+      <Link to="/" className="text-sm text-brand-600 hover:underline">← Stoop</Link>
       <h1 className="text-2xl font-bold text-ink mt-4">Privacy Policy</h1>
       <p className="text-sm text-mute mt-2">
         Effective May 23, 2026. Questions: <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>.
@@ -27,7 +27,7 @@ export default function Privacy() {
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
 
         <Sec title="Who we are">
-          FindStoop ("we", "us") provides property
+          Stoop ("we", "us") provides property
           management software for residential landlords and tenants. This policy explains what data we collect,
           how we use it, and the rights you have over it.
         </Sec>
@@ -84,7 +84,7 @@ export default function Privacy() {
 
         <Sec title="Use of automated tools, including artificial intelligence">
           <p className="mt-1">
-            FindStoop uses automated software, including AI, to read documents (driver's licenses, paystubs), check
+            Stoop uses automated software, including AI, to read documents (driver's licenses, paystubs), check
             for tampering, and produce a private Tenability™ summary for the landlord. A human landlord — not the
             software — makes the final rental decision. Our AI is configured to ignore protected-class signals
             under the Fair Housing Act and applicable state law. If you'd like to learn more, see our{' '}
@@ -129,7 +129,7 @@ export default function Privacy() {
           <p className="mt-1">
             Residents of states with consumer privacy laws (including California's CCPA/CPRA, Virginia's VCDPA, Colorado's CPA,
             Connecticut's CTDPA, and Utah's UCPA) have specific rights, including the right to know, delete, and opt
-            out of "sale" or "sharing" of personal data. <strong>FindStoop does not sell personal information</strong>{' '}
+            out of "sale" or "sharing" of personal data. <strong>Stoop does not sell personal information</strong>{' '}
             as defined under any of these laws. To exercise your state-specific rights, email{' '}
             <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a> with the subject line
             "Privacy Rights Request."
@@ -150,7 +150,7 @@ export default function Privacy() {
         </Sec>
 
         <Sec title="Children">
-          FindStoop is not directed at people under 18. Renters must be at least 18 to apply or sign a lease through the
+          Stoop is not directed at people under 18. Renters must be at least 18 to apply or sign a lease through the
           platform. We do not knowingly collect personal information from anyone under 18; if you believe we have, email
           us and we'll delete it.
         </Sec>
@@ -168,7 +168,7 @@ export default function Privacy() {
         </Sec>
 
         <Sec title="International users">
-          FindStoop is operated from the United States and stores data on US-based infrastructure. If you access the
+          Stoop is operated from the United States and stores data on US-based infrastructure. If you access the
           platform from outside the US, your data will be transferred to and processed in the US.
         </Sec>
 
@@ -183,7 +183,7 @@ export default function Privacy() {
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} FindStoop.
+        © {new Date().getFullYear()} Stoop.
       </p>
     </div>
   )

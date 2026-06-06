@@ -13,7 +13,7 @@ type Kind = 'bug' | 'feature' | 'other'
 
 const KIND_CONFIG: Record<Kind, { Icon: typeof Bug; label: string; placeholder: string }> = {
   bug:     { Icon: Bug,            label: 'Bug',             placeholder: 'What went wrong? Steps to reproduce help a lot.' },
-  feature: { Icon: Sparkles,       label: 'Feature request', placeholder: 'What would make FindStoop better for you?' },
+  feature: { Icon: Sparkles,       label: 'Feature request', placeholder: 'What would make Stoop better for you?' },
   other:   { Icon: MessageSquare,  label: 'Other',           placeholder: 'Tell us what\'s on your mind.' },
 }
 
@@ -72,8 +72,8 @@ export default function FeedbackModal({ open, onClose }: Props) {
             <X className="w-4 h-4" strokeWidth={2} />
           </button>
           <div className="flex items-center gap-2.5 mb-2">
-            <img src="/findstoop-logo-square.png" alt="FindStoop" className="w-8 h-8 object-contain brightness-0 invert" />
-            <span className="text-xs font-medium tracking-wide opacity-90">FindStoop</span>
+            <img src="/stoop_logo_square_trans.png" alt="Stoop" className="w-8 h-8 object-contain brightness-0 invert" />
+            <span className="text-xs font-medium tracking-wide opacity-90">Stoop</span>
           </div>
           <h2 className="text-xl font-bold tracking-tight">Send feedback</h2>
           <p className="text-sm text-white/85 mt-1">Found a bug? Want a feature? We read every one.</p>
@@ -142,7 +142,7 @@ export default function FeedbackModal({ open, onClose }: Props) {
               {submitting ? 'Sending…' : 'Send feedback'}
             </button>
             <p className="text-[11px] text-mute text-center">
-              Goes to FindStoop support. We'll reply at your account email.
+              Goes to Stoop support. We'll reply at your account email.
             </p>
           </form>
         )}

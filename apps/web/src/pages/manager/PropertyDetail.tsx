@@ -46,6 +46,9 @@ export default function ManagerPropertyDetail() {
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabId>('overview')
+  // Lease-status filter for the Payments tab — lifted here so it can sit inline
+  // with the unit "Viewing" selector instead of taking its own row.
+  const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all')
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -175,22 +178,42 @@ export default function ManagerPropertyDetail() {
         />
       </Modal>
 
-      {/* Per-unit scope selector — only when the property has more than one unit.
-          Filters every tab + the header stats to the chosen unit. */}
-      {multiUnit && (
-        <div className="flex items-center justify-end gap-2 mb-3">
-          <label htmlFor="unit-scope" className="text-xs uppercase tracking-wider text-mute font-semibold">Viewing</label>
-          <select
-            id="unit-scope"
-            value={effectiveUnitId}
-            onChange={(e) => setSelectedUnitId(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All units ({units.length})</option>
-            {units.map((u) => (
-              <option key={u.id} value={u.id}>Unit {u.unit_number}</option>
-            ))}
-          </select>
+      {/* Controls row — unit scope selector (multi-unit only) + the Payments
+          lease-status filter, kept on one line to save vertical space. */}
+      {(multiUnit || tab === 'payments') && (
+        <div className="flex items-center justify-end gap-3 mb-3 flex-wrap">
+          {tab === 'payments' && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="lease-status" className="text-xs uppercase tracking-wider text-mute font-semibold">Leases</label>
+              <select
+                id="lease-status"
+                value={leaseStatusFilter}
+                onChange={(e) => setLeaseStatusFilter(e.target.value as typeof leaseStatusFilter)}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 capitalize"
+              >
+                <option value="active">Active</option>
+                <option value="all">All</option>
+                <option value="past">Past</option>
+                <option value="upcoming">Upcoming</option>
+              </select>
+            </div>
+          )}
+          {multiUnit && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="unit-scope" className="text-xs uppercase tracking-wider text-mute font-semibold">Viewing</label>
+              <select
+                id="unit-scope"
+                value={effectiveUnitId}
+                onChange={(e) => setSelectedUnitId(e.target.value)}
+                className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="all">All units ({units.length})</option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>Unit {u.unit_number}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
@@ -218,7 +241,7 @@ export default function ManagerPropertyDetail() {
       {tab === 'leases' && <LeasesTab leases={scopedLeases} units={scopedUnits} property={property} />}
       {tab === 'tenants' && <TenantsTab tenants={scopedTenants} getActiveLease={getActiveLease} units={scopedUnits} />}
       {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
-      {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} />}
+      {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} leaseStatusFilter={leaseStatusFilter} />}
 
       {/* Danger zone — separated from the rest of the screen so it's hard to hit by accident. */}
       <section className="mt-10 pt-6 border-t border-red-100">
@@ -765,7 +788,7 @@ function MaintenanceTab({ unitIds, units }: { unitIds: string[]; units: Unit[] }
 }
 
 // ── Payments tab ──────────────────────────────────────────────────────────────
-function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['leases']; units: Unit[] }) {
+function PaymentsTab({ leases, units, leaseStatusFilter }: { leases: ReturnType<typeof useLeases>['leases']; units: Unit[]; leaseStatusFilter: 'all' | 'past' | 'active' | 'upcoming' }) {
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
   const { payments, loading, markPaid, reload } = usePayments(leaseIds)
   const [scheduleTarget, setScheduleTarget] = useState<Lease | null>(null)
@@ -858,11 +881,11 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
     return { label: 'Upcoming', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
   }
 
-  // Lease-status filter for the whole tab. A charge counts as "Past" if its
-  // lease has ended OR it predates the lease's current term (leftover history
-  // from a reused/renewed lease record) — so old rows don't appear under Active.
-  const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
-  const statusOf = (leaseStatus?: string, dueDate?: string | null, leaseStart?: string | null): 'past' | 'upcoming' | 'active' => {
+  // Lease-status filter (value lifted to the parent so it sits inline with the
+  // Viewing selector). A charge counts as "Past" if its lease has ended OR it
+  // predates the lease's current term (leftover history from a reused/renewed
+  // lease record) — so old rows don't appear under Active.
+  const statusOf =(leaseStatus?: string, dueDate?: string | null, leaseStart?: string | null): 'past' | 'upcoming' | 'active' => {
     if (dueDate && leaseStart && dueDate < leaseStart) return 'past'
     if (leaseStatus === 'expired' || leaseStatus === 'terminated') return 'past'
     if (leaseStatus === 'upcoming' || leaseStatus === 'pending') return 'upcoming'
@@ -877,24 +900,6 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Lease-status filter */}
-      <div className="flex gap-1.5 flex-wrap">
-        {(['all', 'past', 'active', 'upcoming'] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setLeaseStatusFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-              leaseStatusFilter === f
-                ? 'bg-brand-600 text-white border border-brand-600'
-                : 'bg-white border border-gray-200 text-mute hover:border-gray-300'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
-
       {/* Current-month payment breakdown — same donut as the main Payments screen. */}
       <div className="order-1">
         <MonthlyDonut payments={payments} loading={loading} />

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
+import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
@@ -875,7 +876,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
   })
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Lease-status filter */}
       <div className="flex gap-1.5 flex-wrap">
         {(['all', 'past', 'active', 'upcoming'] as const).map((f) => (
@@ -894,8 +895,13 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
         ))}
       </div>
 
-      {/* Per-lease payment schedule */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      {/* Current-month payment breakdown — same donut as the main Payments screen. */}
+      <div className="order-1">
+        <MonthlyDonut payments={payments} loading={loading} />
+      </div>
+
+      {/* Per-lease payment schedule — pushed below the ledger via flex order. */}
+      <section className="order-3 bg-white rounded-2xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Payment schedules</h2>
@@ -957,7 +963,7 @@ function PaymentsTab({ leases, units }: { leases: ReturnType<typeof useLeases>['
       </section>
 
       {/* Payments ledger — one collapsible row per monthly charge. */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <section className="order-2 bg-white rounded-2xl border border-gray-200 p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">Payments</h2>
         {loading ? (
           <Loader2 className="w-5 h-5 animate-spin text-mute" strokeWidth={1.75} />

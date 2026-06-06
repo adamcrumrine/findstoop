@@ -226,7 +226,7 @@ export default function HowToScreenTenants() {
         AI is <strong>not</strong> good at — and should not be used for — making the actual rental decision.
         That decision belongs to a human landlord who can weigh context the model can't see (a candid
         explanation for a credit hit, an unusual employment history, a great prior-landlord reference).
-        At FindStoop, the AI produces a 0–100 Tenability™ score and a summary; you make the call.
+        At Stoop, the AI produces a 0–100 Tenability™ score and a summary; you make the call.
       </p>
 
       <h2 className="faq">FAQ</h2>

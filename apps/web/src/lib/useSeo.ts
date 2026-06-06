@@ -21,7 +21,7 @@
 import { useEffect } from 'react'
 
 const SITE_ORIGIN = 'https://findstoop.com'
-const TITLE_SUFFIX = ' · FindStoop'
+const TITLE_SUFFIX = ' · Stoop'
 
 interface SeoArgs {
   /** Page-specific title (omit the brand — we append it). */
@@ -30,7 +30,7 @@ interface SeoArgs {
   description: string
   /** Path WITHOUT origin, e.g. '/pricing'. Used for canonical + og:url. */
   path: string
-  /** Optional override for og:image (defaults to /findstoop-logo.png). */
+  /** Optional override for og:image (defaults to /stoop_logo_horizontal_trans.png). */
   image?: string
   /** Set true on auth pages / etc. to keep search engines out. */
   noindex?: boolean
@@ -60,7 +60,7 @@ export function useSeo({ title, description, path, image, noindex }: SeoArgs) {
   useEffect(() => {
     const fullTitle = title + TITLE_SUFFIX
     const canonical = `${SITE_ORIGIN}${path}`
-    const ogImage   = image || `${SITE_ORIGIN}/findstoop-logo.png`
+    const ogImage   = image || `${SITE_ORIGIN}/stoop_logo_horizontal_trans.png`
 
     document.title = fullTitle
 

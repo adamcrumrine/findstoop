@@ -27,7 +27,7 @@ const VENDORS: VendorRow[] = [
     exportSteps: [
       'In Avail: Settings → Reports → "Export tenants"',
       'Settings → Reports → "Export properties"',
-      'Upload both files into the FindStoop import wizard',
+      'Upload both files into the Stoop import wizard',
     ],
     tested: true,
   },
@@ -38,18 +38,18 @@ const VENDORS: VendorRow[] = [
     exportSteps: [
       'Reports → Rental Owner & Tenant Information',
       'Export "Tenant Directory" and "Property Directory" reports as CSV',
-      'Upload both files into the FindStoop import wizard',
+      'Upload both files into the Stoop import wizard',
     ],
     tested: false,
   },
   {
     id: 'doorloop',
     label: 'DoorLoop',
-    blurb: 'DoorLoop\'s clean CSV exports map directly into FindStoop. Bring your tenants, units, and lease dates over in one upload pass.',
+    blurb: 'DoorLoop\'s clean CSV exports map directly into Stoop. Bring your tenants, units, and lease dates over in one upload pass.',
     exportSteps: [
       'People → Tenants → Export (CSV)',
       'Properties → Export (CSV)',
-      'Upload both files into the FindStoop import wizard',
+      'Upload both files into the Stoop import wizard',
     ],
     tested: false,
   },
@@ -60,18 +60,18 @@ const VENDORS: VendorRow[] = [
     exportSteps: [
       'Reports → Custom Reports',
       'Build + export a tenant report and a property report as CSV',
-      'Upload both files into the FindStoop import wizard',
+      'Upload both files into the Stoop import wizard',
     ],
     tested: false,
   },
   {
     id: 'appfolio',
     label: 'AppFolio',
-    blurb: 'AppFolio is built for property managers managing dozens to hundreds of units. Small landlords often move to FindStoop for simpler pricing and a sharper tenant experience.',
+    blurb: 'AppFolio is built for property managers managing dozens to hundreds of units. Small landlords often move to Stoop for simpler pricing and a sharper tenant experience.',
     exportSteps: [
       'Reports → Resident & Lease',
       'Export the resident roster + a property list as CSV',
-      'Upload both files into the FindStoop import wizard',
+      'Upload both files into the Stoop import wizard',
     ],
     tested: false,
   },
@@ -82,7 +82,7 @@ const VENDORS: VendorRow[] = [
     exportSteps: [
       'Settings → Account → Export Data',
       'Pick tenant + property CSV exports',
-      'Upload both files into the FindStoop import wizard',
+      'Upload both files into the Stoop import wizard',
     ],
     tested: false,
   },
@@ -90,8 +90,8 @@ const VENDORS: VendorRow[] = [
 
 export default function Migrate() {
   useSeo({
-    title: 'Migrate to FindStoop — from Avail, Buildium, DoorLoop, AppFolio + more',
-    description: 'Move your properties, units, tenants, and leases from Avail, Buildium, DoorLoop, TenantCloud, AppFolio, or TurboTenant to FindStoop in under five minutes. Our import wizard maps CSV exports automatically and sends branded migration emails to your tenants.',
+    title: 'Migrate to Stoop — from Avail, Buildium, DoorLoop, AppFolio + more',
+    description: 'Move your properties, units, tenants, and leases from Avail, Buildium, DoorLoop, TenantCloud, AppFolio, or TurboTenant to Stoop in under five minutes. Our import wizard maps CSV exports automatically and sends branded migration emails to your tenants.',
     path: '/migrate',
   })
 
@@ -106,13 +106,13 @@ export default function Migrate() {
             5-minute migration · CSV import wizard
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-ink leading-[1.05] tracking-tight">
-            Move to FindStoop — without re-entering a single tenant.
+            Move to Stoop — without re-entering a single tenant.
           </h1>
           <p className="mt-5 text-lg text-mute max-w-2xl mx-auto">
             Bring your portfolio over from Avail, Buildium, DoorLoop, TenantCloud, AppFolio, or TurboTenant.
             Our import wizard maps the column names automatically, creates your properties and units, and
             sends every tenant a branded migration email so nothing about their lease changes — they just
-            sign in to FindStoop.
+            sign in to Stoop.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -146,7 +146,7 @@ export default function Migrate() {
               CSV exports of tenants + properties. Most platforms have a one-click "Export" button in their
               Reports section.
             </Step>
-            <Step number="2" title="Upload to the FindStoop wizard">
+            <Step number="2" title="Upload to the Stoop wizard">
               Drop both CSVs into <strong>Manager → Import</strong>. We read the column names automatically
               and preview every row before any data hits your account.
             </Step>
@@ -155,7 +155,7 @@ export default function Migrate() {
               with issues so you can fix them before importing.
             </Step>
             <Step number="4" title="Tenants get a branded migration email">
-              Each tenant receives a message: "Your landlord moved to FindStoop — your lease came with them.
+              Each tenant receives a message: "Your landlord moved to Stoop — your lease came with them.
               Click here to claim your renter account." Nothing about their lease changes.
             </Step>
           </ol>
@@ -243,7 +243,7 @@ export default function Migrate() {
 
           <p className="text-[11px] text-mute mt-8 leading-relaxed text-center max-w-3xl mx-auto">
             Avail, Buildium, DoorLoop, TenantCloud, AppFolio, and TurboTenant are trademarks of their
-            respective owners. FindStoop is not affiliated with, endorsed by, or sponsored by any of these
+            respective owners. Stoop is not affiliated with, endorsed by, or sponsored by any of these
             companies. Vendor names are used only to identify the source of imported data.
           </p>
         </div>
@@ -263,12 +263,12 @@ export default function Migrate() {
             </Faq>
             <Faq q="Will my tenants be confused?">
               Each tenant receives a branded migration email signed by you: "Your landlord just moved to
-              FindStoop — your lease came with them. Click here to claim your renter account." Nothing about
-              their lease (rent, dates, terms) changes. They sign in once on FindStoop and continue.
+              Stoop — your lease came with them. Click here to claim your renter account." Nothing about
+              their lease (rent, dates, terms) changes. They sign in once on Stoop and continue.
             </Faq>
             <Faq q="What happens to my existing payments?">
               Past payments stay in your previous platform's history. Going forward, tenants pay through
-              FindStoop — ACH is free for them, card is 3.5% paid by them at checkout. Stripe Connect routes
+              Stoop — ACH is free for them, card is 3.5% paid by them at checkout. Stripe Connect routes
               funds directly to your bank.
             </Faq>
             <Faq q="What about my signed lease PDFs?">
@@ -278,7 +278,7 @@ export default function Migrate() {
             </Faq>
             <Faq q="Can I run both platforms in parallel?">
               Yes — and we recommend it for the first billing cycle. Migrate your portfolio, watch the first
-              rent collection clear through FindStoop, then cancel your old subscription. No need to take
+              rent collection clear through Stoop, then cancel your old subscription. No need to take
               a leap.
             </Faq>
             <Faq q="What if the import wizard misreads a row?">

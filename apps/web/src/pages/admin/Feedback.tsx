@@ -69,7 +69,7 @@ export default function AdminFeedback() {
     <div className="p-4 sm:p-6 max-w-5xl">
       <header className="mb-4">
         <h1 className="text-2xl font-bold text-slate-900">Feedback</h1>
-        <p className="text-sm text-slate-500 mt-1">Bug reports + feature requests submitted by FindStoop users.</p>
+        <p className="text-sm text-slate-500 mt-1">Bug reports + feature requests submitted by Stoop users.</p>
       </header>
 
       <div className="flex gap-2 mb-4">

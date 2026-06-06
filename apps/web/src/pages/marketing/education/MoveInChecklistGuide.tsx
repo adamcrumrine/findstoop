@@ -17,7 +17,7 @@ export default function MoveInChecklistGuide() {
       relatedLinks={[
         { to: '/education/how-to-screen-tenants', label: 'How to screen tenants' },
         { to: '/education/fair-housing-act-guide', label: 'Fair Housing Act compliance' },
-        { to: '/features', label: 'See every FindStoop feature' },
+        { to: '/features', label: 'See every Stoop feature' },
       ]}
     >
       <p>

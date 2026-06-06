@@ -1,6 +1,6 @@
 // "Rent is N days late — send a notice?" banner for the Payments screen.
 //
-// FindStoop's highest-value workflow. For each lease with overdue rent, surfaces
+// Stoop's highest-value workflow. For each lease with overdue rent, surfaces
 // the next step in the guided late-payment series (Day 5 reminder → Day 10
 // formal → Day 15 Pay or Quit) and deep-links the builder to that exact step.
 

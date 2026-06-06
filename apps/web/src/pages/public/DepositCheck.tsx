@@ -82,7 +82,7 @@ export default function DepositCheck() {
             </>
           ) : (
             <>
-              <img src="/findstoop-logo.png" alt="FindStoop" className="h-8 w-auto" />
+              <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-8 w-auto" />
               <span className="text-xs font-semibold uppercase tracking-wider text-mute">Deposit Check</span>
             </>
           )}

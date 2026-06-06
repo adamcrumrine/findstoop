@@ -14,7 +14,7 @@ export default function DisclaimerBanner({ className = '' }: DisclaimerBannerPro
       <Info className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
       <p className="text-sm text-amber-800 leading-relaxed">
         We built this from your property data. Give it a careful read before you send it —
-        FindStoop doesn't provide legal advice.
+        Stoop doesn't provide legal advice.
       </p>
     </div>
   )

@@ -1,6 +1,6 @@
-// Ohio Tenant Rights — FindStoop summary of Chapter 5321 of the Ohio
+// Ohio Tenant Rights — Stoop summary of Chapter 5321 of the Ohio
 // Revised Code (Landlords and Tenants). This is original prose written
-// for FindStoop, with direct statutory cites so a reader can verify any
+// for Stoop, with direct statutory cites so a reader can verify any
 // claim against the official text at codes.ohio.gov.
 //
 // NOT legal advice. The disclaimer at the bottom of the page makes that
@@ -45,7 +45,7 @@ export default function OhioTenantRights() {
         <header className="text-center border-b border-gray-300 pb-6 mb-8">
           <div className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-mute mb-2">
             <Scale className="w-4 h-4" strokeWidth={1.75} />
-            FindStoop — Ohio Tenant Rights Summary
+            Stoop — Ohio Tenant Rights Summary
           </div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Georgia, serif' }}>
             Your Rights and Obligations as an Ohio Tenant
@@ -58,7 +58,7 @@ export default function OhioTenantRights() {
         <section className="prose prose-sm max-w-none space-y-5" style={{ fontFamily: 'Georgia, serif' }}>
           <p>
             This document summarizes the rights and obligations that Ohio law gives every residential
-            tenant in the state. It is provided to you by your landlord through FindStoop as part of your
+            tenant in the state. It is provided to you by your landlord through Stoop as part of your
             lease packet. Nothing in this document changes the terms of your written lease — Ohio law
             simply sits on top of the lease and protects you regardless of what the lease says about
             certain matters.
@@ -92,7 +92,7 @@ export default function OhioTenantRights() {
           <h2 className="text-lg font-bold mt-6">2. How to ask for repairs — and what to do if they don't happen</h2>
           <p>
             If something at your home needs fixing or you notice a pest or rodent issue, the law
-            expects you to <strong>tell your landlord in writing</strong>. FindStoop's Maintenance tab
+            expects you to <strong>tell your landlord in writing</strong>. Stoop's Maintenance tab
             creates a written request automatically — open Maintenance, describe the issue, and submit.
             The timestamp becomes your paper trail.
           </p>
@@ -156,7 +156,7 @@ export default function OhioTenantRights() {
               and minor scuffs are the landlord's cost of doing business.</li>
           </ul>
           <p>
-            FindStoop stores your forwarding address with your move-out workflow — when you move out,
+            Stoop stores your forwarding address with your move-out workflow — when you move out,
             update Settings → Profile so we can pass it to your landlord automatically.
           </p>
 
@@ -176,7 +176,7 @@ export default function OhioTenantRights() {
               typically continues month-to-month (see your lease's Section 26 for the specifics).</li>
           </ul>
           <p>
-            FindStoop sends you reminders 90 and 60 days before your lease ends so you have time to
+            Stoop sends you reminders 90 and 60 days before your lease ends so you have time to
             decide whether to renew, sign a new fixed-term lease, or move out.
           </p>
 
@@ -239,7 +239,7 @@ export default function OhioTenantRights() {
           </p>
           <p>
             A separate <em>Federal Fair Housing Act Notice</em> is included with your lease packet
-            on FindStoop.
+            on Stoop.
           </p>
 
           {/* 10. Where to get help */}
@@ -250,7 +250,7 @@ export default function OhioTenantRights() {
             <li><strong>Ohio Civil Rights Commission</strong> (housing discrimination): 1-888-278-7101.</li>
             <li><strong>HUD</strong> (federal housing rights): hud.gov/program_offices/fair_housing_equal_opp
               or 1-800-669-9777.</li>
-            <li><strong>FindStoop Messages</strong>: open the Messages tab to reach your landlord
+            <li><strong>Stoop Messages</strong>: open the Messages tab to reach your landlord
               directly through the app. Every message is timestamped and stored.</li>
           </ul>
 
@@ -260,7 +260,7 @@ export default function OhioTenantRights() {
             <p>
               This summary is provided for informational purposes only. It is not a substitute for the
               actual text of Ohio Revised Code Chapter 5321, which controls in any dispute. It is not
-              legal advice and FindStoop is not your lawyer. The law may change, and individual
+              legal advice and Stoop is not your lawyer. The law may change, and individual
               circumstances differ. For advice about your specific situation, consult a licensed
               attorney or call your local legal aid office at 1-866-LAW-OHIO.
             </p>
@@ -272,7 +272,7 @@ export default function OhioTenantRights() {
 
         <footer className="mt-10 pt-6 border-t border-gray-300 text-xs text-mute text-center print:break-before-avoid">
           <p>
-            Provided by your landlord through FindStoop. {leaseId && (
+            Provided by your landlord through Stoop. {leaseId && (
               <>
                 Filed under lease <span className="font-mono">{leaseId.slice(0, 8)}</span>.
               </>

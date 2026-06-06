@@ -41,7 +41,7 @@ export default function LoadingSpinner({ message = 'Getting things ready…' }: 
           <div className="absolute inset-[6px] rounded-full bg-white" aria-hidden="true" />
           {/* Logo */}
           <img
-            src="/findstoop-logo-square.png"
+            src="/stoop_logo_square_trans.png"
             alt=""
             aria-hidden="true"
             className="fs-loader-logo relative w-14 h-14 object-contain"

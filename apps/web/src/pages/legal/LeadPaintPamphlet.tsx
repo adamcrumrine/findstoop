@@ -78,12 +78,12 @@ export default function LeadPaintPamphlet() {
           </div>
 
           {/* Pointer to the authoritative EPA-issued PDF. The summary below
-              is FindStoop's plain-language rendering of the same content,
+              is Stoop's plain-language rendering of the same content,
               but the EPA copy at the link is the document of record. */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm print:hidden">
             <p className="font-semibold text-blue-900 mb-1">Official EPA pamphlet</p>
             <p className="text-blue-900/90 leading-relaxed">
-              This page is FindStoop's plain-language summary of the EPA / HUD / CPSC pamphlet titled
+              This page is Stoop's plain-language summary of the EPA / HUD / CPSC pamphlet titled
               <em> "Protect Your Family From Lead in Your Home" </em>(September 2013, EPA-747-K-12-001).
               The authoritative federal version is hosted at:
             </p>
@@ -186,7 +186,7 @@ export default function LeadPaintPamphlet() {
         </section>
 
         <div className="mt-12 pt-6 border-t border-gray-200 text-xs text-mute text-center">
-          <p>This summary is provided by FindStoop based on the official EPA / HUD / CPSC pamphlet. For the canonical document, see <span className="font-mono">epa.gov/lead</span>.</p>
+          <p>This summary is provided by Stoop based on the official EPA / HUD / CPSC pamphlet. For the canonical document, see <span className="font-mono">epa.gov/lead</span>.</p>
           <p className="mt-2"><Link to={back} className="text-brand-700 hover:underline">Return to documents</Link></p>
         </div>
       </div>

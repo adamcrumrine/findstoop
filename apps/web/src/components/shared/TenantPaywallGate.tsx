@@ -1,6 +1,6 @@
 // Tenant-side paywall gate.
 //
-// When a tenant has any fully-signed lease but their landlord's FindStoop
+// When a tenant has any fully-signed lease but their landlord's Stoop
 // subscription is not active, the tenant portal is locked behind this gate.
 // Tenant features tied to the executed lease (pay rent, sign documents,
 // maintenance, messages, documents) are blocked until the landlord
@@ -108,11 +108,11 @@ export default function TenantPaywallGate({ children }: { children: ReactNode })
           <Loader2 className="w-6 h-6 text-amber-700 animate-spin" strokeWidth={1.75} />
         </div>
         <h1 className="text-xl font-semibold text-ink">
-          {state.landlordName ?? 'Your landlord'} is finishing FindStoop setup
+          {state.landlordName ?? 'Your landlord'} is finishing Stoop setup
         </h1>
         <p className="text-sm text-mute mt-2 leading-relaxed">
           Your lease{state.propertyName ? ` at ${state.propertyName}` : ''} has been signed, but
-          {' '}{state.landlordName ? state.landlordName : 'your landlord'} still needs to complete their FindStoop
+          {' '}{state.landlordName ? state.landlordName : 'your landlord'} still needs to complete their Stoop
           billing setup before the rest of the portal opens up. As soon as they do, you'll get access to rent
           payments, your lease document, and maintenance requests.
         </p>

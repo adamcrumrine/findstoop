@@ -45,8 +45,22 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
       return d >= start && d < end
     }
 
-    const totals: Record<string, number> = {}
+    // Collapse rows that represent the SAME obligation — a stray duplicate from
+    // a rebuilt schedule, or a still-pending row a processing/paid row has
+    // superseded. Without this, in-flight/paid money is counted ON TOP of the
+    // still-upcoming amount (e.g. $2,100 upcoming + $525 processing = $2,625
+    // instead of $525 processing + $1,575 upcoming = $2,100). Keyed by
+    // lease+tenant+type+amount; keep the most-advanced status.
+    const RANK: Record<string, number> = { completed: 3, processing: 2, pending: 1, failed: 0 }
+    const best = new Map<string, Payment>()
     for (const p of payments.filter(inMonth)) {
+      const key = `${p.lease_id}|${p.tenant_id}|${p.type}|${Number(p.amount)}`
+      const cur = best.get(key)
+      if (!cur || (RANK[p.status] ?? 1) > (RANK[cur.status] ?? 1)) best.set(key, p)
+    }
+
+    const totals: Record<string, number> = {}
+    for (const p of best.values()) {
       const status = rowStatus(p).label
       totals[status] = (totals[status] ?? 0) + Number(p.amount)
     }

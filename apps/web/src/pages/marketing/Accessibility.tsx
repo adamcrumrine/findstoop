@@ -8,20 +8,20 @@ import { useSeo } from '../../lib/useSeo'
 export default function Accessibility() {
   useSeo({
     title: 'Accessibility Statement',
-    description: 'FindStoop\'s commitment to accessible design, the standards we follow, known limitations, and how to report accessibility barriers.',
+    description: 'Stoop\'s commitment to accessible design, the standards we follow, known limitations, and how to report accessibility barriers.',
     path: '/accessibility',
   })
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">
-      <Link to="/" className="text-sm text-brand-600 hover:underline">← FindStoop</Link>
+      <Link to="/" className="text-sm text-brand-600 hover:underline">← Stoop</Link>
       <h1 className="text-2xl font-bold text-ink mt-4">Accessibility Statement</h1>
       <p className="text-sm text-mute mt-2">Effective May 23, 2026.</p>
 
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
 
         <Sec title="Our commitment">
-          FindStoop is built to be usable by as many people as possible, including people with disabilities. We aim to
+          Stoop is built to be usable by as many people as possible, including people with disabilities. We aim to
           conform to the Web Content Accessibility Guidelines (WCAG) 2.1 Level AA, the de-facto standard referenced by
           the U.S. Department of Justice in connection with the Americans with Disabilities Act (ADA).
         </Sec>
@@ -50,7 +50,7 @@ export default function Accessibility() {
         </Sec>
 
         <Sec title="Reasonable accommodations">
-          If you need an accommodation to use FindStoop — whether that's a different file format for a document, help with
+          If you need an accommodation to use Stoop — whether that's a different file format for a document, help with
           uploads, additional time to complete a screening, or anything else — please email{' '}
           <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a> and
           we'll work with you. We aim to respond within two business days.
@@ -72,15 +72,15 @@ export default function Accessibility() {
         </Sec>
 
         <Sec title="Third-party content">
-          FindStoop relies on several third-party services (Supabase, Stripe, Anthropic, Twilio, Resend) whose
+          Stoop relies on several third-party services (Supabase, Stripe, Anthropic, Twilio, Resend) whose
           accessibility we don't control. These vendors are mainstream platforms with their own accessibility commitments,
-          but if you encounter a barrier within their components on FindStoop, please report it to us and we'll
+          but if you encounter a barrier within their components on Stoop, please report it to us and we'll
           coordinate with the vendor.
         </Sec>
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} FindStoop.
+        © {new Date().getFullYear()} Stoop.
       </p>
     </div>
   )

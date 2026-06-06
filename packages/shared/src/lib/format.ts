@@ -35,6 +35,15 @@ export function formatLocalDate(value: string | null | undefined): string {
   return new Date(s).toLocaleDateString()
 }
 
+// "Aug 2025" — the month a charge applies to, ignoring the specific day.
+export function formatMonthYear(value: string | null | undefined): string {
+  if (!value) return ''
+  const s = String(value)
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
+
 // US phone formatter. Strips non-digits, then renders as (###) ###-####.
 // 11-digit numbers starting with "1" are treated as US country-coded and
 // the leading 1 is dropped. Anything that isn't 10 digits after stripping

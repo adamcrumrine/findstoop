@@ -74,7 +74,7 @@ const steps: Step[] = [
 export default function HowItWorks() {
   useSeo({
     title: 'How it works',
-    description: 'Set up an account, list a vacancy, screen applicants, e-sign the lease, and start collecting rent — the five steps from sign-up to first paycheck on FindStoop.',
+    description: 'Set up an account, list a vacancy, screen applicants, e-sign the lease, and start collecting rent — the five steps from sign-up to first paycheck on Stoop.',
     path: '/how-it-works',
   })
   return (

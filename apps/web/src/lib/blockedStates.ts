@@ -1,4 +1,4 @@
-// FindStoop is paused for landlord signup + property creation in these
+// Stoop is paused for landlord signup + property creation in these
 // states until we complete the state-specific compliance work each one
 // requires. Marketing pages stay public; only account/property creation
 // is blocked.

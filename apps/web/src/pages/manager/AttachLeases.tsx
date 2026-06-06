@@ -952,7 +952,7 @@ function CreateLeaseFromPdfSection({ units, open, onToggle, onCreated }: {
               ))}
             </div>
             <p className="text-[10px] text-mute italic mt-1.5">
-              If a tenant isn't on FindStoop yet, they get an invite email automatically and are added to this lease.
+              If a tenant isn't on Stoop yet, they get an invite email automatically and are added to this lease.
               All co-tenants will be able to pay rent toward the same lease.
             </p>
           </div>
@@ -1000,7 +1000,7 @@ function CreateLeaseFromPdfSection({ units, open, onToggle, onCreated }: {
               </button>
             </div>
             {/* Discrete secondary — for the rare case where the manager wants
-                to spin up a brand-new FindStoop lease + e-sign flow instead
+                to spin up a brand-new Stoop lease + e-sign flow instead
                 of just recording the executed PDF. Same edge function call,
                 just with skip_invite_emails=false so welcome emails go out. */}
             <p className="text-[10px] text-mute mt-2 text-right leading-relaxed">

@@ -102,6 +102,25 @@ export async function getRentEstimate(input: RentEstimateInput): Promise<{ repor
   return { reportId: reportId ?? null, report: report as RentEstimateReport }
 }
 
+export interface ParcelPrefill {
+  found: boolean
+  parcel: {
+    bedrooms: number | null; bathrooms: number | null; sqft: number | null
+    yearBuilt: number | null; propertyType: string | null
+    assessedValue: number | null; source: string
+  } | null
+  geography: { countyName: string | null; stateName: string | null; matchedAddress: string | null }
+}
+
+/** Look up county auditor records for an address to pre-fill the report form.
+ *  Free; works in covered counties (see the rent-estimate parcel providers). */
+export async function prefillProperty(address: string, zip?: string): Promise<ParcelPrefill> {
+  const { data, error } = await supabase.functions.invoke('parcel-prefill', { body: { address, zip } })
+  if (error) throw new Error(error.message)
+  if (!data?.ok) throw new Error(data?.message ?? 'Lookup failed')
+  return data as ParcelPrefill
+}
+
 /** Start a one-time $4.99 charge for a Basic report. Returns { free: true } for
  *  comp accounts (skip payment) or a Stripe client secret to confirm. */
 export async function createReportPayment(): Promise<{ free: boolean; clientSecret?: string; paymentIntentId?: string }> {

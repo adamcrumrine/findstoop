@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     fetchContext(geo).catch(() => ({ medianGrossRent: null, medianHouseholdIncome: null, rentalVacancyRate: null, renterSharePct: null })),
     fetchHud(effectiveZip, bedrooms).catch(() => null),
     fetchRecency(ACS_YEAR),
-    lookupParcel(geo, effectiveZip).catch(() => null),
+    lookupParcel(geo, effectiveZip, address.match(/^\s*(\d+)/)?.[1] ?? null).catch(() => null),
     entitledToPro
       ? fetchComps(address, effectiveZip, bedrooms, body.bathrooms ?? null).catch(() => null)
       : Promise.resolve(null),

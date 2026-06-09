@@ -33,7 +33,7 @@ export interface ParcelAttributes {
   source: string
 }
 
-type Provider = (geo: Geography, zip: string) => Promise<ParcelAttributes | null>
+type Provider = (geo: Geography, zip: string, houseNumber: string | null) => Promise<ParcelAttributes | null>
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -54,11 +54,9 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
-/** Query an ArcGIS Feature/Map layer for the parcel containing a point.
- *  Pass distanceMeters for POINT layers (e.g. Cuyahoga's CAMA points), where an
- *  exact intersect would never hit — we search a small radius instead. */
+/** Query an ArcGIS Feature/Map layer around a point; returns ALL matches. */
 // deno-lint-ignore no-explicit-any
-async function arcgisPointQuery(layerUrl: string, lat: number, lng: number, distanceMeters?: number): Promise<Record<string, any> | null> {
+async function arcgisQuery(layerUrl: string, lat: number, lng: number, distanceMeters?: number): Promise<Record<string, any>[]> {
   const url = new URL(`${layerUrl}/query`)
   url.searchParams.set('geometry', `${lng},${lat}`)
   url.searchParams.set('geometryType', 'esriGeometryPoint')
@@ -70,12 +68,57 @@ async function arcgisPointQuery(layerUrl: string, lat: number, lng: number, dist
   }
   url.searchParams.set('outFields', '*')
   url.searchParams.set('returnGeometry', 'false')
+  url.searchParams.set('resultRecordCount', '10')
   url.searchParams.set('f', 'json')
 
   const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
-  if (!res.ok) return null
+  if (!res.ok) return []
   const json = await res.json()
-  return json?.features?.[0]?.attributes ?? null
+  // deno-lint-ignore no-explicit-any
+  return Array.isArray(json?.features) ? json.features.map((f: any) => f.attributes).filter(Boolean) : []
+}
+
+/** Site-address-ish field value (never owner/mailing fields). */
+// deno-lint-ignore no-explicit-any
+function siteAddressOf(a: Record<string, any>): string | null {
+  const keys = Object.keys(a).filter((k) => !/own|mail/i.test(k))
+  for (const rx of [/site.?addr/i, /situs/i, /par_?addr_?all/i, /par_?addr\b/i, /prop.?addr|full.?addr/i, /\baddress\b/i]) {
+    const k = keys.find((key) => rx.test(key))
+    if (k && a[k]) return String(a[k])
+  }
+  return null
+}
+
+/**
+ * Pick the right parcel from candidates. The Census geocoder pins addresses to
+ * the street CENTERLINE, which sits between parcel polygons — so we query a
+ * small radius and disambiguate by house number. If we can't match the house
+ * number and more than one parcel came back, return null: in a paid report,
+ * NO data beats the neighbor's data.
+ */
+// deno-lint-ignore no-explicit-any
+function chooseParcel(features: Record<string, any>[], houseNumber: string | null): Record<string, any> | null {
+  if (!features.length) return null
+  if (houseNumber) {
+    const hit = features.find((f) => {
+      const s = siteAddressOf(f)
+      return s && new RegExp(`(^|\\D)${houseNumber}(\\D|$)`).test(s)
+    })
+    if (hit) return hit
+  }
+  return features.length === 1 ? features[0] : null
+}
+
+/** Exact point-in-polygon first; widen to a radius + house-number match. */
+// deno-lint-ignore no-explicit-any
+async function queryParcel(layerUrl: string, geo: Geography, houseNumber: string | null, opts?: { pointLayer?: boolean; radius?: number }): Promise<Record<string, any> | null> {
+  const radius = opts?.radius ?? 30
+  if (!opts?.pointLayer) {
+    const exact = await arcgisQuery(layerUrl, geo.lat, geo.lng)
+    if (exact.length === 1) return exact[0]
+    if (exact.length > 1) return chooseParcel(exact, houseNumber)
+  }
+  return chooseParcel(await arcgisQuery(layerUrl, geo.lat, geo.lng, radius), houseNumber)
 }
 
 // deno-lint-ignore no-explicit-any
@@ -125,8 +168,8 @@ const FRANKLIN_PARCEL_LAYER =
 // parcel_coverage_requests demand counts to prioritize beyond Ohio. Until a
 // county is added, its addresses fall back to the form's values.
 
-const franklinCounty: Provider = async (geo) => {
-  const a = await arcgisPointQuery(FRANKLIN_PARCEL_LAYER, geo.lat, geo.lng)
+const franklinCounty: Provider = async (geo, _zip, houseNumber) => {
+  const a = await queryParcel(FRANKLIN_PARCEL_LAYER, geo, houseNumber)
   return a ? mapArcgisAttrs(a, 'Franklin County Auditor') : null
 }
 
@@ -137,8 +180,8 @@ const franklinCounty: Provider = async (geo) => {
 const CUYAHOGA_CAMA_LAYER =
   'https://gis.cuyahogacounty.us/server/rest/services/CUYAHOGA_BASE/TaxMap_Parcels_CAMA_RP_WGS84/FeatureServer/0'
 
-const cuyahogaCounty: Provider = async (geo) => {
-  const a = await arcgisPointQuery(CUYAHOGA_CAMA_LAYER, geo.lat, geo.lng, 40)
+const cuyahogaCounty: Provider = async (geo, _zip, houseNumber) => {
+  const a = await queryParcel(CUYAHOGA_CAMA_LAYER, geo, houseNumber, { pointLayer: true, radius: 40 })
   return a ? mapArcgisAttrs(a, 'Cuyahoga County Fiscal Office') : null
 }
 
@@ -149,8 +192,8 @@ const cuyahogaCounty: Provider = async (geo) => {
 const HAMILTON_PARCEL_LAYER =
   'https://services.arcgis.com/JyZag7oO4NteHGiq/arcgis/rest/services/Open_Data/FeatureServer/51'
 
-const hamiltonCounty: Provider = async (geo) => {
-  const a = await arcgisPointQuery(HAMILTON_PARCEL_LAYER, geo.lat, geo.lng)
+const hamiltonCounty: Provider = async (geo, _zip, houseNumber) => {
+  const a = await queryParcel(HAMILTON_PARCEL_LAYER, geo, houseNumber)
   return a ? mapArcgisAttrs(a, 'Hamilton County Auditor (CAGIS)') : null
 }
 
@@ -171,7 +214,7 @@ const PROVIDERS: Record<string, { byCounty?: Record<string, Provider[]>; statewi
  * or null if no provider covers this state/county (caller uses form values).
  * Every provider call is isolated — a thrown error or timeout drops to the next.
  */
-export async function lookupParcel(geo: Geography, zip: string): Promise<ParcelAttributes | null> {
+export async function lookupParcel(geo: Geography, zip: string, houseNumber: string | null = null): Promise<ParcelAttributes | null> {
   const state = PROVIDERS[geo.stateFips]
   if (!state) return null
 
@@ -181,7 +224,7 @@ export async function lookupParcel(geo: Geography, zip: string): Promise<ParcelA
   ]
   for (const provider of chain) {
     try {
-      const result = await provider(geo, zip)
+      const result = await provider(geo, zip, houseNumber)
       // Count it as a hit if it has hedonic fields (sqft/beds/year — used to
       // auto-fill the estimate inputs) OR valuation/sale data (used to enrich
       // the property-record block + gross yield, e.g. Hamilton). The caller

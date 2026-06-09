@@ -16,9 +16,20 @@ import { inputClass, selectClass } from '../../components/shared/FormField'
 import ReportPaymentModal from '../../components/manager/ReportPaymentModal'
 import {
   getRentEstimate, createReportPayment, listRentReports, deleteRentReport, getReportEntitlement,
-  requestParcelCoverage, hasRequestedParcelCoverage,
+  requestParcelCoverage, hasRequestedParcelCoverage, prefillProperty,
   type RentEstimateReport, type SavedRentReport, type ReportTier,
 } from '@findstoop/shared'
+
+// Map a county land-use description onto our property-type dropdown.
+function dropdownTypeFor(countyType: string | null): string | null {
+  const t = (countyType ?? '').toLowerCase()
+  if (/single|sfh|1 fam|one fam|dwelling/.test(t)) return 'Single Family Home'
+  if (/condo/.test(t)) return 'Condo'
+  if (/town|row/.test(t)) return 'Townhome'
+  if (/duplex|2 fam|two fam/.test(t)) return 'Duplex'
+  if (/apart|multi|3 fam|flat/.test(t)) return 'Multi-Family'
+  return null
+}
 
 const PROPERTY_TYPES = ['Single Family Home', 'Condo', 'Townhome', 'Apartment', 'Duplex', 'Multi-Family']
 const BASIC_PRICE = 5.49
@@ -60,6 +71,7 @@ export default function RentalAnalysis() {
   const [loadingReports, setLoadingReports] = useState(true)
   const [active, setActive] = useState<{ id: string | null; report: RentEstimateReport } | null>(null)
   const [pay, setPay] = useState<{ clientSecret: string; paymentIntentId: string } | null>(null)
+  const [prefill, setPrefill] = useState<{ state: 'idle' | 'looking' | 'found' | 'none'; source?: string }>({ state: 'idle' })
 
   useEffect(() => {
     let cancelled = false
@@ -112,6 +124,32 @@ export default function RentalAnalysis() {
       toast.error(e instanceof Error ? e.message : 'Could not generate the report')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function lookupDetails() {
+    if (form.address.trim().length < 5) { toast.error('Enter the street address first.'); return }
+    setPrefill({ state: 'looking' })
+    try {
+      const r = await prefillProperty(form.address.trim(), form.zip.trim() || undefined)
+      if (r.found && r.parcel) {
+        const p = r.parcel
+        setForm((f) => ({
+          ...f,
+          bedrooms: p.bedrooms != null ? String(p.bedrooms) : f.bedrooms,
+          bathrooms: p.bathrooms != null ? String(p.bathrooms) : f.bathrooms,
+          sqft: p.sqft != null ? String(p.sqft) : f.sqft,
+          yearBuilt: p.yearBuilt != null ? String(p.yearBuilt) : f.yearBuilt,
+          propertyType: dropdownTypeFor(p.propertyType) ?? f.propertyType,
+        }))
+        setPrefill({ state: 'found', source: p.source })
+        toast.success(`Found it in ${p.source} records`)
+      } else {
+        setPrefill({ state: 'none' })
+      }
+    } catch (e) {
+      setPrefill({ state: 'none' })
+      toast.error(e instanceof Error ? e.message : 'Lookup failed — enter details manually')
     }
   }
 
@@ -210,23 +248,46 @@ export default function RentalAnalysis() {
               <Field label="ZIP code" Icon={MapPin}><input className={inputClass} inputMode="numeric" placeholder="43212" value={form.zip} onChange={set('zip')} /></Field>
               <Field label="Unit number" Icon={Home}><input className={inputClass} placeholder="B" value={form.unitNumber} onChange={set('unitNumber')} /></Field>
             </div>
+
+            {/* County-record lookup — pre-fills beds/baths/sqft/type from the auditor */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={lookupDetails}
+                disabled={prefill.state === 'looking' || form.address.trim().length < 5}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {prefill.state === 'looking'
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} /> Checking county records…</>
+                  : <><Search className="w-3.5 h-3.5" strokeWidth={2} /> Look up property details</>}
+              </button>
+              {prefill.state === 'found' && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                  <CheckCircle2 className="w-3 h-3" strokeWidth={2} /> Filled from {prefill.source}
+                </span>
+              )}
+              {prefill.state === 'none' && (
+                <span className="text-[11px] text-mute">No county record found — enter the details below.</span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Beds" Icon={Bed}><input className={inputClass} inputMode="numeric" placeholder="3" value={form.bedrooms} onChange={set('bedrooms')} /></Field>
               <Field label="Baths" Icon={Bath}><input className={inputClass} inputMode="decimal" placeholder="2" value={form.bathrooms} onChange={set('bathrooms')} /></Field>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Square footage" Icon={Ruler}><input className={inputClass} inputMode="numeric" placeholder="1,100" value={form.sqft} onChange={set('sqft')} /></Field>
-              <Field label="Property type" Icon={Building2}>
-                <select className={selectClass} value={form.propertyType} onChange={set('propertyType')}>
-                  {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </Field>
+              <Field label="Year built" Icon={Home}><input className={inputClass} inputMode="numeric" placeholder="1995" value={form.yearBuilt} onChange={set('yearBuilt')} /></Field>
             </div>
+            <Field label="Property type" Icon={Building2}>
+              <select className={selectClass} value={form.propertyType} onChange={set('propertyType')}>
+                {PROPERTY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
 
             <p className="text-[11px] text-mute flex items-start gap-1.5">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={2} />
-              In Ohio we auto-fill beds, baths, and size from county auditor records when we can — your
-              entries are the fallback elsewhere.
+              "Look up property details" pulls official county auditor records where we're connected
+              (Columbus, Cleveland, Cincinnati metro counties today) — your entries are the fallback.
             </p>
 
             <div className="border-t border-gray-200 pt-4 space-y-2 text-sm">

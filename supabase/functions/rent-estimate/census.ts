@@ -16,6 +16,8 @@ export interface Geography {
   stateFips: string
   countyFips: string // 3-digit
   tract: string // 6-digit
+  countyName: string | null // e.g. "Franklin County"
+  stateName: string | null // e.g. "Ohio"
   matchedAddress: string | null
 }
 
@@ -54,6 +56,8 @@ export async function geocode(address: string): Promise<Geography | null> {
     stateFips: tracts.STATE,
     countyFips: tracts.COUNTY,
     tract: tracts.TRACT,
+    countyName: match.geographies?.['Counties']?.[0]?.NAME ?? null,
+    stateName: match.geographies?.['States']?.[0]?.NAME ?? null,
     matchedAddress: match.matchedAddress ?? null,
   }
 }

@@ -70,7 +70,10 @@ export interface RentEstimateReport {
   /** 'parcel' = pulled from county auditor; 'user' = self-reported form values. */
   attributesSource: 'parcel' | 'user'
   dataSources: string[]
-  geography: { state: string; county: string; tract: string; zip: string }
+  geography: {
+    state: string; county: string; tract: string; zip: string
+    countyName?: string | null; stateName?: string | null
+  }
 }
 
 export interface SavedRentReport {
@@ -138,6 +141,32 @@ export async function getRentReport(id: string): Promise<SavedRentReport | null>
     .maybeSingle()
   if (error) throw new Error(error.message)
   return (data as SavedRentReport) ?? null
+}
+
+/** Ask FindStoop to connect a county's auditor/parcel records. One request per
+ *  user per county (repeats are no-ops). Demand ranks which adapters we build. */
+export async function requestParcelCoverage(args: {
+  stateFips: string; countyFips: string
+  stateName?: string | null; countyName?: string | null; zip?: string | null
+}): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not signed in')
+  const { error } = await supabase.from('parcel_coverage_requests').upsert({
+    user_id: user.id,
+    state_fips: args.stateFips,
+    county_fips: args.countyFips,
+    state_name: args.stateName ?? null,
+    county_name: args.countyName ?? null,
+    zip: args.zip ?? null,
+  }, { onConflict: 'user_id,state_fips,county_fips', ignoreDuplicates: true })
+  if (error) throw new Error(error.message)
+}
+
+/** Has the current user already requested coverage for this county? */
+export async function hasRequestedParcelCoverage(stateFips: string, countyFips: string): Promise<boolean> {
+  const { data } = await supabase.from('parcel_coverage_requests')
+    .select('id').eq('state_fips', stateFips).eq('county_fips', countyFips).maybeSingle()
+  return !!data
 }
 
 export async function deleteRentReport(id: string): Promise<void> {

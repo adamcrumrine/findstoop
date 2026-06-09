@@ -1,7 +1,7 @@
 // Property detail page — top-level tabs for one property.
 // Tabs: Overview · Units · Leases · Tenants · Maintenance · Payments
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
@@ -74,6 +74,14 @@ export default function ManagerPropertyDetail() {
   const { leases } = useLeases(unitIds)
   const { tenants, getActiveLease } = useTenants(unitIds)
 
+  // Keep the selected tab visible when the tab strip overflows on mobile.
+  // Declared before the early returns below (rules of hooks).
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    tabsRef.current?.querySelector(`[data-tab="${tab}"]`)
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [tab])
+
   // Per-unit scope. When a property has more than one unit, the manager can
   // narrow every tab + the header stats to a single unit. 'all' = whole property.
   const multiUnit = units.length > 1
@@ -140,33 +148,39 @@ export default function ManagerPropertyDetail() {
         <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Properties
       </button>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 mb-4 flex items-start gap-4 sm:gap-5">
-        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-          {property.thumbnail_url ? (
-            <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <Building2 className="w-8 h-8 text-mute-400" strokeWidth={1.5} />
-          )}
+      {/* Header — on mobile the stats break OUT of the thumbnail row so they
+          get the card's full width instead of being squeezed beside the image. */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 mb-4">
+        <div className="flex items-start gap-4 sm:gap-5">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+            {property.thumbnail_url ? (
+              <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <Building2 className="w-8 h-8 text-mute-400" strokeWidth={1.5} />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-xl sm:text-2xl font-semibold text-ink leading-snug">{property.name}</h1>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                aria-label="Edit property"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-mute hover:text-brand-700 border border-gray-200 hover:border-brand-300 p-2 sm:px-2.5 sm:py-1 rounded-lg transition-colors shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
+                <span className="hidden sm:inline">Edit</span>
+              </button>
+            </div>
+            <p className="text-sm text-mute mt-0.5">{property.address}</p>
+            <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <h1 className="text-xl sm:text-2xl font-semibold text-ink">{property.name}</h1>
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-mute hover:text-brand-700 border border-gray-200 hover:border-brand-300 px-2.5 py-1 rounded-lg transition-colors shrink-0"
-            >
-              <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} /> Edit
-            </button>
-          </div>
-          <p className="text-sm text-mute mt-0.5">{property.address}</p>
-          <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:flex sm:gap-6">
-            <Stat label="Units" value={scopedUnits.length} />
-            <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
-            <Stat label="Active leases" value={activeLeases.length} />
-            <Stat label="Monthly rent" value={`$${totalRent.toLocaleString()}`} />
-          </div>
+        <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-x-4 gap-y-3 text-xs sm:flex sm:gap-6">
+          <Stat label="Units" value={scopedUnits.length} />
+          <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
+          <Stat label="Active leases" value={activeLeases.length} />
+          <Stat label="Monthly rent" value={`$${totalRent.toLocaleString()}`} />
         </div>
       </div>
 
@@ -217,22 +231,28 @@ export default function ManagerPropertyDetail() {
         </div>
       )}
 
-      {/* Tabs — horizontal scroll on narrow screens, no visible scrollbar. */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto no-scrollbar">
-        <div className="flex gap-1 min-w-max">
-          {tabs.map(({ id: tid, label, Icon }) => (
-            <button
-              key={tid}
-              onClick={() => setTab(tid)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === tid ? 'bg-brand-600 text-white' : 'text-mute hover:bg-gray-50 hover:text-ink'
-              }`}
-            >
-              <Icon className="w-4 h-4" strokeWidth={1.75} />
-              {label}
-            </button>
-          ))}
+      {/* Tabs — horizontal scroll on narrow screens; a right-edge fade hints
+          at more tabs (otherwise a half-clipped pill looks broken), and the
+          active tab auto-scrolls into view. */}
+      <div className="relative mb-4">
+        <div ref={tabsRef} className="bg-white rounded-2xl border border-gray-200 p-2 overflow-x-auto no-scrollbar">
+          <div className="flex gap-1 min-w-max">
+            {tabs.map(({ id: tid, label, Icon }) => (
+              <button
+                key={tid}
+                data-tab={tid}
+                onClick={() => setTab(tid)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  tab === tid ? 'bg-brand-600 text-white' : 'text-mute hover:bg-gray-50 hover:text-ink'
+                }`}
+              >
+                <Icon className="w-4 h-4" strokeWidth={1.75} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        <div aria-hidden className="pointer-events-none absolute inset-y-px right-px w-10 rounded-r-2xl bg-gradient-to-l from-white to-transparent sm:hidden" />
       </div>
 
       {/* Tab content */}
@@ -710,35 +730,37 @@ function TenantsTab({ tenants, getActiveLease, units }: {
             to={`/manager/tenants/${t.id}`}
             className="block bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition-all"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={40} />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-ink truncate">{name}</p>
                 <p className="text-xs text-mute truncate">{t.email}</p>
                 {unit && <p className="text-xs text-mute mt-0.5">Unit {unit.unit_number} · ${Number(lease!.rent_amount).toLocaleString()}/mo</p>}
-              </div>
-              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                {/* Badges live under the text — full card width on mobile, so
+                    names/emails never fight them for room. */}
                 {lease && (
-                  <Link
-                    to={`/manager/messages?tenantId=${t.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-2 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors"
-                    title={`Message ${name}`}
-                  >
-                    <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
-                  </Link>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                      lease.tenant_id === t.id
+                        ? 'text-brand-700 bg-brand-50 border border-brand-200'
+                        : 'text-gray-600 bg-gray-100 border border-gray-200'
+                    }`}>
+                      {lease.tenant_id === t.id ? 'Primary' : 'Co-tenant'}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+                  </div>
                 )}
-                {lease && (
-                  <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                    lease.tenant_id === t.id
-                      ? 'text-brand-700 bg-brand-50 border border-brand-200'
-                      : 'text-gray-600 bg-gray-100 border border-gray-200'
-                  }`}>
-                    {lease.tenant_id === t.id ? 'Primary' : 'Co-tenant'}
-                  </span>
-                )}
-                {lease && <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>}
               </div>
+              {lease && (
+                <Link
+                  to={`/manager/messages?tenantId=${t.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-2 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors shrink-0"
+                  title={`Message ${name}`}
+                >
+                  <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+                </Link>
+              )}
             </div>
           </Link>
         )

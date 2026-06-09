@@ -95,6 +95,8 @@ const ManagerDocumentDetail  = lazy(() => import('./pages/manager/DocumentDetail
 const ManagerDocumentPrint   = lazy(() => import('./pages/manager/DocumentPrint'))
 const ManagerEvictionPrep    = lazy(() => import('./pages/manager/EvictionPrep'))
 const ManagerReports      = lazy(() => import('./pages/manager/Reports'))
+const ManagerRentalAnalysis = lazy(() => import('./pages/manager/RentalAnalysis'))
+const ManagerRentalReportPdf = lazy(() => import('./pages/manager/RentalReportPdf'))
 const ManagerExpenses     = lazy(() => import('./pages/manager/Expenses'))
 const ManagerDownloadCenter = lazy(() => import('./pages/manager/DownloadCenter'))
 const ManagerBilling      = lazy(() => import('./pages/manager/Billing'))
@@ -188,6 +190,8 @@ export default function App() {
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />
           {/* Rent roll — standalone print page; ?property=<id> scopes to one property. */}
           <Route path="/manager/rent-roll" element={<ManagerRentRoll />} />
+          {/* Branded Rental Analysis Report — standalone print/PDF page; RLS scopes access. */}
+          <Route path="/rental-report/:id" element={<ManagerRentalReportPdf />} />
           {/* Standalone inspection PDF — no sidebar; RLS handles access */}
           <Route path="/inspection-pdf/:id" element={<InspectionPdf />} />
 
@@ -253,6 +257,7 @@ export default function App() {
             <Route path="documents/eviction-prep/:leaseId" element={<ManagerEvictionPrep />} />
             <Route path="documents/:id"    element={<ManagerDocumentDetail />} />
             <Route path="reports"      element={<ManagerReports />} />
+            <Route path="rental-analysis" element={<ManagerRentalAnalysis />} />
             <Route path="download-center" element={<ManagerDownloadCenter />} />
             <Route path="expenses"     element={<ManagerExpenses />} />
             <Route path="billing"      element={<ManagerBilling />} />

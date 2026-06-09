@@ -641,7 +641,11 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
     <div className="space-y-3">
       {leases.map((l) => {
         const unit = unitMap[l.unit_id]
-        const name = l.profile?.full_name ?? l.profile?.email ?? 'Unknown'
+        // All lessees on the lease, primary first. leases.tenant_id is kept in
+        // sync with lease_tenants.is_primary by trigger, so it IS the primary.
+        const lessees = (l.all_tenants && l.all_tenants.length > 0)
+          ? [...l.all_tenants].sort((a, b) => Number(b.id === l.tenant_id) - Number(a.id === l.tenant_id))
+          : (l.profile ? [l.profile] : [])
         return (
           <Link
             key={l.id}
@@ -651,7 +655,16 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-ink">{name}</h3>
+                  {lessees.length === 0 ? (
+                    <h3 className="font-semibold text-ink">Unknown</h3>
+                  ) : lessees.map((t) => (
+                    <span key={t.id} className="inline-flex items-center gap-1.5">
+                      <h3 className="font-semibold text-ink">{t.full_name ?? t.email ?? 'Unknown'}</h3>
+                      {t.id === l.tenant_id && lessees.length > 1 && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-700 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">Primary</span>
+                      )}
+                    </span>
+                  ))}
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[l.status]}`}>{l.status}</span>
                 </div>
                 <p className="text-sm text-mute mt-0.5">Unit {unit?.unit_number ?? '—'}</p>
@@ -714,6 +727,15 @@ function TenantsTab({ tenants, getActiveLease, units }: {
                   >
                     <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
                   </Link>
+                )}
+                {lease && (
+                  <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                    lease.tenant_id === t.id
+                      ? 'text-brand-700 bg-brand-50 border border-brand-200'
+                      : 'text-gray-600 bg-gray-100 border border-gray-200'
+                  }`}>
+                    {lease.tenant_id === t.id ? 'Primary' : 'Co-tenant'}
+                  </span>
                 )}
                 {lease && <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>}
               </div>

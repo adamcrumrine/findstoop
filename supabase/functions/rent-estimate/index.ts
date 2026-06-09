@@ -215,7 +215,14 @@ Deno.serve(async (req) => {
     vendorEstimate: rentcast ? { rent: rentcast.vendorRent, low: rentcast.vendorLow, high: rentcast.vendorHigh } : null,
     attributesSource: subject.attributesSource,
     dataSources: sources,
-    geography: { state: geo.stateFips, county: geo.countyFips, tract: geo.tract, zip: effectiveZip },
+    geography: {
+      state: geo.stateFips,
+      county: geo.countyFips,
+      tract: geo.tract,
+      zip: effectiveZip,
+      countyName: geo.countyName,
+      stateName: geo.stateName,
+    },
   }
 
   // 6. Persist to the user's saved reports (RLS scopes to auth.uid()). Paid

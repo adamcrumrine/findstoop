@@ -26,9 +26,13 @@ const STRIPE_FIXED_CENTS = 30      // + $0.30
 // account's wholesale rate firms up.
 const CHECKR_PRICE_CENTS = 3500
 
+// RentCast comparable-rentals call (Pro-tier reports only). Set to your actual
+// plan's effective per-request rate; ~$0.10–$0.40 depending on tier. Cents.
+const RENTCAST_PRICE_CENTS = 20
+
 export interface LogArgs {
   function_name: string
-  vendor?: 'anthropic' | 'stripe' | 'checkr' | 'twilio' | 'resend' | 'supabase'
+  vendor?: 'anthropic' | 'stripe' | 'checkr' | 'twilio' | 'resend' | 'supabase' | 'rentcast'
   status_code?: number
   latency_ms?: number
   cost_cents?: number
@@ -51,6 +55,7 @@ export function stripeFee(amount_cents: number): number {
 }
 
 export const CHECKR_COST_CENTS = CHECKR_PRICE_CENTS
+export const RENTCAST_COST_CENTS = RENTCAST_PRICE_CENTS
 
 /**
  * Fire-and-forget API-call log. Never throws.

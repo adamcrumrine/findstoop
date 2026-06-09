@@ -33,7 +33,11 @@
       "Bash(curl -sS -o /dev/null -w \"HTTP %{http_code}\\\\n\" -X OPTIONS https://wdfptcosxlbbymkmpgzn.supabase.co/functions/v1/start-screening)",
       "Bash(git check-ignore *)",
       "Bash(echo \"TS_EXIT: $?\")",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Bash(echo \"=== existing PDFs ===\"; ls \"/c/Program Files/Google/Chrome/Application/chrome.exe\" 2>/dev/null && echo \"CHROME_FOUND\" || echo \"no chrome at default path\"; echo \"=== anthropic key present? ===\"; grep -q '^ANTHROPIC_API_KEY=' /c/Users/adamc/GitHub/findstoop/.env.local && echo \"KEY_PRESENT\" || echo \"no key\")",
+      "Read(//c/Program Files/Google/Chrome/Application/**)"
     ]
   }
 }

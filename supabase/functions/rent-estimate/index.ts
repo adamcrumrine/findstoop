@@ -28,6 +28,7 @@ import { fetchHud, hudBaseline } from './hud.ts'
 import { fetchRecency } from './bls.ts'
 import { lookupParcel } from './parcel.ts'
 import { fetchComps } from './rentcast.ts'
+import { fetchLeaseSignal, backfillCoords } from './dbComps.ts'
 
 // Accounts that get free reporting and bypass the payment portal: anyone on an
 // allow-listed email domain, plus accounts flagged reports_complimentary, plus
@@ -134,18 +135,32 @@ Deno.serve(async (req) => {
   }
   const effectiveZip = zip || ''
 
+  // House number + first street word — for parcel disambiguation and matching
+  // the subject's own lease in the database.
+  const houseNumber = address.match(/^\s*(\d+)/)?.[1] ?? null
+  const streetToken = address.replace(/^\s*\d+\s*/, '').split(/[\s,]+/)
+    .find((t) => t.length > 2 && !/^(n|s|e|w|north|south|east|west)$/i.test(t))?.toLowerCase() ?? null
+
+  const adminDb = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
+
   // 2. Fetch every source in parallel — each fails soft to null. RentCast is
-  //    only called for an entitled Pro request.
-  const [acsBaseline, context, hud, recency, parcel, rentcast] = await Promise.all([
+  //    only called for an entitled Pro request. The lease signal is OUR OWN
+  //    database: nearby observed rents, inflation-adjusted + radius-weighted.
+  const [acsBaseline, context, hud, recency, parcel, rentcast, leaseSignal] = await Promise.all([
     fetchBaseline(geo, effectiveZip, bedrooms).catch(() => null),
     fetchContext(geo).catch(() => ({ medianGrossRent: null, medianHouseholdIncome: null, rentalVacancyRate: null, renterSharePct: null })),
     fetchHud(effectiveZip, bedrooms).catch(() => null),
     fetchRecency(ACS_YEAR),
-    lookupParcel(geo, effectiveZip, address.match(/^\s*(\d+)/)?.[1] ?? null).catch(() => null),
+    lookupParcel(geo, effectiveZip, houseNumber).catch(() => null),
     entitledToPro
       ? fetchComps(address, effectiveZip, bedrooms, body.bathrooms ?? null).catch(() => null)
       : Promise.resolve(null),
+    fetchLeaseSignal(adminDb, geo, effectiveZip, bedrooms, houseNumber, streetToken, user.id).catch(() => null),
   ])
+
+  // Self-healing radius data: geocode a few un-coded properties in this ZIP.
+  // Fire-and-forget — must never delay or fail the report.
+  backfillCoords(adminDb, effectiveZip).catch(() => {})
 
   // 3. Baseline: ACS (sharpest) → HUD SAFMR. Neither = can't estimate.
   const baseline = acsBaseline ?? hudBaseline(hud)
@@ -165,8 +180,18 @@ Deno.serve(async (req) => {
     attributesSource: usedParcel ? 'parcel' : 'user',
   }
 
-  // 5. Run the engine.
-  const result = computeEstimate({ baseline, subject, recency, safmrFloor: hud?.bedroomRent ?? null })
+  // 5. Run the engine — blending in our own observed-lease signal when present.
+  const result = computeEstimate({
+    baseline,
+    subject,
+    recency,
+    safmrFloor: hud?.bedroomRent ?? null,
+    leaseSignal: leaseSignal ? {
+      nEff: leaseSignal.nEff,
+      weightedMedianGrossed: leaseSignal.weightedMedianGrossed,
+      subjectGrossedRent: leaseSignal.subject?.grossedRent ?? null,
+    } : null,
+  })
 
   const grossYieldPct = parcel?.assessedValue
     ? Math.round(((result.estimateMonthly * 12) / parcel.assessedValue) * 1000) / 10
@@ -178,7 +203,18 @@ Deno.serve(async (req) => {
     'BLS CPI — Rent of Primary Residence',
     parcel?.source ?? null,
     rentcast ? 'RentCast comparable rentals' : null,
+    result.leaseBlend ? 'FindStoop observed leases (inflation-adjusted)' : null,
   ].filter(Boolean)
+
+  // Privacy: the aggregate median is only exposed with n ≥ 3 (otherwise it
+  // would reveal a specific other manager's rent); the subject lease is only
+  // ever populated when it belongs to the caller.
+  const leasePanel = result.leaseBlend ? {
+    n: leaseSignal?.n ?? 0,
+    weight: result.leaseBlend.weight,
+    medianGrossed: (leaseSignal?.n ?? 0) >= 3 ? leaseSignal!.weightedMedianGrossed : null,
+    subject: leaseSignal?.subject ?? null,
+  } : null
 
   const payload = {
     tier,
@@ -210,6 +246,8 @@ Deno.serve(async (req) => {
       lastSaleDate: parcel.lastSaleDate,
       grossYieldPct,
     } : null,
+    // First-party lease signal (sanitized — see leasePanel above).
+    leaseSignal: leasePanel,
     // Pro-only: comparable rentals + RentCast's own estimate (cross-check).
     comps: rentcast?.comps ?? null,
     vendorEstimate: rentcast ? { rent: rentcast.vendorRent, low: rentcast.vendorLow, high: rentcast.vendorHigh } : null,

@@ -16,6 +16,7 @@ import { inputClass, selectClass } from '../../components/shared/FormField'
 import ReportPaymentModal from '../../components/manager/ReportPaymentModal'
 import {
   getRentEstimate, createReportPayment, listRentReports, deleteRentReport, getReportEntitlement,
+  requestParcelCoverage, hasRequestedParcelCoverage,
   type RentEstimateReport, type SavedRentReport, type ReportTier,
 } from '@findstoop/shared'
 
@@ -435,8 +436,80 @@ function ReportDetail({ report, reportId }: { report: RentEstimateReport; report
           Sources: {report.dataSources.join(' · ')}. Estimate is a statistical model, not an appraisal or a
           guarantee of achievable rent.
         </p>
+
+        {/* Only when we had NO county data at all (Hamilton-style partial
+            coverage still renders a property record — no ask needed there). */}
+        {report.attributesSource === 'user' && !report.property && report.geography?.county && (
+          <CoverageRequestCard geography={report.geography} />
+        )}
       </div>
     </section>
+  )
+}
+
+// Shown when the report ran WITHOUT county auditor data — offers to connect the
+// manager's county. Requests rank which county adapters we build next.
+function CoverageRequestCard({ geography }: { geography: NonNullable<RentEstimateReport['geography']> }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle')
+  const placeLabel = [geography.countyName, geography.stateName].filter(Boolean).join(', ')
+    || `county ${geography.county}, state ${geography.state}`
+
+  useEffect(() => {
+    let cancelled = false
+    hasRequestedParcelCoverage(geography.state, geography.county)
+      .then((yes) => { if (!cancelled && yes) setState('done') })
+      .catch(() => { /* leave idle */ })
+    return () => { cancelled = true }
+  }, [geography.state, geography.county])
+
+  async function send() {
+    setState('sending')
+    try {
+      await requestParcelCoverage({
+        stateFips: geography.state,
+        countyFips: geography.county,
+        stateName: geography.stateName,
+        countyName: geography.countyName,
+        zip: geography.zip || null,
+      })
+      setState('done')
+      toast.success('Request logged — thanks!')
+    } catch (e) {
+      setState('idle')
+      toast.error(e instanceof Error ? e.message : 'Could not log the request')
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
+      {state === 'done' ? (
+        <p className="flex items-start gap-2 text-sm text-emerald-800">
+          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" strokeWidth={2} />
+          <span>
+            <strong className="font-semibold">Request received for {placeLabel}.</strong>{' '}
+            We'll connect its county property records — future reports there will auto-fill beds,
+            baths, size, and assessed value from official data.
+          </span>
+        </p>
+      ) : (
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <p className="text-sm text-ink flex-1 min-w-[220px]">
+            <strong className="font-semibold">We haven't connected {placeLabel}'s property records yet</strong>
+            <span className="text-mute"> — this estimate used the details you entered. Want us to add
+            official county data for your area?</span>
+          </p>
+          <button
+            type="button"
+            onClick={send}
+            disabled={state === 'sending'}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-3 py-2 rounded-lg disabled:opacity-50"
+          >
+            {state === 'sending' && <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />}
+            Request my county
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

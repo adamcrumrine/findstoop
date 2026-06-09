@@ -106,22 +106,21 @@ function mapArcgisAttrs(a: Record<string, any>, source: string): ParcelAttribute
 const FRANKLIN_PARCEL_LAYER =
   'https://gis.franklincountyohio.gov/hosting/rest/services/ParcelFeatures/Parcel_Features/MapServer/0'
 
-// OGRIP statewide "Ohio Parcels" hosted feature layer (any OH county fallback).
-// ⚠️ UNVERIFIED placeholder — this URL returned HTTP 400 on 2026-06-08. Find the
-// real layer URL from the OGRIP hub (ohioparcels-geohio.hub.arcgis.com → the
-// dataset's "I want to use this" → GeoService URL) and replace below. Until then
-// the chain degrades safely: non-Franklin OH addresses fall back to form values.
-const OGRIP_OHIO_PARCELS_LAYER =
-  'https://services.arcgis.com/Eln4nigPjVDtBQjr/arcgis/rest/services/Ohio_Parcels/FeatureServer/0'
+// NOTE — no statewide Ohio fallback, by design. The official OGRIP "Ohio
+// Statewide Parcels Public View" layer was verified live on 2026-06-09
+// (https://services2.arcgis.com/MlJ0G8iWUyC7jAmu/arcgis/rest/services/
+//  OhioStatewidePacels_full_view/FeatureServer/0) but its public view exposes
+// only boundaries/addresses/StateLUC — NO beds, baths, sqft, year built, value,
+// or sale fields — so it can never satisfy the hit condition in lookupParcel()
+// and would just burn a network call per non-Franklin address. Expansion path:
+// add a per-county auditor adapter per market (like franklinCounty below) —
+// next up: Cuyahoga '035' (Cleveland), Hamilton '061' (Cincinnati),
+// Montgomery '113' (Dayton), Summit '153' (Akron), Lucas '095' (Toledo).
+// Until a county is added, its addresses fall back to the form's values.
 
 const franklinCounty: Provider = async (geo) => {
   const a = await arcgisPointQuery(FRANKLIN_PARCEL_LAYER, geo.lat, geo.lng)
   return a ? mapArcgisAttrs(a, 'Franklin County Auditor') : null
-}
-
-const ogripOhio: Provider = async (geo) => {
-  const a = await arcgisPointQuery(OGRIP_OHIO_PARCELS_LAYER, geo.lat, geo.lng)
-  return a ? mapArcgisAttrs(a, 'Ohio OGRIP statewide parcels') : null
 }
 
 // Registry: state FIPS → ordered chain of providers (most authoritative first).
@@ -129,7 +128,6 @@ const ogripOhio: Provider = async (geo) => {
 const PROVIDERS: Record<string, { byCounty?: Record<string, Provider[]>; statewide?: Provider[] }> = {
   '39': {
     byCounty: { '049': [franklinCounty] }, // Franklin County (Columbus)
-    statewide: [ogripOhio],
   },
 }
 

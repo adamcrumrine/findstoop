@@ -93,7 +93,7 @@ const SOURCES: SourceMeta[] = [
     id: 'avail',
     label: 'Avail',
     sub: 'Export properties + tenants from Avail Reports',
-    logo: '/competitor-logos/avail.svg',
+    logo: '/competitor-logos/avail.png',
     accent: '#0F2F5C',
     tested: true,
     instructions: [
@@ -107,7 +107,7 @@ const SOURCES: SourceMeta[] = [
     id: 'buildium',
     label: 'Buildium',
     sub: 'Export properties, units, and tenant data',
-    logo: '/competitor-logos/buildium.svg',
+    logo: '/competitor-logos/buildium.png',
     accent: '#0093D7',
     tested: false,
     instructions: [
@@ -121,7 +121,7 @@ const SOURCES: SourceMeta[] = [
     id: 'doorloop',
     label: 'DoorLoop',
     sub: 'Export tenants + properties from DoorLoop',
-    logo: '/competitor-logos/doorloop.svg',
+    logo: '/competitor-logos/doorloop.png',
     accent: '#0066FF',
     tested: false,
     instructions: [
@@ -134,7 +134,7 @@ const SOURCES: SourceMeta[] = [
     id: 'tenantcloud',
     label: 'TenantCloud',
     sub: 'Export tenants and properties from TenantCloud',
-    logo: '/competitor-logos/tenantcloud.svg',
+    logo: '/competitor-logos/tenantcloud.png',
     accent: '#1E88E5',
     tested: false,
     instructions: [
@@ -148,7 +148,7 @@ const SOURCES: SourceMeta[] = [
     id: 'appfolio',
     label: 'AppFolio',
     sub: 'Export tenants + properties from AppFolio',
-    logo: '/competitor-logos/appfolio.svg',
+    logo: '/competitor-logos/appfolio.png',
     accent: '#22C55E',
     tested: false,
     instructions: [
@@ -161,7 +161,7 @@ const SOURCES: SourceMeta[] = [
     id: 'turbotenant',
     label: 'TurboTenant',
     sub: 'Export tenants from TurboTenant',
-    logo: '/competitor-logos/turbotenant.svg',
+    logo: '/competitor-logos/turbotenant.png',
     accent: '#7C3AED',
     tested: false,
     instructions: [
@@ -766,11 +766,14 @@ function SourceCard({ meta, selected, onSelect }: { meta: SourceMeta; selected: 
       )}
       <div className="flex items-center gap-3 mb-1">
         {showLogo ? (
+          // Square favicon in a consistent tile frame — the mark itself is
+          // shown unmodified (nominative use; see the disclaimer below the
+          // grid). Only the FRAME is ours: radius, border, padding.
           <img
             src={meta.logo}
             alt={`${meta.label} logo`}
             onError={() => setLogoFailed(true)}
-            className="h-7 w-auto max-w-[6rem] object-contain"
+            className="w-9 h-9 rounded-lg border border-gray-200 bg-white p-1 object-contain shrink-0"
           />
         ) : (
           <div

@@ -1,7 +1,10 @@
 import type { Config } from 'tailwindcss'
 
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // packages/shared emits class strings too (e.g. paymentRails rowStatus
+  // pills) — without scanning it, those classes only ship if an app file
+  // happens to use the same ones.
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}', '../../packages/shared/src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {

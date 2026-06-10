@@ -147,6 +147,12 @@ export default function RentalReportPdf() {
                 <FRow label="Age of home" value={`×${r.factors.age.toFixed(2)}`} />
                 <FRow label="Property type" value={`×${r.factors.type.toFixed(2)}`} />
                 <FRow label="Recency trend (CPI rent)" value={`×${r.factors.recency.toFixed(2)}`} />
+                {r.leaseSignal && (
+                  <FRow
+                    label={`Anchored on ${r.leaseSignal.n} actual nearby lease${r.leaseSignal.n === 1 ? '' : 's'} (distance + recency weighted)`}
+                    value={`${Math.round(r.leaseSignal.weight * 100)}%`}
+                  />
+                )}
                 <tr className="border-t-2 border-gray-300">
                   <td className="py-2 font-bold">Estimated rent</td>
                   <td className="py-2 font-bold text-right">{money(r.estimate)}/mo</td>

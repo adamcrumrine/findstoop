@@ -1,7 +1,7 @@
 // Property detail page — top-level tabs for one property.
 // Tabs: Overview · Units · Leases · Tenants · Maintenance · Payments
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
@@ -74,6 +74,14 @@ export default function ManagerPropertyDetail() {
   const { leases } = useLeases(unitIds)
   const { tenants, getActiveLease } = useTenants(unitIds)
 
+  // Keep the selected tab visible when the tab strip overflows on mobile.
+  // Declared before the early returns below (rules of hooks).
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    tabsRef.current?.querySelector(`[data-tab="${tab}"]`)
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [tab])
+
   // Per-unit scope. When a property has more than one unit, the manager can
   // narrow every tab + the header stats to a single unit. 'all' = whole property.
   const multiUnit = units.length > 1
@@ -140,33 +148,39 @@ export default function ManagerPropertyDetail() {
         <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Properties
       </button>
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 mb-4 flex items-start gap-4 sm:gap-5">
-        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-          {property.thumbnail_url ? (
-            <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <Building2 className="w-8 h-8 text-mute-400" strokeWidth={1.5} />
-          )}
+      {/* Header — on mobile the stats break OUT of the thumbnail row so they
+          get the card's full width instead of being squeezed beside the image. */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 mb-4">
+        <div className="flex items-start gap-4 sm:gap-5">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+            {property.thumbnail_url ? (
+              <img src={property.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <Building2 className="w-8 h-8 text-mute-400" strokeWidth={1.5} />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-xl sm:text-2xl font-semibold text-ink leading-snug">{property.name}</h1>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                aria-label="Edit property"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-mute hover:text-brand-700 border border-gray-200 hover:border-brand-300 p-2 sm:px-2.5 sm:py-1 rounded-lg transition-colors shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
+                <span className="hidden sm:inline">Edit</span>
+              </button>
+            </div>
+            <p className="text-sm text-mute mt-0.5">{property.address}</p>
+            <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <h1 className="text-xl sm:text-2xl font-semibold text-ink">{property.name}</h1>
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-mute hover:text-brand-700 border border-gray-200 hover:border-brand-300 px-2.5 py-1 rounded-lg transition-colors shrink-0"
-            >
-              <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} /> Edit
-            </button>
-          </div>
-          <p className="text-sm text-mute mt-0.5">{property.address}</p>
-          <p className="text-sm text-mute">{property.city}, {property.state} {property.zip}</p>
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:flex sm:gap-6">
-            <Stat label="Units" value={scopedUnits.length} />
-            <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
-            <Stat label="Active leases" value={activeLeases.length} />
-            <Stat label="Monthly rent" value={`$${totalRent.toLocaleString()}`} />
-          </div>
+        <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-x-4 gap-y-3 text-xs sm:flex sm:gap-6">
+          <Stat label="Units" value={scopedUnits.length} />
+          <Stat label="Occupied" value={`${occupiedCount}/${scopedUnits.length}`} />
+          <Stat label="Active leases" value={activeLeases.length} />
+          <Stat label="Monthly rent" value={`$${totalRent.toLocaleString()}`} />
         </div>
       </div>
 
@@ -217,22 +231,28 @@ export default function ManagerPropertyDetail() {
         </div>
       )}
 
-      {/* Tabs — horizontal scroll on narrow screens, no visible scrollbar. */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-4 overflow-x-auto no-scrollbar">
-        <div className="flex gap-1 min-w-max">
-          {tabs.map(({ id: tid, label, Icon }) => (
-            <button
-              key={tid}
-              onClick={() => setTab(tid)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === tid ? 'bg-brand-600 text-white' : 'text-mute hover:bg-gray-50 hover:text-ink'
-              }`}
-            >
-              <Icon className="w-4 h-4" strokeWidth={1.75} />
-              {label}
-            </button>
-          ))}
+      {/* Tabs — horizontal scroll on narrow screens; a right-edge fade hints
+          at more tabs (otherwise a half-clipped pill looks broken), and the
+          active tab auto-scrolls into view. */}
+      <div className="relative mb-4">
+        <div ref={tabsRef} className="bg-white rounded-2xl border border-gray-200 p-2 overflow-x-auto no-scrollbar">
+          <div className="flex gap-1 min-w-max">
+            {tabs.map(({ id: tid, label, Icon }) => (
+              <button
+                key={tid}
+                data-tab={tid}
+                onClick={() => setTab(tid)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  tab === tid ? 'bg-brand-600 text-white' : 'text-mute hover:bg-gray-50 hover:text-ink'
+                }`}
+              >
+                <Icon className="w-4 h-4" strokeWidth={1.75} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        <div aria-hidden className="pointer-events-none absolute inset-y-px right-px w-10 rounded-r-2xl bg-gradient-to-l from-white to-transparent sm:hidden" />
       </div>
 
       {/* Tab content */}
@@ -243,7 +263,10 @@ export default function ManagerPropertyDetail() {
       {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
       {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} leaseStatusFilter={leaseStatusFilter} />}
 
-      {/* Danger zone — separated from the rest of the screen so it's hard to hit by accident. */}
+      {/* Danger zone — Overview only. Rendering it under every tab put a
+          permanent red "Delete property" next to routine work (checking a
+          unit, reading payments); destructive actions live on one screen. */}
+      {tab === 'overview' && (
       <section className="mt-10 pt-6 border-t border-red-100">
         <h2 className="text-xs uppercase tracking-wider text-red-600 font-semibold mb-2">Danger zone</h2>
         <div className="bg-white border border-red-200 rounded-2xl p-5 flex items-start justify-between gap-4 flex-wrap">
@@ -263,6 +286,7 @@ export default function ManagerPropertyDetail() {
           </button>
         </div>
       </section>
+      )}
 
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete property">
         <PropertyDeleteForm
@@ -641,7 +665,15 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
     <div className="space-y-3">
       {leases.map((l) => {
         const unit = unitMap[l.unit_id]
-        const name = l.profile?.full_name ?? l.profile?.email ?? 'Unknown'
+        // All lessees on the lease, primary first. leases.tenant_id is kept in
+        // sync with lease_tenants.is_primary by trigger, so it IS the primary.
+        const lessees = (l.all_tenants && l.all_tenants.length > 0)
+          ? [...l.all_tenants].sort((a, b) => Number(b.id === l.tenant_id) - Number(a.id === l.tenant_id))
+          : (l.profile ? [l.profile] : [])
+        // Same header pattern as the main Leases page: avatar stack +
+        // "Primary +N" + status pill. Hovering an avatar names that person.
+        const primary = lessees[0]
+        const primaryName = primary?.full_name ?? primary?.email ?? 'Unknown'
         return (
           <Link
             key={l.id}
@@ -651,7 +683,26 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-ink">{name}</h3>
+                  {lessees.length > 0 && (
+                    <div className="flex -space-x-2 shrink-0">
+                      {lessees.slice(0, 5).map((t) => (
+                        <span key={t.id} title={t.full_name ?? t.email ?? 'Tenant'} className="inline-block ring-2 ring-white rounded-full">
+                          <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={28} />
+                        </span>
+                      ))}
+                      {lessees.length > 5 && (
+                        <span
+                          title={lessees.slice(5).map((t) => t.full_name ?? t.email).join(', ')}
+                          className="inline-flex items-center justify-center w-7 h-7 ring-2 ring-white rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700"
+                        >
+                          +{lessees.length - 5}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <h3 className="font-semibold text-ink truncate">
+                    {lessees.length > 1 ? `${primaryName} +${lessees.length - 1}` : primaryName}
+                  </h3>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[l.status]}`}>{l.status}</span>
                 </div>
                 <p className="text-sm text-mute mt-0.5">Unit {unit?.unit_number ?? '—'}</p>
@@ -697,26 +748,37 @@ function TenantsTab({ tenants, getActiveLease, units }: {
             to={`/manager/tenants/${t.id}`}
             className="block bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-300 hover:shadow-sm transition-all"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={40} />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-ink truncate">{name}</p>
                 <p className="text-xs text-mute truncate">{t.email}</p>
                 {unit && <p className="text-xs text-mute mt-0.5">Unit {unit.unit_number} · ${Number(lease!.rent_amount).toLocaleString()}/mo</p>}
-              </div>
-              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                {/* Badges live under the text — full card width on mobile, so
+                    names/emails never fight them for room. */}
                 {lease && (
-                  <Link
-                    to={`/manager/messages?tenantId=${t.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-2 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors"
-                    title={`Message ${name}`}
-                  >
-                    <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
-                  </Link>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                      lease.tenant_id === t.id
+                        ? 'text-brand-700 bg-brand-50 border border-brand-200'
+                        : 'text-gray-600 bg-gray-100 border border-gray-200'
+                    }`}>
+                      {lease.tenant_id === t.id ? 'Primary' : 'Co-tenant'}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+                  </div>
                 )}
-                {lease && <span className="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>}
               </div>
+              {lease && (
+                <Link
+                  to={`/manager/messages?tenantId=${t.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-2 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors shrink-0"
+                  title={`Message ${name}`}
+                >
+                  <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+                </Link>
+              )}
             </div>
           </Link>
         )

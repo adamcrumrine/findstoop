@@ -422,6 +422,37 @@ function ReportDetail({ report, reportId }: { report: RentEstimateReport; report
         </div>
       )}
 
+      {/* First-party lease signal */}
+      {report.leaseSignal && (
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-mute mb-3">
+            Real lease data <span className="text-gray-400 normal-case font-normal">· FindStoop network</span>
+          </h3>
+          {report.leaseSignal.subject && (
+            <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2.5 text-sm">
+              <p className="text-ink">
+                <strong className="font-semibold">Your current lease at this address:</strong>{' '}
+                {money(report.leaseSignal.subject.rent)}/mo since{' '}
+                {new Date(report.leaseSignal.subject.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                {report.leaseSignal.subject.longTerm && (
+                  <> · long-term tenancy, so today's market equivalent is{' '}
+                  <strong className="font-semibold">≈{money(report.leaseSignal.subject.grossedRent)}/mo</strong> after
+                  rent inflation</>
+                )}
+              </p>
+            </div>
+          )}
+          <p className="text-xs text-mute">
+            This estimate is anchored {Math.round(report.leaseSignal.weight * 100)}% on{' '}
+            {report.leaseSignal.n} actual nearby lease{report.leaseSignal.n === 1 ? '' : 's'}
+            {report.leaseSignal.medianGrossed != null && (
+              <> (inflation-adjusted median {money(report.leaseSignal.medianGrossed)}/mo)</>
+            )}
+            , weighted by distance and recency.
+          </p>
+        </div>
+      )}
+
       {/* Pro: comparable rentals */}
       {report.comps && report.comps.length > 0 && (
         <div className="p-6 border-b border-gray-200">

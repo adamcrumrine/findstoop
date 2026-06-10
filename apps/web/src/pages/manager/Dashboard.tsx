@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { FileSignature, ChevronRight, CreditCard, CheckCircle2 } from 'lucide-react'
+import {
+  FileSignature, ChevronRight, CreditCard, CheckCircle2,
+  Plus, Link2, CalendarClock, AlertTriangle, DoorOpen, type LucideIcon,
+} from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
@@ -121,6 +124,46 @@ function RenewalRow({ lease, context }: { lease: Lease; context?: string }) {
   )
 }
 
+// ── Insight card ──────────────────────────────────────────────────────────────
+// Proactive "here's what to do next" cards — the dashboard suggests, not just
+// reports. Derived entirely from data already loaded for the stats row.
+interface Insight {
+  key: string
+  Icon: LucideIcon
+  tone: 'red' | 'amber' | 'brand'
+  title: string
+  body: string
+  to: string
+  cta: string
+}
+
+const INSIGHT_TONES: Record<Insight['tone'], { chip: string; icon: string }> = {
+  red:   { chip: 'bg-red-50',   icon: 'text-red-600' },
+  amber: { chip: 'bg-amber-50', icon: 'text-amber-600' },
+  brand: { chip: 'bg-brand-50', icon: 'text-brand-600' },
+}
+
+function InsightCard({ insight }: { insight: Insight }) {
+  const tone = INSIGHT_TONES[insight.tone]
+  return (
+    <Link
+      to={insight.to}
+      className="bg-white rounded-xl border border-gray-200 p-4 flex items-start gap-3 hover:border-brand-300 transition-colors group"
+    >
+      <div className={`w-9 h-9 rounded-lg ${tone.chip} flex items-center justify-center shrink-0`}>
+        <insight.Icon className={`w-[18px] h-[18px] ${tone.icon}`} strokeWidth={1.75} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900">{insight.title}</p>
+        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{insight.body}</p>
+        <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-brand-600 mt-1.5 group-hover:text-brand-700">
+          {insight.cta} <ChevronRight className="w-3 h-3" strokeWidth={2} />
+        </span>
+      </div>
+    </Link>
+  )
+}
+
 // ── Section wrapper ───────────────────────────────────────────────────────────
 function Section({ title, children, loading, empty, emptyText }: {
   title: string
@@ -215,6 +258,41 @@ export default function ManagerDashboard() {
     return { upcomingThisMonth: upcoming, pastDueThisMonth: pastDue }
   }, [allPayments])
 
+  // Up to three "do this next" suggestions, ordered by urgency: money that's
+  // late, units earning nothing, then the renewal with the shortest runway.
+  const insights = useMemo<Insight[]>(() => {
+    const out: Insight[] = []
+    if (pastDueThisMonth > 0) {
+      out.push({
+        key: 'past-due', Icon: AlertTriangle, tone: 'red',
+        title: `${formatUsd(pastDueThisMonth)} is past due`,
+        body: 'Rent has slipped past its due date — review the rows and nudge the tenant.',
+        to: '/manager/payments', cta: 'Review payments',
+      })
+    }
+    const vacant = stats.totalUnits - stats.occupiedUnits
+    if (vacant > 0) {
+      out.push({
+        key: 'vacant', Icon: DoorOpen, tone: 'amber',
+        title: `${vacant} vacant unit${vacant === 1 ? '' : 's'}`,
+        body: 'Every vacant month is lost rent — share your apply link to start showings.',
+        to: '/manager/applications', cta: 'Share apply link',
+      })
+    }
+    const next = upcomingRenewals.slice().sort((a, b) => +new Date(a.end_date) - +new Date(b.end_date))[0]
+    if (next) {
+      const d = Math.ceil((new Date(next.end_date).getTime() - Date.now()) / 86_400_000)
+      const where = unitLabelById.get(next.unit_id) ?? 'A lease'
+      out.push({
+        key: 'renewal', Icon: CalendarClock, tone: 'brand',
+        title: `${where} — lease ends in ${d}d`,
+        body: 'Renewals land best with 30+ days of runway. Start the conversation now.',
+        to: '/manager/leases', cta: 'View lease',
+      })
+    }
+    return out.slice(0, 3)
+  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById])
+
   if (error) {
     return (
       <div className="rounded-xl bg-red-50 border border-red-200 p-6 text-center">
@@ -226,10 +304,30 @@ export default function ManagerDashboard() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{greeting}, {firstName}</h1>
-        <p className="text-gray-500 text-sm mt-1">Here&apos;s what&apos;s happening with your properties.</p>
+      {/* Greeting + quick actions — the dashboard's verbs live up top so the
+          most common jobs are one click from landing. */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{greeting}, {firstName}</h1>
+          <p className="text-gray-500 text-sm mt-1">Here&apos;s what&apos;s happening with your properties.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { to: '/manager/payments', Icon: CreditCard, label: 'Record payment' },
+            { to: '/manager/properties', Icon: Plus, label: 'Add property' },
+            { to: '/manager/leases', Icon: FileSignature, label: 'Create lease' },
+            { to: '/manager/applications', Icon: Link2, label: 'Share apply link' },
+          ].map(({ to, Icon, label }) => (
+            <Link
+              key={to}
+              to={to}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:border-brand-300 hover:text-brand-700 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+              {label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Billing setup required — surfaces once the manager has any executed lease but no active subscription. */}
@@ -318,6 +416,13 @@ export default function ManagerDashboard() {
             sub={stats.totalUnits ? `${Math.round(stats.occupiedUnits / stats.totalUnits * 100)}% occupancy` : undefined} />
         </div>
       </div>
+
+      {/* Insights — what to do next */}
+      {!loading && insights.length > 0 && (
+        <div className={`grid grid-cols-1 gap-3 ${insights.length === 2 ? 'md:grid-cols-2' : insights.length >= 3 ? 'md:grid-cols-3' : ''}`}>
+          {insights.map((i) => <InsightCard key={i.key} insight={i} />)}
+        </div>
+      )}
 
       {/* Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

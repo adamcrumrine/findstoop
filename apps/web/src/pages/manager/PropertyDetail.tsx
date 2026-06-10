@@ -670,6 +670,10 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
         const lessees = (l.all_tenants && l.all_tenants.length > 0)
           ? [...l.all_tenants].sort((a, b) => Number(b.id === l.tenant_id) - Number(a.id === l.tenant_id))
           : (l.profile ? [l.profile] : [])
+        // Same header pattern as the main Leases page: avatar stack +
+        // "Primary +N" + status pill. Hovering an avatar names that person.
+        const primary = lessees[0]
+        const primaryName = primary?.full_name ?? primary?.email ?? 'Unknown'
         return (
           <Link
             key={l.id}
@@ -679,16 +683,26 @@ function LeasesTab({ leases, units, property }: { leases: ReturnType<typeof useL
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {lessees.length === 0 ? (
-                    <h3 className="font-semibold text-ink">Unknown</h3>
-                  ) : lessees.map((t) => (
-                    <span key={t.id} className="inline-flex items-center gap-1.5">
-                      <h3 className="font-semibold text-ink">{t.full_name ?? t.email ?? 'Unknown'}</h3>
-                      {t.id === l.tenant_id && lessees.length > 1 && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-700 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-full">Primary</span>
+                  {lessees.length > 0 && (
+                    <div className="flex -space-x-2 shrink-0">
+                      {lessees.slice(0, 5).map((t) => (
+                        <span key={t.id} title={t.full_name ?? t.email ?? 'Tenant'} className="inline-block ring-2 ring-white rounded-full">
+                          <Avatar name={t.full_name} email={t.email} url={t.avatar_url} size={28} />
+                        </span>
+                      ))}
+                      {lessees.length > 5 && (
+                        <span
+                          title={lessees.slice(5).map((t) => t.full_name ?? t.email).join(', ')}
+                          className="inline-flex items-center justify-center w-7 h-7 ring-2 ring-white rounded-full bg-gray-200 text-[10px] font-semibold text-gray-700"
+                        >
+                          +{lessees.length - 5}
+                        </span>
                       )}
-                    </span>
-                  ))}
+                    </div>
+                  )}
+                  <h3 className="font-semibold text-ink truncate">
+                    {lessees.length > 1 ? `${primaryName} +${lessees.length - 1}` : primaryName}
+                  </h3>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[l.status]}`}>{l.status}</span>
                 </div>
                 <p className="text-sm text-mute mt-0.5">Unit {unit?.unit_number ?? '—'}</p>

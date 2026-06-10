@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { FileSignature, ChevronRight, CreditCard } from 'lucide-react'
+import { FileSignature, ChevronRight, CreditCard, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
@@ -47,13 +47,16 @@ function StatCard({ label, value, sub, accent = 'none', loading }: StatCardProps
 
 
 // ── Payment row ───────────────────────────────────────────────────────────────
-function PaymentRow({ payment }: { payment: Payment }) {
+function PaymentRow({ payment, context }: { payment: Payment; context?: string }) {
   const status = rowStatus(payment)
   const anchor = paymentAnchor(payment)
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-      <div>
-        <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-800 capitalize truncate">
+          {payment.type.replace(/_/g, ' ')}
+          {context && <span className="font-normal text-gray-500 normal-case"> · {context}</span>}
+        </p>
         <p className="text-xs text-gray-500">{new Date(anchor).toLocaleDateString()}</p>
       </div>
       <div className="flex items-center gap-3">
@@ -97,19 +100,23 @@ function MaintenanceRow({ request }: { request: MaintenanceRequest }) {
 }
 
 // ── Renewal row ───────────────────────────────────────────────────────────────
-function RenewalRow({ lease }: { lease: Lease }) {
+function RenewalRow({ lease, context }: { lease: Lease; context?: string }) {
   const daysLeft = Math.ceil(
     (new Date(lease.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   )
   const urgency = daysLeft <= 14 ? 'text-red-600' : daysLeft <= 30 ? 'text-yellow-600' : 'text-gray-600'
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-      <div>
-        <p className="text-sm font-medium text-gray-800">Lease ending {new Date(lease.end_date).toLocaleDateString()}</p>
-        <p className="text-xs text-gray-500">${Number(lease.rent_amount).toFixed(0)}/mo</p>
+    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-800 truncate">
+          {context ?? `Lease ending ${new Date(lease.end_date).toLocaleDateString()}`}
+        </p>
+        <p className="text-xs text-gray-500">
+          ${Number(lease.rent_amount).toFixed(0)}/mo · ends {new Date(lease.end_date).toLocaleDateString()}
+        </p>
       </div>
-      <span className={`text-sm font-semibold ${urgency}`}>{daysLeft}d left</span>
+      <span className={`text-sm font-semibold shrink-0 ${urgency}`}>{daysLeft}d left</span>
     </div>
   )
 }
@@ -120,7 +127,7 @@ function Section({ title, children, loading, empty, emptyText }: {
   children: React.ReactNode
   loading: boolean
   empty: boolean
-  emptyText: string
+  emptyText: React.ReactNode
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -135,7 +142,7 @@ function Section({ title, children, loading, empty, emptyText }: {
             <Skeleton className="h-12 w-full" />
           </div>
         ) : empty ? (
-          <p className="text-sm text-gray-500 py-6 text-center">{emptyText}</p>
+          <div className="text-sm text-gray-500 py-6 text-center">{emptyText}</div>
         ) : children}
       </div>
     </div>
@@ -145,8 +152,32 @@ function Section({ title, children, loading, empty, emptyText }: {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { profile } = useAuth()
-  const { stats, recentPayments, allPayments, openMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, loading, error } =
+  const { stats, recentPayments, allPayments, openMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, properties, units, leases, loading, error } =
     useManagerDashboard(profile?.id)
+
+  // "301 E 14th Ave · Unit 303" labels so list rows answer "which rental?"
+  // without a click-through. Single-unit properties skip the unit suffix.
+  const unitLabelById = useMemo(() => {
+    const propById = new Map(properties.map((p) => [p.id, p]))
+    const unitsPerProp = new Map<string, number>()
+    for (const u of units) unitsPerProp.set(u.property_id, (unitsPerProp.get(u.property_id) ?? 0) + 1)
+    const out = new Map<string, string>()
+    for (const u of units) {
+      const prop = propById.get(u.property_id)
+      const base = prop?.name || prop?.address || 'Property'
+      out.set(u.id, (unitsPerProp.get(u.property_id) ?? 0) > 1 ? `${base} · Unit ${u.unit_number}` : base)
+    }
+    return out
+  }, [properties, units])
+
+  const leaseContextById = useMemo(() => {
+    const out = new Map<string, string>()
+    for (const l of leases) {
+      const label = unitLabelById.get(l.unit_id)
+      if (label) out.set(l.id, label)
+    }
+    return out
+  }, [leases, unitLabelById])
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
 
@@ -161,20 +192,27 @@ export default function ManagerDashboard() {
   // and haven't been scheduled (the tenant hasn't picked a pay-on date yet).
   // Same rail the donut uses — "Upcoming" + "Past due" buckets — but
   // restricted to the live calendar month.
-  const outstandingThisMonth = useMemo(() => {
+  // Two distinct buckets, framed honestly: rent that's simply not due yet is
+  // "Upcoming" (neutral — nothing is wrong), rent past its due date is
+  // "Past due" (red — needs attention). One alarm color, reserved for alarms.
+  const { upcomingThisMonth, pastDueThisMonth } = useMemo(() => {
     const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const start = new Date(now.getFullYear(), now.getMonth(), 1)
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-    return allPayments
-      .filter((p) => {
-        if (p.status !== 'pending') return false
-        const sched = (p as Payment & { scheduled_for?: string | null }).scheduled_for
-        if (sched) return false
-        const ref = p.due_date ?? p.created_at
-        const d = new Date(ref)
-        return d >= start && d < end
-      })
-      .reduce((sum, p) => sum + Number(p.amount), 0)
+    let upcoming = 0
+    let pastDue = 0
+    for (const p of allPayments) {
+      if (p.status !== 'pending') continue
+      const sched = (p as Payment & { scheduled_for?: string | null }).scheduled_for
+      if (sched) continue
+      const ref = p.due_date ?? p.created_at
+      const d = new Date(ref)
+      if (d < start || d >= end) continue
+      if (p.due_date && new Date(p.due_date) < today) pastDue += Number(p.amount)
+      else upcoming += Number(p.amount)
+    }
+    return { upcomingThisMonth: upcoming, pastDueThisMonth: pastDue }
   }, [allPayments])
 
   if (error) {
@@ -271,7 +309,11 @@ export default function ManagerDashboard() {
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="Rent Collected" value={formatUsd(stats.rentCollectedThisMonth)} loading={loading} accent="brand" sub="this month" />
           <StatCard label="Total Units"    value={stats.totalUnits} loading={loading} />
-          <StatCard label="Outstanding"    value={formatUsd(outstandingThisMonth)} loading={loading} accent={outstandingThisMonth > 0 ? 'red' : 'none'} sub="not scheduled or paid · this month" />
+          {pastDueThisMonth > 0 ? (
+            <StatCard label="Past Due" value={formatUsd(pastDueThisMonth)} loading={loading} accent="red" sub="needs attention · this month" />
+          ) : (
+            <StatCard label="Upcoming" value={formatUsd(upcomingThisMonth)} loading={loading} sub="expected this month · not due yet" />
+          )}
           <StatCard label="Occupied"       value={stats.occupiedUnits} loading={loading} accent="brand"
             sub={stats.totalUnits ? `${Math.round(stats.occupiedUnits / stats.totalUnits * 100)}% occupancy` : undefined} />
         </div>
@@ -280,16 +322,26 @@ export default function ManagerDashboard() {
       {/* Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Section title="Recent Payments" loading={loading} empty={recentPayments.length === 0} emptyText="No payments yet">
-          {recentPayments.map((p) => <PaymentRow key={p.id} payment={p} />)}
+          {recentPayments.map((p) => <PaymentRow key={p.id} payment={p} context={leaseContextById.get(p.lease_id)} />)}
         </Section>
 
-        <Section title="Open Maintenance" loading={loading} empty={openMaintenance.length === 0} emptyText="No open requests">
+        <Section
+          title="Open Maintenance"
+          loading={loading}
+          empty={openMaintenance.length === 0}
+          emptyText={
+            <span className="inline-flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-brand-500" strokeWidth={1.75} />
+              All quiet — no open requests
+            </span>
+          }
+        >
           {openMaintenance.map((r) => <MaintenanceRow key={r.id} request={r} />)}
         </Section>
       </div>
 
       <Section title="Upcoming Lease Renewals (next 60 days)" loading={loading} empty={upcomingRenewals.length === 0} emptyText="No leases expiring in the next 60 days">
-        {upcomingRenewals.map((l) => <RenewalRow key={l.id} lease={l} />)}
+        {upcomingRenewals.map((l) => <RenewalRow key={l.id} lease={l} context={unitLabelById.get(l.unit_id)} />)}
       </Section>
     </div>
   )

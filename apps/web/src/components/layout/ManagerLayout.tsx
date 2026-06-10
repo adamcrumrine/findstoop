@@ -47,16 +47,21 @@ const navItems: NavItem[] = [
 // routes (properties/:id, tenants/:id, review-lease) fall back via bgFor()
 // to share the look of their list page (those list pages get the dedicated
 // illustration, the detail pages get none of their own).
-// opacity is optional — defaults to 0.10. Routes with a tighter content
+// opacity is optional — defaults to 0.06. Routes with a tighter content
 // column (messages: chat bubbles span most of the page) need a fainter
 // wash so the artwork doesn't compete with the live content.
+//
+// Two routes deliberately have NO artwork: Applications ("Accept terms"
+// showed a mock lease with Accept buttons behind the real review panel)
+// and Billing ("Pricing plans" put a fake $25.99 price card on the page
+// where managers read their actual bill). Artwork that mimics UI reads
+// as broken or — worse — as real.
 interface PageBg { name: string; xPct: number; topRem: number; opacity?: number }
 const PAGE_BG: Record<string, PageBg> = {
   '/manager/dashboard':    { name: 'Houses-bro',              xPct: 22, topRem: -8 },
   '/manager/properties':   { name: 'City skyline-bro',        xPct: 22, topRem: -5 },
   '/manager/units':        { name: 'Navigation-amico',        xPct: 22, topRem: -8 },
   '/manager/listings':     { name: 'House searching-bro',     xPct: 22, topRem: -8 },
-  '/manager/applications': { name: 'Accept terms-bro',        xPct: 22, topRem: -8 },
   '/manager/screening':    { name: 'About us page-bro',       xPct: 22, topRem: -8 },
   '/manager/tenants':      { name: 'Moving-bro',              xPct: 22, topRem: -8 },
   '/manager/leases':       { name: 'Signing a contract-bro',  xPct: 22, topRem: -8 },
@@ -65,7 +70,6 @@ const PAGE_BG: Record<string, PageBg> = {
   '/manager/messages':     { name: 'Texting-bro',             xPct: 38, topRem: -6, opacity: 0.04 },
   '/manager/documents':    { name: 'Agreement-bro',           xPct: 22, topRem: -8 },
   '/manager/reports':      { name: 'Accountant-bro',          xPct: 22, topRem: -8 },
-  '/manager/billing':      { name: 'Pricing plans-bro',       xPct: 22, topRem: -8 },
   '/manager/settings':     { name: 'Features Overview-bro',   xPct: 22, topRem: -8 },
 }
 
@@ -108,7 +112,7 @@ export default function ManagerLayout() {
   }
 
   const desktopLink = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-0.5 transition-colors ${
+    `flex items-center gap-3 px-3 py-[7px] rounded-lg text-sm font-medium mb-0.5 transition-colors ${
       isActive
         ? 'bg-brand-50 text-brand-700 border-l-2 border-brand-500 rounded-l-none'
         : 'text-mute hover:bg-gray-50 hover:text-ink'
@@ -125,28 +129,34 @@ export default function ManagerLayout() {
 
       {/* ── Sidebar — desktop ─────────────────────────────────────────── */}
       <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200 shrink-0">
-        {/* Logo */}
-        <div className="px-4 py-5 border-b border-gray-100">
-          <Link to="/" aria-label="Stoop home" className="block">
-            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-12 w-auto" />
-          </Link>
-          <p className="text-[11px] text-mute mt-1.5 font-medium uppercase tracking-wide">Manager Portal</p>
+        {/* Logo + notifications. The bell lives up here (not buried next to
+            the sign-out link) so an unread dot is visible the moment the
+            page loads. */}
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <Link to="/" aria-label="Stoop home" className="block">
+              <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-10 w-auto" />
+            </Link>
+            <p className="text-[10px] text-mute mt-1 font-medium uppercase tracking-wide">Manager Portal</p>
+          </div>
+          <NotificationsBell />
         </div>
 
-        {/* Nav — grouped by landlord lifecycle stage */}
-        <nav aria-label="Manager primary navigation" className="flex-1 overflow-y-auto px-2 py-3">
+        {/* Nav — grouped by landlord lifecycle stage. Compact spacing so all
+            five groups fit without scrolling at laptop heights (~900px). */}
+        <nav aria-label="Manager primary navigation" className="flex-1 overflow-y-auto px-2 py-2">
           {(['manage', 'find', 'operate', 'insights', 'account'] as const).map((group, gi) => {
             const items = navItems.filter((n) => n.group === group)
             if (!items.length) return null
             const label = { manage: 'Manage', find: 'Find Tenants', operate: 'Operate', insights: 'Insights', account: 'Account' }[group]
             return (
-              <div key={group} className={gi === 0 ? '' : 'mt-4'}>
-                <p className="px-3 mb-1.5 text-[10px] font-semibold text-mute-400 uppercase tracking-wider">
+              <div key={group} className={gi === 0 ? '' : 'mt-2.5'}>
+                <p className="px-3 mb-1 text-[10px] font-semibold text-mute-400 uppercase tracking-wider">
                   {label}
                 </p>
                 {items.map(({ to, label, Icon }) => (
                   <NavLink key={to} to={to} className={desktopLink}>
-                    <Icon className="w-5 h-5 shrink-0" strokeWidth={1.75} />
+                    <Icon className="w-[18px] h-[18px] shrink-0" strokeWidth={1.75} />
                     {label}
                   </NavLink>
                 ))}
@@ -156,16 +166,16 @@ export default function ManagerLayout() {
         </nav>
 
         {/* User footer + Send feedback */}
-        <div className="p-3 border-t border-gray-100 space-y-1">
+        <div className="p-2 border-t border-gray-100">
           <button
             type="button"
             onClick={() => setFeedbackOpen(true)}
-            className="w-full inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-mute hover:text-ink hover:bg-gray-50 rounded-lg transition-colors"
+            className="w-full inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-mute hover:text-ink hover:bg-gray-50 rounded-lg transition-colors"
           >
             <MessageCircleQuestion className="w-4 h-4" strokeWidth={1.75} />
             Send feedback
           </button>
-          <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+          <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
             <Avatar url={profile?.company_logo_url ?? profile?.avatar_url} name={profile?.company_name ?? profile?.full_name} email={profile?.email} size={32} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-ink truncate">{displayName}</p>
@@ -176,7 +186,6 @@ export default function ManagerLayout() {
                 Sign out
               </button>
             </div>
-            <NotificationsBell />
           </div>
         </div>
       </aside>
@@ -216,7 +225,7 @@ export default function ManagerLayout() {
                   top: 0,
                   left: `calc(50% + ${pageBg.xPct}vw)`,
                   transform: 'translateX(-50%)',
-                  opacity: pageBg.opacity ?? 0.10,
+                  opacity: pageBg.opacity ?? 0.06,
                 }}
               />
             </div>

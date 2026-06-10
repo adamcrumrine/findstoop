@@ -427,7 +427,7 @@ function ApplicationDetail({
           )}
         </div>
         <p className="mt-2 text-[11px] text-mute leading-relaxed">
-          TransUnion ShareAble integration ships separately. Until then, "Request screening" marks the application so you remember to run the report manually via the renter's chosen provider.
+          Screening runs on Tenability™ — applicants complete verified income + ID pre-qualification from your apply link, and results land on your Screening page. "Request screening" flags this application so you remember to follow up.
         </p>
       </div>
 

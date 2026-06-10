@@ -263,7 +263,10 @@ export default function ManagerPropertyDetail() {
       {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
       {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} leaseStatusFilter={leaseStatusFilter} />}
 
-      {/* Danger zone — separated from the rest of the screen so it's hard to hit by accident. */}
+      {/* Danger zone — Overview only. Rendering it under every tab put a
+          permanent red "Delete property" next to routine work (checking a
+          unit, reading payments); destructive actions live on one screen. */}
+      {tab === 'overview' && (
       <section className="mt-10 pt-6 border-t border-red-100">
         <h2 className="text-xs uppercase tracking-wider text-red-600 font-semibold mb-2">Danger zone</h2>
         <div className="bg-white border border-red-200 rounded-2xl p-5 flex items-start justify-between gap-4 flex-wrap">
@@ -283,6 +286,7 @@ export default function ManagerPropertyDetail() {
           </button>
         </div>
       </section>
+      )}
 
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete property">
         <PropertyDeleteForm

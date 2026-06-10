@@ -195,6 +195,11 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
             {new Date(lease.start_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })}
             {' – '}
             {new Date(lease.end_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })}
+            {/* An active lease showing a long-past term reads like a data bug —
+                say explicitly that it rolled over to month-to-month. */}
+            {isMonthToMonth && daysLeft <= 0 && (
+              <span className="text-gray-500"> · now month-to-month</span>
+            )}
           </span>
           <span className="text-gray-300">·</span>
           <span>

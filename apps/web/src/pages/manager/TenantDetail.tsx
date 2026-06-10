@@ -121,18 +121,21 @@ export default function TenantDetail() {
       {/* Bio */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
         <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">Tenant bio</h2>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
-          <InfoRow Icon={Calendar} label="Date of birth" value={fmtDate(tenant.date_of_birth ?? null)} />
-          <InfoRow Icon={BadgeCheck} label="Monthly income" value={tenant.monthly_income != null ? formatUsd(Number(tenant.monthly_income)) : null} />
-          <InfoRow Icon={Briefcase} label="Employer" value={tenant.employer ?? null} />
-          <InfoRow Icon={Phone} label="Employer phone" value={tenant.employer_phone ?? null} />
-          <InfoRow Icon={ShieldAlert} label="Emergency contact" value={tenant.emergency_contact_name ?? null}
-            sub={tenant.emergency_contact_relationship ?? null} />
-          <InfoRow Icon={Phone} label="Emergency phone" value={tenant.emergency_contact_phone ?? null} />
-          <InfoRow Icon={Home} label="Previous address" value={tenant.previous_address ?? null} fullWidth />
-        </dl>
-        {!hasAnyBio(tenant) && (
-          <p className="text-sm text-mute italic mt-2">
+        {/* A grid of seven "—" placeholders tells the manager nothing — when
+            the bio is empty, show only the one-line explanation. */}
+        {hasAnyBio(tenant) ? (
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <InfoRow Icon={Calendar} label="Date of birth" value={fmtDate(tenant.date_of_birth ?? null)} />
+            <InfoRow Icon={BadgeCheck} label="Monthly income" value={tenant.monthly_income != null ? formatUsd(Number(tenant.monthly_income)) : null} />
+            <InfoRow Icon={Briefcase} label="Employer" value={tenant.employer ?? null} />
+            <InfoRow Icon={Phone} label="Employer phone" value={tenant.employer_phone ?? null} />
+            <InfoRow Icon={ShieldAlert} label="Emergency contact" value={tenant.emergency_contact_name ?? null}
+              sub={tenant.emergency_contact_relationship ?? null} />
+            <InfoRow Icon={Phone} label="Emergency phone" value={tenant.emergency_contact_phone ?? null} />
+            <InfoRow Icon={Home} label="Previous address" value={tenant.previous_address ?? null} fullWidth />
+          </dl>
+        ) : (
+          <p className="text-sm text-mute italic">
             This tenant hasn't filled in any bio fields yet. They can add details from their tenant Settings page.
           </p>
         )}

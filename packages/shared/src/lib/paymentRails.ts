@@ -6,16 +6,16 @@ import type { Payment } from '../types/payment'
 // change the labels or colors, this is the only place we touch.
 //
 // Status precedence:
-//   • status = 'completed'  → Paid (blue)
+//   • status = 'completed'  → Paid (brand teal — money in, the success state)
 //   • status = 'processing' → Processing (amber)        — ACH in flight
 //   • status = 'failed'     → Failed (red)
 //   • status = 'pending' + anchor date is past → Past due (red)
-//   • status = 'pending' + scheduled_for is set → Scheduled (brand)
+//   • status = 'pending' + scheduled_for is set → Scheduled (blue — informational future)
 //   • status = 'pending' otherwise → Upcoming (gray)
 export interface RowStatus { label: string; cls: string }
 
 export function rowStatus(p: Payment): RowStatus {
-  if (p.status === 'completed')  return { label: 'Paid',       cls: 'text-blue-700 bg-blue-50 border-blue-200' }
+  if (p.status === 'completed')  return { label: 'Paid',       cls: 'text-brand-700 bg-brand-50 border-brand-200' }
   if (p.status === 'processing') return { label: 'Processing', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
   if (p.status === 'failed')     return { label: 'Failed',     cls: 'text-red-700 bg-red-50 border-red-200' }
   const scheduledFor = (p as Payment & { scheduled_for?: string | null }).scheduled_for
@@ -28,7 +28,7 @@ export function rowStatus(p: Payment): RowStatus {
     }
   }
   return scheduledFor
-    ? { label: 'Scheduled', cls: 'text-brand-700 bg-brand-50 border-brand-200' }
+    ? { label: 'Scheduled', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
     : { label: 'Upcoming',  cls: 'text-gray-600 bg-gray-100 border-gray-200' }
 }
 

@@ -12,9 +12,9 @@ import type { Payment } from '@findstoop/shared/types/payment'
 interface DonutSlice { label: string; value: number; cls: string; color: string }
 
 const STATUS_COLORS: Record<string, { cls: string; color: string }> = {
-  'Paid':       { cls: 'bg-blue-500',   color: '#3B82F6' },
+  'Paid':       { cls: 'bg-brand-500',  color: '#008275' },
   'Processing': { cls: 'bg-amber-500',  color: '#F59E0B' },
-  'Scheduled':  { cls: 'bg-brand-500',  color: '#00A896' },
+  'Scheduled':  { cls: 'bg-blue-500',   color: '#3B82F6' },
   'Upcoming':   { cls: 'bg-gray-400',   color: '#9CA3AF' },
   'Past due':   { cls: 'bg-red-500',    color: '#DC2626' },
   'Failed':     { cls: 'bg-red-600',    color: '#B91C1C' },
@@ -74,11 +74,11 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4 h-full">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
           {title ?? 'Monthly Payments Breakdown'}
         </h2>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 self-center sm:self-auto">
           <button type="button" onClick={prevMonth} className="p-1.5 rounded-md hover:bg-gray-100 text-mute" aria-label="Previous month">
             <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
           </button>
@@ -109,7 +109,7 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
                 >
                   {slices.map((s) => <Cell key={s.label} fill={s.color} />)}
                 </Pie>
-                <Tooltip formatter={(value) => formatUsd(Number(value))} />
+                <Tooltip formatter={(value) => formatUsd(Number(value))} wrapperStyle={{ zIndex: 10 }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">

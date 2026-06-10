@@ -160,6 +160,13 @@ export default function Screening() {
           <p className="text-sm text-mute mt-2 max-w-md mx-auto">
             Once applicants finish pre-qualification, their verified income and Tenability™ show up here.
           </p>
+          <Link
+            to="/manager/applications"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-lg"
+          >
+            Share your apply link
+            <ExternalLink className="w-3.5 h-3.5" strokeWidth={2} />
+          </Link>
         </div>
       ) : (
         <div className="space-y-3">

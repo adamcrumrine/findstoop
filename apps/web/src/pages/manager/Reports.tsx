@@ -7,8 +7,12 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 
-const BRAND = '#6366f1'
-const BRAND_LIGHT = '#a5b4fc'
+// Brand teal anchors the data-viz palette — same family as the payments
+// donut and the status pills, so "money/occupied/healthy" reads as one hue
+// across the whole app instead of indigo here and teal elsewhere.
+const BRAND = '#008275'
+const BRAND_LIGHT = '#80ddcf'
+const BLUE = '#3b82f6'
 const GREEN = '#22c55e'
 const AMBER = '#f59e0b'
 const GRAY = '#e5e7eb'
@@ -108,7 +112,7 @@ export default function ManagerReports() {
 
   const maintenancePieData = [
     { name: 'Open', value: maintenanceStats.open, color: AMBER },
-    { name: 'In Progress', value: maintenanceStats.in_progress, color: BRAND },
+    { name: 'In Progress', value: maintenanceStats.in_progress, color: BLUE },
     { name: 'Resolved', value: maintenanceStats.resolved, color: GREEN },
     { name: 'Closed', value: maintenanceStats.closed, color: GRAY },
   ].filter((d) => d.value > 0)
@@ -312,7 +316,7 @@ export default function ManagerReports() {
               <div className="space-y-2 text-sm">
                 {[
                   { label: 'Open', value: maintenanceStats.open, color: AMBER },
-                  { label: 'In Progress', value: maintenanceStats.in_progress, color: BRAND },
+                  { label: 'In Progress', value: maintenanceStats.in_progress, color: BLUE },
                   { label: 'Resolved', value: maintenanceStats.resolved, color: GREEN },
                   { label: 'Closed', value: maintenanceStats.closed, color: GRAY },
                 ].map(({ label, value, color }) => (

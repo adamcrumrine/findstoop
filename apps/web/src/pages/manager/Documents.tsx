@@ -344,7 +344,12 @@ export default function ManagerDocuments() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm">{DOC_TYPE_LABEL[doc.type]}</p>
-                        <p className="text-[11px] text-gray-400 truncate mt-0.5" title={doc.name}>{doc.name}</p>
+                        {/* Generated lease PDFs carry opaque storage names
+                            (Lease-90825249-…-ufeij9.pdf) that are pure noise;
+                            only meaningful user-entered names earn a row. */}
+                        {!/^lease-\d{6,}/i.test(doc.name) && (
+                          <p className="text-[11px] text-gray-400 truncate mt-0.5" title={doc.name}>{doc.name}</p>
+                        )}
                         <p className="text-xs text-gray-500 mt-1 truncate">
                           {/* Skip the tenant/property piece when it's the
                               grouping dimension — already shown in the

@@ -64,6 +64,15 @@ export interface RentEstimateReport {
     lastSaleDate: string | null
     grossYieldPct: number | null
   } | null
+  /** First-party observed-lease signal blended into the estimate (null when
+   *  no nearby leases). subject is only present for the caller's own lease;
+   *  medianGrossed is hidden below n=3 for privacy. */
+  leaseSignal: {
+    n: number
+    weight: number
+    medianGrossed: number | null
+    subject: { rent: number; grossedRent: number; startDate: string; longTerm: boolean } | null
+  } | null
   /** Pro tier only — comparable rentals from RentCast (null on basic). */
   comps: RentComp[] | null
   vendorEstimate: { rent: number | null; low: number | null; high: number | null } | null

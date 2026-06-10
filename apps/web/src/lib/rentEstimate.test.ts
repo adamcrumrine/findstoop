@@ -57,6 +57,29 @@ describe('computeEstimate', () => {
     expect(r.estimateMonthly).toBeGreaterThanOrEqual(1100 * 0.85)
   })
 
+  it('blends toward the lease signal as effective sample size grows', () => {
+    const noLease = computeEstimate(base(), 2026)
+    const fewLeases = computeEstimate(base({ leaseSignal: { nEff: 1, weightedMedianGrossed: 2000 } }), 2026)
+    const manyLeases = computeEstimate(base({ leaseSignal: { nEff: 12, weightedMedianGrossed: 2000 } }), 2026)
+    // Pulls toward $2000, harder with more data.
+    expect(fewLeases.estimateMonthly).toBeGreaterThan(noLease.estimateMonthly)
+    expect(manyLeases.estimateMonthly).toBeGreaterThan(fewLeases.estimateMonthly)
+    expect(manyLeases.leaseBlend!.weight).toBeGreaterThan(fewLeases.leaseBlend!.weight)
+    expect(noLease.leaseBlend).toBeNull()
+  })
+
+  it('anchors hardest on the subject’s own lease and tightens the band', () => {
+    const without = computeEstimate(base(), 2026)
+    const withSubject = computeEstimate(base({
+      leaseSignal: { nEff: 1, weightedMedianGrossed: 1900, subjectGrossedRent: 1950 },
+    }), 2026)
+    expect(withSubject.leaseBlend!.usedSubjectLease).toBe(true)
+    expect(withSubject.leaseBlend!.weight).toBeGreaterThanOrEqual(0.6)
+    const wWidth = (withSubject.high - withSubject.low) / withSubject.estimateMonthly
+    const oWidth = (without.high - without.low) / without.estimateMonthly
+    expect(wWidth).toBeLessThan(oWidth)
+  })
+
   it('handles missing subject attributes without throwing', () => {
     const r = computeEstimate(base({
       subject: { bedrooms: 3, bathrooms: null, sqft: null, yearBuilt: null, propertyType: null, attributesSource: 'user' },

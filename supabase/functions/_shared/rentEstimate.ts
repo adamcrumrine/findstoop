@@ -47,6 +47,18 @@ export interface RecencyTrend {
   asOf: string
 }
 
+/** First-party lease comps near the subject (already inflation-adjusted and
+ *  distance/recency-weighted by the caller). The engine blends these with the
+ *  public-data model — real observed rents beat survey statistics. */
+export interface LeaseSignalInput {
+  /** Effective (weighted) sample size — drives the blend weight. */
+  nEff: number
+  /** Weighted median of grossed-up nearby rents (dollars/month). */
+  weightedMedianGrossed: number
+  /** The subject's own current lease, grossed to today — strongest anchor. */
+  subjectGrossedRent?: number | null
+}
+
 export interface EstimateParams {
   baseline: BaselineRent
   subject: SubjectUnit
@@ -58,6 +70,8 @@ export interface EstimateParams {
   safmrFloor?: number | null
   /** ACS gross rent includes utilities; scale toward contract rent. */
   utilitiesAdjustment?: number
+  /** Observed leases from FindStoop's own database (optional). */
+  leaseSignal?: LeaseSignalInput | null
 }
 
 // ── Outputs ───────────────────────────────────────────────────────────────
@@ -79,6 +93,8 @@ export interface RentEstimateResult {
   }
   baseline: { value: number; source: BaselineSource; bedroom: number; vintageYear: number }
   caveats: string[]
+  /** Present when first-party lease data was blended in. */
+  leaseBlend: { weight: number; anchor: number; usedSubjectLease: boolean } | null
 }
 
 // ── Coefficient tables (calibrate against first-party leases later) ──────────
@@ -166,6 +182,25 @@ export function computeEstimate(params: EstimateParams, currentYear = new Date()
   if (estimate < floor) { estimate = floor; caveats.push('Estimate clamped up to a plausible market floor.') }
   if (estimate > ceiling) { estimate = ceiling; caveats.push('Estimate clamped to a plausible ceiling.') }
 
+  // ── Blend in first-party lease data ─────────────────────────────────────
+  // Real observed rents (already inflation-adjusted + distance/recency
+  // weighted) pull the model toward the ground truth. Shrinkage: weight grows
+  // with effective sample size (nEff 1 → 0.2, 4 → 0.5, 12 → 0.75). The
+  // subject's OWN current lease is the strongest possible anchor.
+  const ls = params.leaseSignal
+  let leaseBlend: RentEstimateResult['leaseBlend'] = null
+  if (ls && (ls.weightedMedianGrossed > 0 || ls.subjectGrossedRent)) {
+    const K = 4
+    let w = ls.nEff > 0 ? ls.nEff / (ls.nEff + K) : 0
+    const usedSubjectLease = !!ls.subjectGrossedRent
+    const anchor = ls.subjectGrossedRent ?? ls.weightedMedianGrossed
+    if (usedSubjectLease) w = Math.max(w, 0.6)
+    if (w > 0 && anchor > 0) {
+      estimate = w * anchor + (1 - w) * estimate
+      leaseBlend = { weight: Math.round(w * 100) / 100, anchor, usedSubjectLease }
+    }
+  }
+
   // ── Confidence band ────────────────────────────────────────────────────
   // Combine ACS sampling error (from the MOE) with model uncertainty, then
   // widen for missing inputs / weaker baselines.
@@ -175,13 +210,18 @@ export function computeEstimate(params: EstimateParams, currentYear = new Date()
   if (baseline.source === 'acs_zip') cvModel += 0.02
   if (baseline.source === 'safmr') cvModel += 0.04
   if (baseline.source === 'fmr') cvModel += 0.06
-  const halfwidth = Math.sqrt(cvData * cvData + cvModel * cvModel)
+  let halfwidth = Math.sqrt(cvData * cvData + cvModel * cvModel)
+  // Observed local rents shrink uncertainty — tighten the band in proportion
+  // to how much of the estimate is anchored on real lease data.
+  if (leaseBlend) halfwidth *= 1 - 0.45 * leaseBlend.weight
 
   const low = round5(estimate * (1 - 1.28 * halfwidth)) // ~80% band
   const high = round5(estimate * (1 + 1.28 * halfwidth))
 
   let confidence: RentEstimateResult['confidence']
-  if (halfwidth < 0.1 && baseline.source === 'acs_tract') confidence = 'high'
+  // A strong real-lease anchor can earn 'high' even off a ZIP/HUD baseline.
+  const strongAnchor = (leaseBlend?.weight ?? 0) >= 0.5
+  if (halfwidth < 0.1 && (baseline.source === 'acs_tract' || strongAnchor)) confidence = 'high'
   else if (halfwidth < 0.18) confidence = 'medium'
   else confidence = 'low'
 
@@ -200,5 +240,6 @@ export function computeEstimate(params: EstimateParams, currentYear = new Date()
     factors: { base, utilities: fUtil, size: fSize, bath: fBath, age: fAge, type: fType, recency: fRecency },
     baseline: { value: baseline.value, source: baseline.source, bedroom: bed, vintageYear: baseline.vintageYear },
     caveats,
+    leaseBlend,
   }
 }

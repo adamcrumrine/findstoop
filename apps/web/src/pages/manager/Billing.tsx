@@ -248,7 +248,7 @@ export default function Billing() {
       {/* Math card */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">
-          {state.complimentary ? 'Active units' : "This month's bill"}
+          {state.complimentary ? 'Your portfolio' : "This month's bill"}
         </h2>
         <div className={`grid gap-4 ${state.complimentary ? 'sm:grid-cols-1' : 'sm:grid-cols-3'}`}>
           <Stat label="Active units" value={String(state.activeUnits)} />
@@ -570,5 +570,17 @@ function getStatusInfo(status: string | null, subscriptionId: string | null, com
 }
 
 function prettifyEvent(t: string) {
-  return t.split('.').map((p) => p.charAt(0).toUpperCase() + p.slice(1).split('_').join(' ')).join(' · ')
+  // Plain-English labels for the Stripe webhook types a manager will actually
+  // see. Anything unmapped falls back to the generic dotted-path prettifier.
+  const KNOWN: Record<string, string> = {
+    'customer.subscription.created': 'Subscription started',
+    'customer.subscription.updated': 'Subscription updated',
+    'customer.subscription.deleted': 'Subscription canceled',
+    'invoice.paid': 'Invoice paid',
+    'invoice.payment_succeeded': 'Invoice paid',
+    'invoice.payment_failed': 'Invoice payment failed',
+    'invoice.created': 'Invoice issued',
+    'invoice.finalized': 'Invoice issued',
+  }
+  return KNOWN[t] ?? t.split('.').map((p) => p.charAt(0).toUpperCase() + p.slice(1).split('_').join(' ')).join(' · ')
 }

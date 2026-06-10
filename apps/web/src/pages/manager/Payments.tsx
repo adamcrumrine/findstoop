@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, Fragment } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
@@ -168,6 +168,10 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
 interface PaymentRowProps {
   payment: Payment
   tenantName: string
+  // Property (and unit, when the property has several) — only set when the
+  // manager owns more than one property, where "Rent · Tammy" stops being
+  // self-locating.
+  propertyLabel?: string
   // Tenant has auto-pay turned on. Shown as a small recurring-arrow icon
   // on Upcoming / Scheduled rows so the manager can tell at a glance that
   // a future charge is set up to run automatically.
@@ -181,7 +185,7 @@ interface PaymentRowProps {
   onUpdateAmount: (id: string, amount: number) => Promise<void>
 }
 
-function PaymentRow({ payment, tenantName, tenantAutopay, splitMismatch, onMarkPaid, onApplyCredit, onUpdateAmount }: PaymentRowProps) {
+function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMismatch, onMarkPaid, onApplyCredit, onUpdateAmount }: PaymentRowProps) {
   const status = rowStatus(payment)
   // Mark Paid + Credit available on any pending row — managers regularly
   // collect off-platform (cash, check, Venmo) and need to flip future months,
@@ -233,7 +237,11 @@ function PaymentRow({ payment, tenantName, tenantAutopay, splitMismatch, onMarkP
             <RefreshCw className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.75} aria-label="Tenant auto-pay" />
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-0.5">{tenantName} · {formatMonthYear(payment.due_date ?? anchor)}</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {tenantName}
+          {propertyLabel && <> · {propertyLabel}</>}
+          {' · '}{formatMonthYear(payment.due_date ?? anchor)}
+        </p>
         {payment.memo && (
           <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
         )}
@@ -483,23 +491,49 @@ export default function ManagerPayments() {
     [payments, filterStatus, filterType, filterLeaseStatus, filterPropertyId, leaseMap, unitToProperty]
   )
 
+  // Newest first by money-movement date, paged 50 at a time — rendering all
+  // rows at once made the page a 20,000px scroll with a few hundred payments.
+  const sorted = useMemo(() =>
+    filtered.slice().sort((a, b) => new Date(paymentAnchor(b)).getTime() - new Date(paymentAnchor(a)).getTime()),
+    [filtered]
+  )
+  const [visibleCount, setVisibleCount] = useState(50)
+  useEffect(() => { setVisibleCount(50) }, [filterStatus, filterType, filterLeaseStatus, filterPropertyId])
+  const visible = sorted.slice(0, visibleCount)
+
+  const propertyNameById = useMemo(
+    () => Object.fromEntries(properties.map((p) => [p.id, p.name || p.address])),
+    [properties]
+  )
+  const propertyLabelFor = (p: Payment): string | undefined => {
+    if (properties.length <= 1) return undefined
+    const lease = leaseMap[p.lease_id]
+    const propId = lease ? unitToProperty[lease.unit_id] : undefined
+    return propId ? propertyNameById[propId] : undefined
+  }
+
   // Summary tiles: scope to the current calendar month + the active filter
   // set so the numbers reflect what's actually visible below.
   const monthlyTotals = useMemo(() => {
     const today = new Date()
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const start = new Date(today.getFullYear(), today.getMonth(), 1)
     const end = new Date(today.getFullYear(), today.getMonth() + 1, 1)
     let collected = 0
-    let outstanding = 0
+    let upcoming = 0
+    let pastDue = 0
     for (const p of filtered) {
       const ref = (p as Payment & { scheduled_for?: string | null }).scheduled_for
         ?? p.paid_at ?? p.due_date ?? p.created_at
       const d = new Date(ref)
       if (d < start || d >= end) continue
       if (p.status === 'completed') collected += Number(p.amount)
-      else if (p.status === 'pending' && !(p as Payment & { scheduled_for?: string | null }).scheduled_for) outstanding += Number(p.amount)
+      else if (p.status === 'pending' && !(p as Payment & { scheduled_for?: string | null }).scheduled_for) {
+        if (p.due_date && new Date(p.due_date) < startOfToday) pastDue += Number(p.amount)
+        else upcoming += Number(p.amount)
+      }
     }
-    return { collected, outstanding }
+    return { collected, upcoming, pastDue }
   }, [filtered])
 
   const handleAdd = async (data: AddPaymentFormData) => {
@@ -566,8 +600,8 @@ export default function ManagerPayments() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => exportCSV(filtered, leaseMap)}
-            disabled={filtered.length === 0}
+            onClick={() => exportCSV(sorted, leaseMap)}
+            disabled={sorted.length === 0}
             className="px-3 py-2 text-sm font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
           >
             Export CSV
@@ -596,13 +630,21 @@ export default function ManagerPayments() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Collected · this month</p>
               <p className="text-2xl font-bold text-brand-700 mt-1">{formatUsd(monthlyTotals.collected)}</p>
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Outstanding · this month</p>
-              <p className={`text-2xl font-bold mt-1 ${monthlyTotals.outstanding > 0 ? 'text-red-700' : 'text-gray-800'}`}>
-                {formatUsd(monthlyTotals.outstanding)}
-              </p>
-              <p className="text-[11px] text-mute mt-0.5">Not scheduled or paid yet</p>
-            </div>
+            {monthlyTotals.pastDue > 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Past due · this month</p>
+                <p className="text-2xl font-bold mt-1 text-red-700">{formatUsd(monthlyTotals.pastDue)}</p>
+                <p className="text-[11px] text-mute mt-0.5">
+                  Needs attention{monthlyTotals.upcoming > 0 && <> · {formatUsd(monthlyTotals.upcoming)} more upcoming</>}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Upcoming · this month</p>
+                <p className="text-2xl font-bold mt-1 text-gray-800">{formatUsd(monthlyTotals.upcoming)}</p>
+                <p className="text-[11px] text-mute mt-0.5">Expected — not due yet</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -706,20 +748,39 @@ export default function ManagerPayments() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 px-4">
-          {filtered.map((p) => (
-            <PaymentRow
-              key={p.id}
-              payment={p}
-              tenantName={tenantNameById[p.tenant_id] ?? leaseMap[p.lease_id]?.profile?.full_name ?? leaseMap[p.lease_id]?.profile?.email ?? '—'}
-              tenantAutopay={!!tenantAutopay[p.tenant_id]}
-              splitMismatch={splitMismatchByPaymentId[p.id] ?? null}
-              onMarkPaid={(id) => setMarkPaidTarget(payments.find((pay) => pay.id === id) ?? null)}
-              onApplyCredit={(payment) => setCreditTarget(payment)}
-              onUpdateAmount={handleEditAmount}
-            />
-          ))}
-        </div>
+        <>
+          <div className="bg-white rounded-xl border border-gray-200 px-4 pb-1">
+            {visible.map((p, i) => {
+              const month = formatMonthYear(paymentAnchor(p))
+              const prevMonth = i > 0 ? formatMonthYear(paymentAnchor(visible[i - 1])) : null
+              return (
+                <Fragment key={p.id}>
+                  {month !== prevMonth && (
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 pt-3">{month}</p>
+                  )}
+                  <PaymentRow
+                    payment={p}
+                    tenantName={tenantNameById[p.tenant_id] ?? leaseMap[p.lease_id]?.profile?.full_name ?? leaseMap[p.lease_id]?.profile?.email ?? '—'}
+                    propertyLabel={propertyLabelFor(p)}
+                    tenantAutopay={!!tenantAutopay[p.tenant_id]}
+                    splitMismatch={splitMismatchByPaymentId[p.id] ?? null}
+                    onMarkPaid={(id) => setMarkPaidTarget(payments.find((pay) => pay.id === id) ?? null)}
+                    onApplyCredit={(payment) => setCreditTarget(payment)}
+                    onUpdateAmount={handleEditAmount}
+                  />
+                </Fragment>
+              )
+            })}
+          </div>
+          {sorted.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount((c) => c + 50)}
+              className="w-full py-2.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Show 50 more · {sorted.length - visibleCount} remaining
+            </button>
+          )}
+        </>
       )}
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Record Payment">

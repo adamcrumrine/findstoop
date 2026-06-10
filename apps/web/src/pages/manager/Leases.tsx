@@ -8,7 +8,7 @@ import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseStatus } from '@findstoop/shared/types/lease'
 import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
-import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight } from 'lucide-react'
+import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import { Link } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
@@ -72,6 +72,7 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
     ? Math.ceil((moveOutDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null
   const sending = sendingId === lease.id
+  const [statusEditing, setStatusEditing] = useState(false)
   const sentLabel = lease.sent_for_signature_at
     ? `Sent ${new Date(lease.sent_for_signature_at).toLocaleDateString()}`
     : null
@@ -265,18 +266,35 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
             className={`inline-block w-2 h-2 rounded-full shrink-0 ${statusDot[lease.status]}`}
             aria-hidden="true"
           />
-          <select
-            value={lease.status}
-            onChange={(e) => onUpdateStatus(lease.id, e.target.value as LeaseStatus)}
-            className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-            title="Change lease status"
-          >
-            <option value="pending">Pending</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="active">Active</option>
-            <option value="expired">Expired</option>
-            <option value="terminated">Terminated</option>
-          </select>
+          {/* Status is a mostly-derived state — a permanently-live select on
+              every card invited accidental edits while scrolling. Read-only
+              until the pencil is clicked; the select closes on change/blur. */}
+          {statusEditing ? (
+            <select
+              autoFocus
+              value={lease.status}
+              onChange={(e) => { onUpdateStatus(lease.id, e.target.value as LeaseStatus); setStatusEditing(false) }}
+              onBlur={() => setStatusEditing(false)}
+              className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+              title="Change lease status"
+            >
+              <option value="pending">Pending</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="active">Active</option>
+              <option value="expired">Expired</option>
+              <option value="terminated">Terminated</option>
+            </select>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setStatusEditing(true)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-ink px-1.5 py-1 rounded-lg hover:bg-gray-50 transition-colors"
+              title="Change lease status"
+            >
+              <span className="capitalize">{lease.status}</span>
+              <Pencil className="w-3 h-3 text-gray-400" strokeWidth={1.75} />
+            </button>
+          )}
         </div>
       </div>
     </div>

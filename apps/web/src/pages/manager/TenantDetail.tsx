@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, Wrench, type LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { formatUsd, formatPhone } from '@findstoop/shared/lib/format'
+import { formatUsd, formatUsdCents, formatPhone } from '@findstoop/shared/lib/format'
+import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import type { Profile } from '@findstoop/shared/types/profile'
 import type { Lease } from '@findstoop/shared/types/lease'
+import type { Payment } from '@findstoop/shared/types/payment'
+import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 
 interface LeaseWithProperty extends Lease {
   unit?: {
@@ -17,6 +20,8 @@ export default function TenantDetail() {
   const { id } = useParams<{ id: string }>()
   const [tenant, setTenant] = useState<Profile | null>(null)
   const [leases, setLeases] = useState<LeaseWithProperty[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [openRequests, setOpenRequests] = useState<MaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,7 +40,23 @@ export default function TenantDetail() {
         if (!profileRes.data) throw new Error('Tenant not found or you don\'t have permission to view this profile.')
         setTenant(profileRes.data as Profile)
         if (leasesRes.error) throw leasesRes.error
-        setLeases((leasesRes.data ?? []) as unknown as LeaseWithProperty[])
+        const leaseRows = (leasesRes.data ?? []) as unknown as LeaseWithProperty[]
+        setLeases(leaseRows)
+
+        // Activity context — the tenancy's money + maintenance at a glance,
+        // so the manager doesn't have to hop to Payments/Maintenance and
+        // re-filter by this person. Non-fatal: the page still renders if
+        // either query fails.
+        const unitIds = Array.from(new Set(leaseRows.map((l) => l.unit_id).filter(Boolean)))
+        const [payRes, maintRes] = await Promise.all([
+          supabase.from('payments').select('*').eq('tenant_id', id).order('created_at', { ascending: false }),
+          unitIds.length > 0
+            ? supabase.from('maintenance_requests').select('*').in('unit_id', unitIds).in('status', ['open', 'in_progress']).order('created_at', { ascending: false })
+            : Promise.resolve({ data: [], error: null }),
+        ])
+        if (cancelled) return
+        if (!payRes.error) setPayments((payRes.data ?? []) as Payment[])
+        if (!maintRes.error) setOpenRequests((maintRes.data ?? []) as MaintenanceRequest[])
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load tenant')
       } finally {
@@ -140,6 +161,85 @@ export default function TenantDetail() {
           </p>
         )}
       </section>
+
+      {/* Payments — the tenancy's money at a glance */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Payments</h2>
+          <Link to="/manager/payments" className="text-xs font-medium text-brand-600 hover:text-brand-700">View all</Link>
+        </div>
+        {payments.length === 0 ? (
+          <p className="text-sm text-mute">No payments recorded yet.</p>
+        ) : (() => {
+          const today = new Date(); today.setHours(0, 0, 0, 0)
+          const pastDue = payments
+            .filter((p) => p.status === 'pending' && p.due_date && new Date(p.due_date) < today)
+            .reduce((s, p) => s + Number(p.amount), 0)
+          const lastPaid = payments
+            .filter((p) => p.status === 'completed' && p.paid_at)
+            .sort((a, b) => +new Date(b.paid_at!) - +new Date(a.paid_at!))[0]
+          const recent = payments
+            .slice()
+            .sort((a, b) => +new Date(paymentAnchor(b)) - +new Date(paymentAnchor(a)))
+            .slice(0, 5)
+          return (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[11px] uppercase tracking-wide text-mute font-semibold">Past due</p>
+                  <p className={`text-lg font-bold mt-0.5 ${pastDue > 0 ? 'text-red-700' : 'text-ink'}`}>
+                    {formatUsd(pastDue)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5">
+                  <p className="text-[11px] uppercase tracking-wide text-mute font-semibold">Last payment</p>
+                  <p className="text-lg font-bold text-ink mt-0.5">
+                    {lastPaid ? formatUsd(Number(lastPaid.amount)) : '—'}
+                  </p>
+                  {lastPaid?.paid_at && (
+                    <p className="text-[11px] text-mute">{new Date(lastPaid.paid_at).toLocaleDateString()}</p>
+                  )}
+                </div>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {recent.map((p) => {
+                  const status = rowStatus(p)
+                  return (
+                    <div key={p.id} className="flex items-center justify-between py-2 gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-ink capitalize truncate">{p.type.replace(/_/g, ' ')}</p>
+                        <p className="text-xs text-mute">{new Date(paymentAnchor(p)).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>{status.label}</span>
+                        <span className="text-sm font-semibold text-ink">{formatUsdCents(Number(p.amount))}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )
+        })()}
+      </section>
+
+      {/* Open maintenance for this tenant's unit(s) — only when there is any */}
+      {openRequests.length > 0 && (
+        <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
+          <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">Open maintenance</h2>
+          <div className="divide-y divide-gray-100">
+            {openRequests.map((r) => (
+              <Link key={r.id} to="/manager/maintenance" className="flex items-center justify-between py-2 gap-3 hover:bg-gray-50 rounded-lg px-1 -mx-1">
+                <div className="min-w-0 inline-flex items-center gap-2">
+                  <Wrench className="w-3.5 h-3.5 text-mute shrink-0" strokeWidth={1.75} />
+                  <p className="text-sm text-ink truncate">{r.title}</p>
+                </div>
+                <span className="text-xs text-mute shrink-0 capitalize">{r.status.replace('_', ' ')} · {r.priority}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Leases */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6">

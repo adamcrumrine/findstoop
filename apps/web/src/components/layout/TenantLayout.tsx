@@ -5,7 +5,10 @@ import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
 import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, LogOut, type LucideIcon } from 'lucide-react'
 import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
-import { BRAND } from '../../lib/brand'
+import PoweredByStoop from '../shared/PoweredByStoop'
+import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
+import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
+import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 
 interface NavItem {
   to: string
@@ -45,9 +48,19 @@ export default function TenantLayout() {
   const { signOut, profile } = useAuth()
   const location = useLocation()
   const badges = useTenantBadges(profile?.id)
+  const landlord = useLandlordBranding(profile?.id)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const pageBg = PAGE_BG[location.pathname] ?? null
+
+  // Landlord accent color — layered over the build brand's --brand-* palette
+  // while the tenant portal is mounted; cleanup restores the build palette so
+  // it never leaks onto other layouts after sign-out / route changes.
+  useEffect(() => {
+    if (!landlord?.brandColor) return
+    applyLandlordBrand(landlord.brandColor)
+    return () => clearLandlordBrand()
+  }, [landlord?.brandColor])
 
   // Map of route → badge flag for the green cherry dot.
   const badgeFor = (to: string): boolean => {
@@ -90,8 +103,21 @@ export default function TenantLayout() {
         className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        <Link to="/" aria-label={`${BRAND.name} home`}>
-          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+        {/* Landlord branding wins when set: logo → company name → build brand. */}
+        <Link to="/" aria-label={`${landlord?.companyName ?? BRAND.name} home`}>
+          {landlord?.logoUrl ? (
+            <img
+              src={landlord.logoUrl}
+              alt={landlord.companyName ?? 'Your landlord'}
+              className="h-10 max-w-[200px] w-auto object-contain"
+            />
+          ) : landlord?.companyName ? (
+            <span className="block max-w-[220px] truncate text-lg font-semibold text-ink">
+              {landlord.companyName}
+            </span>
+          ) : (
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+          )}
         </Link>
         <div className="relative" ref={menuRef}>
           <button
@@ -188,6 +214,14 @@ export default function TenantLayout() {
             </NavLink>
           ))}
         </div>
+        {/* Attribution — always on when another brand fronts the portal
+            (landlord branding or a white-label build). Lives inside the fixed
+            nav so it stays visible without its own layout band. */}
+        {(landlord || IS_WHITE_LABEL) && (
+          <div className="flex justify-center border-t border-gray-100 py-1">
+            <PoweredByStoop />
+          </div>
+        )}
       </nav>
     </div>
   )

@@ -58,6 +58,19 @@ export interface Brand {
    * illustrations so they lean toward the brand hue without new artwork.
    */
   illustrationFilter?: string
+  /**
+   * 'saas'   — public product site: full marketing nav, pricing, sign-up CTAs.
+   * 'portal' — a property company's own site: resident-focused homepage
+   *            (pay rent / maintenance / apply), minimal nav, sign-in CTA.
+   */
+  experience: 'saas' | 'portal'
+  /** Marketing-header nav links to show, by route path. */
+  marketingNav: string[]
+  /** Homepage copy for portal-experience brands. */
+  portal?: {
+    headline: string
+    subline: string
+  }
 }
 
 const stoop: Brand = {
@@ -92,6 +105,8 @@ const stoop: Brand = {
     900: '0 42 38',
   },
   gradient: ['0 168 150', '0 180 162'],
+  experience: 'saas',
+  marketingNav: ['/tenability', '/pricing', '/', '/tenants', '/migrate', '/education'],
 }
 
 // Deep navy + gold. 500 vs white = 7.30:1, 600 vs white = 9.60:1 — both
@@ -133,6 +148,15 @@ const hawk: Brand = {
   gradient: ['27 42 65', '46 89 132'],
   // Stock teal (~173°) → navy (~210°), slightly desaturated.
   illustrationFilter: 'hue-rotate(37deg) saturate(0.75)',
+  // Hawk's site is the company's own front door, not a SaaS pitch: residents
+  // land on pay-rent / maintenance / apply actions instead of pricing pages.
+  experience: 'portal',
+  marketingNav: ['/tenants', '/education'],
+  portal: {
+    headline: 'Welcome home.',
+    subline:
+      'Pay rent, request maintenance, sign your lease, and apply for a home — all online, all in one place.',
+  },
 }
 
 export const BRANDS: Record<string, Brand> = { stoop, hawk }

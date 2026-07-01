@@ -5,7 +5,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
 
-const navLinks = [
+const allNavLinks = [
   { to: '/tenability', label: 'Tenability™' },
   { to: '/pricing',    label: 'Pricing' },
   { to: '/',           label: 'Landlords', exact: true },
@@ -13,6 +13,12 @@ const navLinks = [
   { to: '/migrate',    label: 'Migrate' },
   { to: '/education',  label: 'Education' },
 ]
+
+// Each brand picks which marketing links it surfaces — a portal-experience
+// brand (a property company's own site) hides the SaaS pitch pages.
+const navLinks = allNavLinks.filter((l) => BRAND.marketingNav.includes(l.to))
+
+const IS_PORTAL = BRAND.experience === 'portal'
 
 export default function MarketingLayout() {
   const [open, setOpen] = useState(false)
@@ -69,10 +75,10 @@ export default function MarketingLayout() {
               My Account
             </Link>
             <Link
-              to="/register"
+              to={IS_PORTAL ? '/welcome' : '/register'}
               className="text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 px-4 py-2 rounded-lg transition-colors"
             >
-              Get started
+              {IS_PORTAL ? 'Sign in' : 'Get started'}
             </Link>
           </div>
 
@@ -108,11 +114,11 @@ export default function MarketingLayout() {
                 My Account
               </Link>
               <Link
-                to="/register"
+                to={IS_PORTAL ? '/welcome' : '/register'}
                 onClick={() => setOpen(false)}
                 className="text-center text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 px-4 py-2.5 rounded-lg transition-colors"
               >
-                Get started
+                {IS_PORTAL ? 'Sign in' : 'Get started'}
               </Link>
             </nav>
           </div>
@@ -130,8 +136,9 @@ export default function MarketingLayout() {
           <div className="col-span-2">
             <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-7 w-auto brightness-0 invert mb-3" />
             <p className="text-white/60 max-w-xs">
-              The all-in-one rental platform for landlords who'd rather collect rent
-              than chase it.
+              {IS_PORTAL
+                ? BRAND.tagline
+                : "The all-in-one rental platform for landlords who'd rather collect rent than chase it."}
             </p>
             {/* Equal Housing Opportunity logo — HUD's standard symbol:
                 house outline with "=" inside, signaling that we comply
@@ -158,20 +165,20 @@ export default function MarketingLayout() {
             </div>
           </div>
           <div>
-            <p className="font-semibold mb-3 text-white">Product</p>
+            <p className="font-semibold mb-3 text-white">{IS_PORTAL ? 'Residents' : 'Product'}</p>
             <ul className="space-y-2 text-white/70">
-              <li><Link to="/" className="hover:text-white transition-colors">For landlords</Link></li>
+              {!IS_PORTAL && <li><Link to="/" className="hover:text-white transition-colors">For landlords</Link></li>}
               <li><Link to="/tenants" className="hover:text-white transition-colors">For tenants</Link></li>
-              <li><Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>
-              <li><Link to="/features" className="hover:text-white transition-colors">Features</Link></li>
-              <li><Link to="/how-it-works" className="hover:text-white transition-colors">How it works</Link></li>
+              {!IS_PORTAL && <li><Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>}
+              {!IS_PORTAL && <li><Link to="/features" className="hover:text-white transition-colors">Features</Link></li>}
+              {!IS_PORTAL && <li><Link to="/how-it-works" className="hover:text-white transition-colors">How it works</Link></li>}
               <li><Link to="/education" className="hover:text-white transition-colors">Education</Link></li>
             </ul>
           </div>
           <div>
             <p className="font-semibold mb-3 text-white">Account</p>
             <ul className="space-y-2 text-white/70">
-              <li><Link to="/register" className="hover:text-white transition-colors">Landlord sign up</Link></li>
+              {!IS_PORTAL && <li><Link to="/register" className="hover:text-white transition-colors">Landlord sign up</Link></li>}
               <li><Link to="/register/renter" className="hover:text-white transition-colors">Renter sign up</Link></li>
               <li><Link to="/welcome" className="hover:text-white transition-colors">Log in</Link></li>
             </ul>

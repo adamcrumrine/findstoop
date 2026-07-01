@@ -28,11 +28,46 @@ Everything lives in `apps/web/src/lib/brand.ts` (`BRANDS` registry):
 | Logos (headers, auth, PDFs, spinners) | `logo.horizontal`, `logo.square` |
 | Accent color palette (all `brand-*` Tailwind utilities) | `colors` (RGB triplets) |
 | Hero gradient | `gradient` |
-| Browser chrome / PWA theme color | `themeColor` (+ `PWA_BRANDS` in `vite.config.ts`) |
+| Browser chrome / PWA theme color + icons | `themeColor` (+ `BUILD_BRANDS` in `vite.config.ts`) |
+| Static HTML metadata (title, OG/Twitter unfurls, JSON-LD, favicon links) | `BUILD_BRANDS[id].html` in `vite.config.ts` (build-time plugin) |
 | Support links & mailtos | `supportEmail`, `helloEmail`, `domain` |
 | Favicon (non-default brands) | `favicon.svg` |
 | CSV download filename prefix | `fileSlug` |
 | Stock illustration hue shift | `illustrationFilter` (optional CSS filter) |
+| Site personality | `experience: 'saas' \| 'portal'`, `marketingNav`, `portal` copy |
+
+## Experience modes
+
+- **`saas`** (Stoop): the public product site — full marketing nav, pricing,
+  landlord sign-up CTAs.
+- **`portal`** (Hawk): a property company's own front door — the homepage is a
+  resident portal (`pages/marketing/PortalHome.tsx`: pay rent / maintenance /
+  apply / sign in), the header nav collapses to `marketingNav`, CTAs become
+  "Sign in", and the footer trims the SaaS links. Marketing routes still exist,
+  they're just not surfaced.
+
+## Per-landlord branding (runtime, any brand)
+
+Independent of the build-time brand, each landlord can brand their tenants'
+portal from **Settings → Company**: company name, logo (already existed), and
+a new accent color (`profiles.brand_color`, migration
+`20260701000001_landlord_brand_color.sql`).
+
+- `apps/web/src/lib/landlordBrand.ts` derives a full 50–900 palette from the
+  single hex and **auto-darkens the 500/600 steps until white-text contrast
+  clears WCAG AA**, so any color a landlord picks stays accessible.
+- `apps/web/src/hooks/useLandlordBranding.ts` resolves the tenant's manager
+  (via their current lease) and reads the three branding fields.
+- `TenantLayout` shows landlord logo → company name → build brand (in that
+  order) and applies the accent while mounted; a **"Powered by Stoop"**
+  attribution shows whenever another brand fronts the portal.
+
+## Guardrails
+
+- `apps/web/src/lib/brandLeaks.test.ts` fails CI if anyone hardcodes
+  user-visible Stoop branding outside the registry (comments and the
+  intentional attribution strings are exempt).
+- `apps/web/src/lib/landlordBrand.test.ts` proves the contrast guarantee.
 
 Component code never hardcodes a brand: it imports `BRAND` (and
 `IS_WHITE_LABEL`, `brandColor()` for chart/SVG colors) from `lib/brand`.
@@ -49,7 +84,9 @@ re-color automatically.
 2. Drop logo assets in `apps/web/public/brands/<id>/` (horizontal wordmark +
    square mark; SVG preferred). Marks should survive the
    `brightness-0 invert` treatment used on dark footers.
-3. Add a matching entry to `PWA_BRANDS` in `apps/web/vite.config.ts`.
+3. Add a matching entry to `BUILD_BRANDS` in `apps/web/vite.config.ts`
+   (PWA manifest + static HTML metadata; icons optional — falls back to the
+   shared set).
 4. Build with `VITE_BRAND=<id>`.
 
 ## What stays "Stoop" on purpose
@@ -72,5 +109,5 @@ re-color automatically.
 - `hawkinvestments.com`, `support@` / `hello@hawkinvestments.com` are
   placeholders in `brand.ts` — update to the real domain and inboxes before
   going live.
-- PWA icons currently reuse the shared `/icons/*.png` set; generate a Hawk
-  set if the branded build will be installed as a PWA.
+- PWA icons live in `apps/web/public/brands/hawk/icons/` (rendered from the
+  square SVG); regenerate them if the mark changes.

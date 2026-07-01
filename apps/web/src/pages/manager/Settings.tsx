@@ -10,11 +10,13 @@ import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
 import RenterToolsShare from '../../components/manager/RenterToolsShare'
 import { BRAND } from '../../lib/brand'
+import { deriveBrandRamp, isValidBrandHex, tripletToHex } from '../../lib/landlordBrand'
 
 interface LandlordSettings {
   full_name: string
   company_name: string
   company_logo_url: string | null
+  brand_color: string | null
   avatar_url: string | null
   notification_email_enabled: boolean
   late_fee_enabled: boolean
@@ -35,6 +37,7 @@ const defaults: LandlordSettings = {
   full_name: '',
   company_name: '',
   company_logo_url: null,
+  brand_color: null,
   avatar_url: null,
   notification_email_enabled: true,
   late_fee_enabled: false,
@@ -57,13 +60,21 @@ export default function ManagerSettings() {
   })
   const [connecting, setConnecting] = useState(false)
 
+  // Accent-color preview — same derivation the tenant portal runs, so the
+  // fake button/link below show exactly what tenants will get (including the
+  // automatic darkening of low-contrast picks).
+  const defaultAccentHex = tripletToHex(BRAND.colors['500'])
+  const accentPreview = settings.brand_color && isValidBrandHex(settings.brand_color)
+    ? deriveBrandRamp(settings.brand_color)
+    : null
+
   useEffect(() => {
     if (!profile?.id) return
     let cancelled = false
     ;(async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, company_name, company_logo_url, avatar_url, notification_email_enabled, late_fee_enabled, late_fee_amount, late_fee_grace_days, late_fee_type, late_fee_percent, stripe_connect_account_id, stripe_connect_charges_enabled, stripe_connect_payouts_enabled, stripe_connect_onboarded_at')
+        .select('full_name, company_name, company_logo_url, brand_color, avatar_url, notification_email_enabled, late_fee_enabled, late_fee_amount, late_fee_grace_days, late_fee_type, late_fee_percent, stripe_connect_account_id, stripe_connect_charges_enabled, stripe_connect_payouts_enabled, stripe_connect_onboarded_at')
         .eq('id', profile.id)
         .single()
       if (cancelled) return
@@ -72,6 +83,7 @@ export default function ManagerSettings() {
           full_name: data.full_name ?? '',
           company_name: data.company_name ?? '',
           company_logo_url: data.company_logo_url ?? null,
+          brand_color: data.brand_color ?? null,
           avatar_url: data.avatar_url ?? null,
           notification_email_enabled: data.notification_email_enabled ?? true,
           late_fee_enabled: data.late_fee_enabled ?? false,
@@ -123,6 +135,10 @@ export default function ManagerSettings() {
 
   const saveProfile = async () => {
     if (!profile?.id) return
+    if (settings.brand_color && !isValidBrandHex(settings.brand_color)) {
+      toast.error('Accent color must be a 6-digit hex code like #336699')
+      return
+    }
     setSavingProfile(true)
     const { error } = await supabase
       .from('profiles')
@@ -130,6 +146,7 @@ export default function ManagerSettings() {
         full_name: settings.full_name.trim(),
         company_name: settings.company_name.trim() || null,
         company_logo_url: settings.company_logo_url,
+        brand_color: settings.brand_color,
         avatar_url: settings.avatar_url,
       })
       .eq('id', profile.id)
@@ -249,6 +266,58 @@ export default function ManagerSettings() {
             size={72}
             label="Company logo"
           />
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Accent color</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={settings.brand_color && isValidBrandHex(settings.brand_color) ? settings.brand_color : defaultAccentHex}
+                onChange={(e) => setSettings((s) => ({ ...s, brand_color: e.target.value }))}
+                aria-label="Pick accent color"
+                className="h-10 w-14 p-1 border border-gray-300 rounded-lg cursor-pointer bg-white"
+              />
+              <input
+                type="text"
+                value={settings.brand_color ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value.trim()
+                  setSettings((s) => ({ ...s, brand_color: v === '' ? null : v.startsWith('#') ? v : `#${v}` }))
+                }}
+                placeholder={defaultAccentHex}
+                maxLength={7}
+                aria-label="Accent color hex code"
+                className="w-28 px-3 py-2.5 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              {settings.brand_color !== null && (
+                <button
+                  type="button"
+                  onClick={() => setSettings((s) => ({ ...s, brand_color: null }))}
+                  className="text-xs font-medium text-mute underline hover:no-underline"
+                >
+                  Reset to default
+                </button>
+              )}
+            </div>
+            {accentPreview && (
+              <div className="mt-3 flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <span
+                  className="text-white text-sm font-medium px-4 py-2 rounded-lg"
+                  style={{ backgroundColor: `rgb(${accentPreview['500']})` }}
+                >
+                  Pay rent
+                </span>
+                <span className="text-sm font-medium underline" style={{ color: `rgb(${accentPreview['600']})` }}>
+                  View lease
+                </span>
+                <span className="text-xs text-mute ml-auto">Tenant-portal preview</span>
+              </div>
+            )}
+            <p className="text-xs text-mute mt-1.5">
+              Your name, logo, and color appear on your tenants' portal. Colors that are too
+              light get automatically darkened on buttons and links so text stays readable.
+            </p>
+          </div>
 
           <div className="flex justify-end pt-2">
             <button

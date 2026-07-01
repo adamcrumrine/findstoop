@@ -8,9 +8,15 @@ import MarketingLayout from './components/layout/MarketingLayout'
 import ApplyLayout from './components/layout/ApplyLayout'
 import AdminLayout from './components/layout/AdminLayout'
 import { trackPageView } from './lib/analytics'
+import { BRAND } from './lib/brand'
 
-// Public marketing
-const MarketingHome        = lazy(() => import('./pages/marketing/Home'))
+// Public marketing. Portal-experience brands (a property company's own site)
+// get a resident-focused homepage instead of the SaaS pitch.
+const MarketingHome        = lazy(() =>
+  BRAND.experience === 'portal'
+    ? import('./pages/marketing/PortalHome')
+    : import('./pages/marketing/Home'),
+)
 const MarketingFeatures    = lazy(() => import('./pages/marketing/Features'))
 const MarketingPricing     = lazy(() => import('./pages/marketing/Pricing'))
 const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))

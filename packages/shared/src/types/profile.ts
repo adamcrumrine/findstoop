@@ -12,6 +12,8 @@ export interface Profile {
   company_name: string | null
   company_address: string | null
   company_logo_url: string | null
+  /** Landlord accent color as 6-digit hex ("#2E5984"); null = default palette. Tenants see it on their portal. */
+  brand_color?: string | null
   mfa_enabled: boolean
   mfa_method: MfaMethod
   subscription_complimentary?: boolean

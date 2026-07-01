@@ -3,6 +3,25 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// PWA manifest fields per white-label brand (VITE_BRAND). This mirrors
+// src/lib/brand.ts, which can't be imported here because it reads
+// import.meta.env. Icons stay shared until a brand supplies its own set.
+const PWA_BRANDS: Record<string, { name: string; short_name: string; description: string; theme_color: string }> = {
+  stoop: {
+    name: 'Stoop — Property Management',
+    short_name: 'Stoop',
+    description: 'Property management software built for landlords with a handful of units. Listings, screening, e-sign leases, online rent, maintenance.',
+    theme_color: '#00A896',
+  },
+  hawk: {
+    name: 'Hawk Investments — Property Management',
+    short_name: 'Hawk',
+    description: 'Property management by Hawk Investments. Listings, screening, e-sign leases, online rent, maintenance.',
+    theme_color: '#1B2A41',
+  },
+}
+const pwaBrand = PWA_BRANDS[process.env.VITE_BRAND || 'stoop'] ?? PWA_BRANDS.stoop
+
 export default defineConfig({
   plugins: [
     react(),
@@ -10,10 +29,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'robots.txt', 'sitemap.xml'],
       manifest: {
-        name: 'Stoop — Property Management',
-        short_name: 'Stoop',
-        description: 'Property management software built for landlords with a handful of units. Listings, screening, e-sign leases, online rent, maintenance.',
-        theme_color: '#00A896',
+        ...pwaBrand,
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
@@ -35,7 +51,7 @@ export default defineConfig({
       workbox: {
         // Cache app shell + JS/CSS, but skip the marketing illustrations —
         // they're large PNGs that don't need to live in the offline cache.
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icons/*.png', 'favicon-*.png', 'apple-touch-icon.png', 'stoop_logo*.png'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icons/*.png', 'favicon-*.png', 'apple-touch-icon.png', 'stoop_logo*.png', 'brands/**/*.svg'],
         globIgnores: ['**/illustrations/**'],
         // Network-first for API calls, cache-first for assets
         runtimeCaching: [

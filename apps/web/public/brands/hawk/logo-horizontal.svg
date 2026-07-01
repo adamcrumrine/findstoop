@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 96" role="img" aria-label="Hawk Investments">
+  <!-- Mark: same hawk head as logo-square.svg, navy on transparent with gold eye -->
+  <g transform="translate(10 10) scale(1.2)">
+    <path fill="#1B2A41" d="
+      M 8 40
+      L 7 20
+      C 7 11, 13 6, 22 6
+      L 31 6
+      L 38 11
+      L 51 16
+      L 47 25
+      L 40 21
+      C 39.5 27, 37 32, 32 35
+      L 24 39
+      L 20 45
+      L 16 40.5
+      L 11 45
+      Z"/>
+    <circle cx="32" cy="14.5" r="2.8" fill="#C9A227"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="86" y="52" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="2" fill="#1B2A41">HAWK</text>
+  <text x="87" y="76" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" letter-spacing="6.5" fill="#C9A227">INVESTMENTS</text>
+</svg>

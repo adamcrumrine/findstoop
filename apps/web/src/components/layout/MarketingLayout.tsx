@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, Navigate } from 'react-router-dom'
 import { Menu, X, UserCircle2 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { defaultPathForRole } from '../../lib/roleRouting'
+import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
 
 const navLinks = [
   { to: '/tenability', label: 'Tenability™' },
@@ -46,8 +47,8 @@ export default function MarketingLayout() {
       {/* ── Header ────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 h-24 flex items-center justify-between">
-          <Link to="/" className="flex items-center" aria-label="Stoop home">
-            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-14 w-auto" />
+          <Link to="/" className="flex items-center" aria-label={`${BRAND.name} home`}>
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
           </Link>
 
           {/* Desktop nav */}
@@ -127,7 +128,7 @@ export default function MarketingLayout() {
       <footer className="bg-ink text-white mt-16">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 py-12 grid grid-cols-2 md:grid-cols-5 gap-8 text-sm">
           <div className="col-span-2">
-            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-7 w-auto brightness-0 invert mb-3" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-7 w-auto brightness-0 invert mb-3" />
             <p className="text-white/60 max-w-xs">
               The all-in-one rental platform for landlords who'd rather collect rent
               than chase it.
@@ -188,8 +189,9 @@ export default function MarketingLayout() {
         </div>
         <div className="border-t border-white/10">
           <div className="max-w-6xl mx-auto px-5 lg:px-8 py-5 text-xs text-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p>© {new Date().getFullYear()} Stoop. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} {BRAND.legalName}. All rights reserved.</p>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
+              {IS_WHITE_LABEL && <p className="text-white/40">Powered by Stoop</p>}
               <p className="text-white/40">
                 <a
                   href="https://storyset.com/home"

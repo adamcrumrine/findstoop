@@ -8,24 +8,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary teal accent. The 500/600 tokens are tuned for WCAG AA — white
+        // Primary accent. The 500/600 tokens are tuned for WCAG AA — white
         // text on `bg-brand-500` clears 4.5:1, and `text-brand-600` on white
         // clears 4.5:1, so the default button + link styles are accessible
-        // without per-component overrides. The 50–400 light end is unchanged
-        // because it's only ever used as a background under dark text.
-        // The hero `brand-gradient` keeps its original highlight values since
-        // it's decorative and never carries body text.
+        // without per-component overrides. The 50–400 light end is only ever
+        // used as a background under dark text.
+        // Values live as RGB-triplet CSS variables (src/index.css holds the
+        // Stoop teal defaults; src/lib/brand.ts overwrites them at boot for
+        // white-label builds selected via VITE_BRAND). Every brand's ramp
+        // must clear the same AA bars.
         brand: {
-          50:  '#e6f9f6',
-          100: '#b3ebe3',
-          200: '#80ddcf',
-          300: '#4dcfbb',
-          400: '#00B4A2',
-          500: '#008275', // was #00A896 — 2.98:1 → 4.72:1 vs white
-          600: '#006e62', // was #009487 — 3.76:1 → 6.17:1 vs white
-          700: '#005951', // was #007a6f — kept dark for hover state
-          800: '#003e39',
-          900: '#002a26',
+          50:  'rgb(var(--brand-50) / <alpha-value>)',
+          100: 'rgb(var(--brand-100) / <alpha-value>)',
+          200: 'rgb(var(--brand-200) / <alpha-value>)',
+          300: 'rgb(var(--brand-300) / <alpha-value>)',
+          400: 'rgb(var(--brand-400) / <alpha-value>)',
+          500: 'rgb(var(--brand-500) / <alpha-value>)', // stoop: #008275 — 4.72:1 vs white
+          600: 'rgb(var(--brand-600) / <alpha-value>)', // stoop: #006e62 — 6.17:1 vs white
+          700: 'rgb(var(--brand-700) / <alpha-value>)', // stoop: #005951 — hover state
+          800: 'rgb(var(--brand-800) / <alpha-value>)',
+          900: 'rgb(var(--brand-900) / <alpha-value>)',
         },
         // Primary text — dark charcoal / off-black.
         ink: {
@@ -43,7 +45,8 @@ export default {
         },
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #00A896 0%, #00B4A2 100%)',
+        // Decorative hero gradient — endpoints are brand variables too.
+        'brand-gradient': 'linear-gradient(135deg, rgb(var(--brand-grad-from)) 0%, rgb(var(--brand-grad-to)) 100%)',
       },
     },
   },

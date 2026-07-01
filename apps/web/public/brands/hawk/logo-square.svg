@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hawk Investments">
+  <rect width="64" height="64" rx="14" fill="#1B2A41"/>
+  <!-- Geometric hawk head, side profile facing right: angular brow, hooked beak, feathered neck -->
+  <path fill="#C9A227" d="
+    M 15 46
+    L 14 26
+    C 14 17, 20 12, 29 12
+    L 38 12
+    L 45 17
+    L 58 22
+    L 54 31
+    L 47 27
+    C 46.5 33, 44 38, 39 41
+    L 31 45
+    L 27 51
+    L 23 46.5
+    L 18 51
+    Z"/>
+  <circle cx="39" cy="20.5" r="2.8" fill="#1B2A41"/>
+</svg>

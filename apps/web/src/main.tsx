@@ -5,11 +5,16 @@ import { registerSW } from 'virtual:pwa-register'
 import { AuthProvider } from '@findstoop/shared/hooks/AuthProvider'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import { installGlobalErrorHandlers } from './lib/analytics'
+import { applyBrandTheme } from './lib/brand'
 import App from './App.tsx'
 import './index.css'
 
 // Capture uncaught errors / promise rejections before anything renders.
 installGlobalErrorHandlers()
+
+// Point the accent palette / title / favicon at the active brand (VITE_BRAND)
+// before first paint so white-label builds never flash Stoop styling.
+applyBrandTheme()
 
 // Register service worker — auto-updates silently in background
 registerSW({ immediate: false })

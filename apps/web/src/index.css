@@ -19,6 +19,13 @@
   --brand-900: 0 42 38;
   --brand-grad-from: 0 168 150;
   --brand-grad-to: 0 180 162;
+  /* White-label brands set this to hue-shift the teal-tinted stock
+     illustrations toward their accent color (see brand.ts). */
+  --illustration-filter: none;
+}
+
+img[src^='/illustrations/'] {
+  filter: var(--illustration-filter);
 }
 
 @layer utilities {

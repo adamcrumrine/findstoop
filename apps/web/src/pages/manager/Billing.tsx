@@ -10,6 +10,7 @@ import { formatUsd } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
 import SubscribeModal from '../../components/manager/SubscribeModal'
 import ManageBillingModal from '../../components/manager/ManageBillingModal'
+import { BRAND } from '../../lib/brand'
 
 // Single-tier pricing: $9 per active unit per month, billed from unit 1.
 // (Annual prepay variant: $90/unit/year — non-refundable.)
@@ -220,7 +221,7 @@ export default function Billing() {
         <h1 className="text-2xl font-semibold text-ink">Billing</h1>
         <p className="text-sm text-mute mt-1">
           {state.complimentary
-            ? 'All Stoop features unlocked at no charge.'
+            ? `All ${BRAND.name} features unlocked at no charge.`
             : `${formatUsd(PER_UNIT)} per active unit per month. Or save 16.7% with annual prepay (${formatUsd(PER_UNIT * 10)}/unit/year, non-refundable).`}
         </p>
       </header>
@@ -392,7 +393,7 @@ export default function Billing() {
           <CreditCard className="w-5 h-5 text-brand-600 mt-0.5" strokeWidth={1.75} />
           <div className="flex-1">
             <p className="font-semibold text-ink">
-              Stoop — {state.interval === 'year' ? 'annual prepay' : 'monthly'}
+              {BRAND.name} — {state.interval === 'year' ? 'annual prepay' : 'monthly'}
               {state.interval === 'year' && (
                 <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full align-middle">
                   Non-refundable
@@ -495,7 +496,7 @@ function getStatusInfo(status: string | null, subscriptionId: string | null, com
   if (!subscriptionId || !status) {
     return {
       heading: 'Subscription required',
-      subtitle: 'Stoop is $9 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through Stoop.',
+      subtitle: `${BRAND.name} is $9 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through ${BRAND.name}.`,
       Icon: AlertTriangle,
       bannerCls: 'bg-red-50 border-red-200',
       iconCls: 'text-red-700',

@@ -19,6 +19,7 @@ import {
   requestParcelCoverage, hasRequestedParcelCoverage, prefillProperty,
   type RentEstimateReport, type SavedRentReport, type ReportTier,
 } from '@findstoop/shared'
+import { BRAND } from '../../lib/brand'
 
 // Map a county land-use description onto our property-type dropdown.
 function dropdownTypeFor(countyType: string | null): string | null {
@@ -426,7 +427,7 @@ function ReportDetail({ report, reportId }: { report: RentEstimateReport; report
       {report.leaseSignal && (
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-mute mb-3">
-            Real lease data <span className="text-gray-400 normal-case font-normal">· FindStoop network</span>
+            Real lease data <span className="text-gray-400 normal-case font-normal">· {BRAND.name} network</span>
           </h3>
           {report.leaseSignal.subject && (
             <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2.5 text-sm">

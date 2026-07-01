@@ -6,12 +6,13 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
+import { brandColor } from '../../lib/brand'
 
 // Brand teal anchors the data-viz palette — same family as the payments
 // donut and the status pills, so "money/occupied/healthy" reads as one hue
 // across the whole app instead of indigo here and teal elsewhere.
-const BRAND = '#008275'
-const BRAND_LIGHT = '#80ddcf'
+const CHART_ACCENT = brandColor('500')
+const CHART_ACCENT_LIGHT = brandColor('200')
 const BLUE = '#3b82f6'
 const GREEN = '#22c55e'
 const AMBER = '#f59e0b'
@@ -118,7 +119,7 @@ export default function ManagerReports() {
   ].filter((d) => d.value > 0)
 
   const occupancyPieData = [
-    { name: 'Occupied', value: occupancy.occupied, color: BRAND },
+    { name: 'Occupied', value: occupancy.occupied, color: CHART_ACCENT },
     { name: 'Vacant', value: occupancy.vacant, color: GRAY },
   ]
 
@@ -194,8 +195,8 @@ export default function ManagerReports() {
             />
             <Tooltip content={<CustomTooltip currency />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="collected" name="Collected" fill={BRAND} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="outstanding" name="Outstanding" fill={BRAND_LIGHT} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="collected" name="Collected" fill={CHART_ACCENT} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="outstanding" name="Outstanding" fill={CHART_ACCENT_LIGHT} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -219,9 +220,9 @@ export default function ManagerReports() {
               type="monotone"
               dataKey="rate"
               name="Collection Rate"
-              stroke={BRAND}
+              stroke={CHART_ACCENT}
               strokeWidth={2.5}
-              dot={{ fill: BRAND, r: 4 }}
+              dot={{ fill: CHART_ACCENT, r: 4 }}
               activeDot={{ r: 6 }}
             />
             {/* 100% target line */}
@@ -269,7 +270,7 @@ export default function ManagerReports() {
               </ResponsiveContainer>
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: BRAND }} />
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: CHART_ACCENT }} />
                   <span className="text-gray-600">Occupied</span>
                   <span className="font-semibold text-gray-900 ml-auto">{occupancy.occupied}</span>
                 </div>

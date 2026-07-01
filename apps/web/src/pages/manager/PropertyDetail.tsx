@@ -27,6 +27,7 @@ import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import Avatar from '../../components/shared/Avatar'
+import { BRAND, brandColor } from '../../lib/brand'
 
 type TabId = 'overview' | 'units' | 'leases' | 'tenants' | 'maintenance' | 'payments'
 
@@ -412,7 +413,7 @@ function StudentHousingCard({ property, onUpdate }: { property: Property; onUpda
           <p className="text-xs text-mute mt-1.5 leading-relaxed">
             Turn this on for a student / off-campus rental. Your tenants get free renter tools in
             their portal — a plain-English lease explainer, their Ohio tenant rights, move-in
-            documentation, and deposit protection. Powered by Stoop.
+            documentation, and deposit protection. Powered by {BRAND.name}.
           </p>
         </div>
         <button
@@ -1282,7 +1283,7 @@ function PropertyEditForm({
     if (field === 'state' && isBlockedState(value)) {
       setErrors((e) => ({
         ...e,
-        state: `Stoop isn't yet available for properties in ${blockedStateName(value)}.`,
+        state: `${BRAND.name} isn't yet available for properties in ${blockedStateName(value)}.`,
       }))
       return
     }
@@ -1552,7 +1553,7 @@ function ProgressRing({ pct, size = 30 }: { pct: number; size?: number }) {
       {clamped > 0 && (
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke={full ? '#16a34a' : '#008275'} strokeWidth="3" strokeLinecap="round"
+          stroke={full ? '#16a34a' : brandColor('500')} strokeWidth="3" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c - (clamped / 100) * c}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />

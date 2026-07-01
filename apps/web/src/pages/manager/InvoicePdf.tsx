@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { BRAND } from '../../lib/brand'
 
 interface InvoiceLine {
   id: string
@@ -144,15 +145,15 @@ export default function InvoicePdf() {
                 )}
               </div>
             </div>
-            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-10" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10" />
           </div>
 
           {/* Parties */}
           <div className="grid grid-cols-2 gap-8 mb-10 text-sm">
             <div>
-              <p className="font-bold text-ink mb-1">Stoop</p>
+              <p className="font-bold text-ink mb-1">{BRAND.name}</p>
               <p className="text-mute">Property management software</p>
-              <p className="text-mute">findstoop.com</p>
+              <p className="text-mute">{BRAND.domain}</p>
             </div>
             <div>
               <p className="font-bold text-ink mb-1">Bill to</p>
@@ -194,7 +195,7 @@ export default function InvoicePdf() {
               {invoice.lines.map((line) => (
                 <tr key={line.id} className="align-top">
                   <td className="py-3">
-                    <p>{line.description ?? 'Stoop subscription'}</p>
+                    <p>{line.description ?? `${BRAND.name} subscription`}</p>
                     {line.periodStart && line.periodEnd && (
                       <p className="text-xs text-mute mt-0.5">
                         {fmtDate(line.periodStart)} – {fmtDate(line.periodEnd)}
@@ -247,7 +248,7 @@ export default function InvoicePdf() {
 
           {/* Footer */}
           <div className="mt-12 pt-6 border-t border-gray-200 text-xs text-mute text-center">
-            <p>Thank you for using Stoop. Questions? hello@findstoop.com</p>
+            <p>Thank you for using {BRAND.name}. Questions? {BRAND.helloEmail}</p>
           </div>
         </div>
       </div>

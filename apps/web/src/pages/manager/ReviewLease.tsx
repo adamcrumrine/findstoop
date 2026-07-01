@@ -31,6 +31,7 @@ import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import { useInspection } from '@findstoop/shared/hooks/useInspection'
 import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { BRAND } from '../../lib/brand'
 
 interface LeaseWithRefs extends Lease {
   payment_due_day?: number | null
@@ -536,7 +537,7 @@ export default function ReviewLease() {
       if (!tenantProfile) {
         // Not in Stoop yet — expand to invite form.
         setAddTenantStep('invite')
-        toast(`${email} isn't in Stoop yet — add their name to send an invite.`, { icon: 'ℹ️' })
+        toast(`${email} isn't in ${BRAND.name} yet — add their name to send an invite.`, { icon: 'ℹ️' })
         return
       }
       const ok = await attachExistingTenant(tenantProfile)
@@ -834,7 +835,7 @@ export default function ReviewLease() {
                     {addTenantStep === 'invite' && (
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-2 space-y-1.5">
                         <p className="text-[11px] text-blue-900">
-                          <strong>{addTenantEmail}</strong> isn't on Stoop yet — add their name and we'll send an invite email + add them to this lease.
+                          <strong>{addTenantEmail}</strong> isn't on {BRAND.name} yet — add their name and we'll send an invite email + add them to this lease.
                         </p>
                         <div className="grid grid-cols-2 gap-1.5">
                           <input
@@ -1099,11 +1100,11 @@ export default function ReviewLease() {
                     {attachedSignedDoc?.name ?? 'Signed lease.pdf'}
                   </p>
                   <p className="mt-1 text-emerald-900/80 leading-relaxed">
-                    This lease was already executed before migrating to Stoop. The signed PDF is stored in
+                    This lease was already executed before migrating to {BRAND.name}. The signed PDF is stored in
                     {' '}
                     <Link to="/manager/documents" className="underline font-medium">Documents</Link>
-                    {' '}as the authoritative agreement. No Stoop draft or e-signature step is required —
-                    when this term ends (or at renewal), you'll generate a new Stoop lease.
+                    {' '}as the authoritative agreement. No {BRAND.name} draft or e-signature step is required —
+                    when this term ends (or at renewal), you'll generate a new {BRAND.name} lease.
                   </p>
                 </div>
               </div>
@@ -1135,7 +1136,7 @@ export default function ReviewLease() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3 text-[11px] text-amber-900 flex items-start gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.75} />
                 <span>
-                  Boilerplate is verbatim from Stoop's lease template — not edited here. The document below re-renders live as you change fields above.
+                  Boilerplate is verbatim from {BRAND.name}'s lease template — not edited here. The document below re-renders live as you change fields above.
                 </span>
               </div>
 

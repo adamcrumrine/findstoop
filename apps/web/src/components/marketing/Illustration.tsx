@@ -25,7 +25,7 @@ export default function Illustration({ name, Fallback, className }: Props) {
   if (error) {
     return (
       <div className={wrapperClass}>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(0,168,150,0.10),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgb(var(--brand-grad-from)/0.10),transparent_60%)]" />
         <div className="relative h-full w-full flex items-center justify-center p-12">
           <Fallback className="w-24 h-24 text-brand-600/50" strokeWidth={1.2} />
         </div>

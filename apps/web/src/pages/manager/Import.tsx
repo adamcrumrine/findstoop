@@ -24,6 +24,7 @@ import {
   type PropertyCsvKey, type TenantCsvKey,
 } from '../../lib/csvParser'
 import ImportAvail from './ImportAvail'
+import { BRAND } from '../../lib/brand'
 
 type Step = 'source' | 'properties' | 'tenants' | 'review' | 'done'
 type Source = 'avail' | 'buildium' | 'doorloop' | 'tenantcloud' | 'appfolio' | 'turbotenant' | 'csv'
@@ -394,7 +395,7 @@ export default function Import() {
                   {meta.instructions.map((line, i) => <li key={i}>{line}</li>)}
                 </ol>
                 <p className="text-xs text-amber-800 mt-2">
-                  Stuck? Email <a href="mailto:support@findstoop.com" className="underline font-medium">support@findstoop.com</a> — we'll help you pull the right files.
+                  Stuck? Email <a href={`mailto:${BRAND.supportEmail}`} className="underline font-medium">{BRAND.supportEmail}</a> — we'll help you pull the right files.
                 </p>
               </div>
             )
@@ -402,7 +403,7 @@ export default function Import() {
 
           <p className="text-[10px] text-mute mt-5 leading-relaxed">
             Avail, Buildium, DoorLoop, TenantCloud, AppFolio, and TurboTenant are trademarks of their respective owners.
-            Stoop is not affiliated with, endorsed by, or sponsored by any of them.
+            {BRAND.name} is not affiliated with, endorsed by, or sponsored by any of them.
           </p>
 
           <div className="mt-6 flex justify-end">
@@ -574,8 +575,8 @@ export default function Import() {
           <div className="bg-brand-50/60 border border-brand-200 rounded-xl p-4 text-sm text-ink">
             <p className="font-semibold inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-brand-600" />What happens when you click Import</p>
             <ul className="list-disc pl-5 mt-2 text-xs text-mute leading-relaxed space-y-1">
-              <li>Properties and units are created in your Stoop dashboard</li>
-              <li>Each tenant gets an email invite to claim their Stoop account</li>
+              <li>Properties and units are created in your {BRAND.name} dashboard</li>
+              <li>Each tenant gets an email invite to claim their {BRAND.name} account</li>
               <li>Leases are created in <strong>Pending</strong> — activate from the Leases tab when ready</li>
               <li>Your subscription quantity updates only when you activate leases (not at import)</li>
             </ul>

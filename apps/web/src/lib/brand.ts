@@ -29,6 +29,8 @@ export interface Brand {
   origin: string
   /** Bare domain for user-visible copy ("findstoop.com"). */
   domain: string
+  /** Prefix for downloaded file names ("findstoop-rent-roll-….csv"). */
+  fileSlug: string
   supportEmail: string
   helloEmail: string
   logo: {
@@ -51,6 +53,11 @@ export interface Brand {
   colors: Record<'50' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900', string>
   /** Hero gradient endpoints, RGB triplets. Decorative — no AA requirement. */
   gradient: [string, string]
+  /**
+   * Optional CSS filter applied to the teal-tinted stock marketing
+   * illustrations so they lean toward the brand hue without new artwork.
+   */
+  illustrationFilter?: string
 }
 
 const stoop: Brand = {
@@ -63,6 +70,7 @@ const stoop: Brand = {
     'Run your rentals like a pro without becoming one. Stoop combines listings, verified pre-qualification, e-sign leases, rent collection, and maintenance in one tool — $9 per unit per month.',
   origin: 'https://findstoop.com',
   domain: 'findstoop.com',
+  fileSlug: 'findstoop',
   supportEmail: 'support@findstoop.com',
   helloEmail: 'hello@findstoop.com',
   logo: {
@@ -99,6 +107,7 @@ const hawk: Brand = {
   // Placeholder domain — update when Hawk's real domain is wired up.
   origin: 'https://hawkinvestments.com',
   domain: 'hawkinvestments.com',
+  fileSlug: 'hawk-investments',
   supportEmail: 'support@hawkinvestments.com',
   helloEmail: 'hello@hawkinvestments.com',
   logo: {
@@ -122,6 +131,8 @@ const hawk: Brand = {
     900: '11 24 38',
   },
   gradient: ['27 42 65', '46 89 132'],
+  // Stock teal (~173°) → navy (~210°), slightly desaturated.
+  illustrationFilter: 'hue-rotate(37deg) saturate(0.75)',
 }
 
 export const BRANDS: Record<string, Brand> = { stoop, hawk }
@@ -156,6 +167,9 @@ export function applyBrandTheme(doc: Document = document) {
   }
   root.style.setProperty('--brand-grad-from', BRAND.gradient[0])
   root.style.setProperty('--brand-grad-to', BRAND.gradient[1])
+  if (BRAND.illustrationFilter) {
+    root.style.setProperty('--illustration-filter', BRAND.illustrationFilter)
+  }
 
   if (!IS_WHITE_LABEL) return
 

@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
 import RenterToolsShare from '../../components/manager/RenterToolsShare'
+import { BRAND } from '../../lib/brand'
 
 interface LandlordSettings {
   full_name: string
@@ -316,7 +317,7 @@ export default function ManagerSettings() {
         </div>
         <p className="text-sm text-mute mb-5">
           Connect your bank through Stripe to receive rent payments directly to your account.
-          Until you do, rent flows through Stoop and we issue a payout — Connect is faster,
+          Until you do, rent flows through {BRAND.name} and we issue a payout — Connect is faster,
           shorter to settle, and lets you see deposits in your Stripe dashboard.
         </p>
 
@@ -367,7 +368,7 @@ export default function ManagerSettings() {
         )}
 
         <p className="mt-3 text-xs text-mute leading-relaxed">
-          Stripe handles the KYC (driver's license + bank routing) — usually 2-3 minutes. Your information stays with Stripe; Stoop only sees whether the account is active.
+          Stripe handles the KYC (driver's license + bank routing) — usually 2-3 minutes. Your information stays with Stripe; {BRAND.name} only sees whether the account is active.
         </p>
       </section>
 
@@ -378,7 +379,7 @@ export default function ManagerSettings() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Late-fee rules</h2>
         </div>
         <p className="text-sm text-mute mb-5">
-          When rent is unpaid past the grace window, Stoop automatically
+          When rent is unpaid past the grace window, {BRAND.name} automatically
           assesses a late fee on the tenant's balance and emails them a notice.
         </p>
 

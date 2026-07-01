@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Printer, Loader2 } from 'lucide-react'
 import { getRentReport, type SavedRentReport } from '@findstoop/shared'
+import { BRAND } from '../../lib/brand'
 
 const money = (n: number | null | undefined) => (n == null ? '—' : '$' + Math.round(n).toLocaleString())
 
@@ -95,7 +96,7 @@ export default function RentalReportPdf() {
               <p className="text-sm text-mute mt-1">{row.address}{row.unit_number ? ` ${row.unit_number}` : ''}{row.zip ? `, ${row.zip}` : ''}</p>
               <p className="text-xs text-mute mt-0.5">Prepared {new Date(row.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
-            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-9" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-9" />
           </div>
 
           {/* Hero estimate */}
@@ -176,7 +177,7 @@ export default function RentalReportPdf() {
               This Rental Analysis Report is a statistical estimate generated from public data and is provided for
               informational purposes only. It is not an appraisal, a guarantee of achievable rent, or a recommendation
               to set rent at any specific amount. Rent decisions must comply with all applicable fair-housing and
-              local rent regulations. © {new Date().getFullYear()} Stoop · findstoop.com
+              local rent regulations. © {new Date().getFullYear()} {BRAND.legalName} · {BRAND.domain}
             </p>
           </div>
         </div>

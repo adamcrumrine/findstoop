@@ -10,6 +10,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getProperties } from '@findstoop/shared/api/properties'
 import { getRentRoll } from '@findstoop/shared/api/rentRoll'
 import { supabase } from '../../lib/supabase'
+import { BRAND } from '../../lib/brand'
 
 function csvEscape(v: unknown): string {
   const s = String(v ?? '')
@@ -72,7 +73,7 @@ function RentRollCard() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `findstoop-rent-roll-${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = `${BRAND.fileSlug}-rent-roll-${new Date().toISOString().slice(0, 10)}.csv`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
@@ -173,7 +174,7 @@ function TaxCenter() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `findstoop-transactions-${year}.csv`
+      a.download = `${BRAND.fileSlug}-transactions-${year}.csv`
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -217,7 +218,7 @@ function TaxCenter() {
         </a>
       </div>
       <p className="text-xs text-gray-500 mt-3">
-        Income is auto-filled from rent Stoop recorded as received. Confirm figures with your tax professional.
+        Income is auto-filled from rent {BRAND.name} recorded as received. Confirm figures with your tax professional.
       </p>
     </div>
   )

@@ -10,6 +10,7 @@ import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import { Building2, ChevronRight } from 'lucide-react'
 import { isBlockedState, blockedStateName, BLOCKED_STATES_DISPLAY } from '../../lib/blockedStates'
+import { BRAND } from '../../lib/brand'
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton() {
@@ -63,7 +64,7 @@ function PropertyForm({ initial = emptyForm, onSubmit, onCancel, submitting, pat
     // we haven't completed yet. Manager can still operate properties in
     // other states from the same account.
     if (form.state.trim() && isBlockedState(form.state)) {
-      e.state = `Stoop isn't yet available for properties in ${blockedStateName(form.state)}. Currently paused in: ${BLOCKED_STATES_DISPLAY}.`
+      e.state = `${BRAND.name} isn't yet available for properties in ${blockedStateName(form.state)}. Currently paused in: ${BLOCKED_STATES_DISPLAY}.`
     }
     setErrors(e)
     return Object.keys(e).length === 0

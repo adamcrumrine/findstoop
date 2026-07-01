@@ -26,6 +26,7 @@ import {
   extractPdfFirstPageText, extractLeaseStartDate, autoMatchPdfs,
   type LeasePdfMatch,
 } from '../../lib/leasePdfMatch'
+import { BRAND } from '../../lib/brand'
 
 interface UnitOption {
   id: string
@@ -952,7 +953,7 @@ function CreateLeaseFromPdfSection({ units, open, onToggle, onCreated }: {
               ))}
             </div>
             <p className="text-[10px] text-mute italic mt-1.5">
-              If a tenant isn't on Stoop yet, they get an invite email automatically and are added to this lease.
+              If a tenant isn't on {BRAND.name} yet, they get an invite email automatically and are added to this lease.
               All co-tenants will be able to pay rent toward the same lease.
             </p>
           </div>

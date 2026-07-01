@@ -31,6 +31,8 @@ Everything lives in `apps/web/src/lib/brand.ts` (`BRANDS` registry):
 | Browser chrome / PWA theme color | `themeColor` (+ `PWA_BRANDS` in `vite.config.ts`) |
 | Support links & mailtos | `supportEmail`, `helloEmail`, `domain` |
 | Favicon (non-default brands) | `favicon.svg` |
+| CSV download filename prefix | `fileSlug` |
+| Stock illustration hue shift | `illustrationFilter` (optional CSS filter) |
 
 Component code never hardcodes a brand: it imports `BRAND` (and
 `IS_WHITE_LABEL`, `brandColor()` for chart/SVG colors) from `lib/brand`.

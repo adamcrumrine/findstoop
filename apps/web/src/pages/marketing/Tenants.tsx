@@ -4,6 +4,7 @@ import {
   ShieldCheck, Sparkles, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 interface Perk {
   Icon: LucideIcon
@@ -47,7 +48,7 @@ const perks: Perk[] = [
 export default function Tenants() {
   useSeo({
     title: 'For renters',
-    description: 'Apply for rentals on Stoop with verified pre-qualification for $5, e-sign your lease from your phone, and pay rent free by ACH. Verified applications jump the queue and decisions land in under 24 hours.',
+    description: `Apply for rentals on ${BRAND.name} with verified pre-qualification for $5, e-sign your lease from your phone, and pay rent free by ACH. Verified applications jump the queue and decisions land in under 24 hours.`,
     path: '/tenants',
   })
   return (
@@ -67,7 +68,7 @@ export default function Tenants() {
               <p className="mt-5 text-lg text-mute max-w-xl">
                 Apply, get verified for $5, and skip ahead of unverified applicants. Sign
                 the lease on your phone. Pay rent free by ACH. Send maintenance with a photo.
-                Renting on Stoop is the way it should've always worked.
+                Renting on {BRAND.name} is the way it should've always worked.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
@@ -120,7 +121,7 @@ export default function Tenants() {
         <div className="max-w-3xl mx-auto px-5 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">
-              What renting on Stoop costs
+              What renting on {BRAND.name} costs
             </h2>
             <p className="mt-3 text-mute">
               No subscription, no monthly fee. You pay for what you use.
@@ -162,7 +163,7 @@ export default function Tenants() {
               soon), they'll need to ask your permission separately and the FCRA rules
               apply.
             </Faq>
-            <Faq q="My landlord uses Stoop. Do I have to?">
+            <Faq q={`My landlord uses ${BRAND.name}. Do I have to?`}>
               You'll get an email invitation. Accept it, set a password, and
               your lease and history come with you. You can keep paying by check
               if you want — but most renters switch to ACH within a month.

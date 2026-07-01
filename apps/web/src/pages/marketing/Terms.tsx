@@ -4,27 +4,28 @@
 
 import { Link } from 'react-router-dom'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 export default function Terms() {
   useSeo({
     title: 'Terms of Service',
-    description: 'The agreement between Stoop and the landlords, tenants, and applicants who use the platform.',
+    description: `The agreement between ${BRAND.legalName} and the landlords, tenants, and applicants who use the platform.`,
     path: '/terms',
   })
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">
-      <Link to="/" className="text-sm text-brand-600 hover:underline">← Stoop</Link>
+      <Link to="/" className="text-sm text-brand-600 hover:underline">← {BRAND.name}</Link>
       <h1 className="text-2xl font-bold text-ink mt-4">Terms of Service</h1>
       <p className="text-sm text-mute mt-2">
-        Effective May 23, 2026. Questions: <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>.
+        Effective May 23, 2026. Questions: <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
       </p>
 
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
 
         <Sec title="1. Agreement">
-          These Terms of Service ("Terms") form a binding agreement between you and Stoop ("we", "us"),
-          covering your use of the website at findstoop.com and the software services we provide there ("Service").
+          These Terms of Service ("Terms") form a binding agreement between you and {BRAND.legalName} ("we", "us"),
+          covering your use of the website at {BRAND.domain} and the software services we provide there ("Service").
           By creating an account, accessing the Service, or applying to rent a property listed on it, you agree to these Terms.
           If you don't agree, don't use the Service.
         </Sec>
@@ -36,7 +37,7 @@ export default function Terms() {
             your own risk and may not comply with local law.
           </p>
           <p className="mt-2">
-            <strong>Stoop is currently paused for new account signups and property listings in New York, California,
+            <strong>{BRAND.legalName} is currently paused for new account signups and property listings in New York, California,
             Washington, Massachusetts, and Illinois</strong> while we complete the state-specific compliance work each
             jurisdiction requires (including, where applicable, the Illinois Biometric Information Privacy Act, the
             California Consumer Privacy Act, and various tenant-screening statutes). Marketing pages remain open to
@@ -47,7 +48,7 @@ export default function Terms() {
         <Sec title="3. Your account">
           You're responsible for keeping your login credentials secret, for everything that happens under your account, and
           for the accuracy of the information you provide. Don't share your account, and notify us immediately at{' '}
-          <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a> if you
+          <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a> if you
           suspect unauthorized access.
         </Sec>
 
@@ -69,7 +70,7 @@ export default function Terms() {
           When you submit a rental application through the Service, the property's landlord may require you to complete a
           Tenability™ screening — either Tenability™ ($5: verified income + ID + score) or Tenability™ Pro ($25: adds
           selfie ID match and an applicant-provided credit report with authenticity scoring). This fee is paid directly to
-          Stoop and is non-refundable once your documents have been processed — which happens immediately. Tenability™
+          {BRAND.legalName} and is non-refundable once your documents have been processed — which happens immediately. Tenability™
           is not a consumer report under the Fair Credit Reporting Act. See our{' '}
           <Link to="/screening-terms" className="text-brand-600 hover:underline">Screening Terms</Link> for details.
         </Sec>
@@ -81,7 +82,7 @@ export default function Terms() {
             returns may incur a fee (currently $5) charged to the tenant.
           </p>
           <p className="mt-2">
-            Stoop is not a party to any rental agreement between landlord and tenant. We act as the technology facilitator
+            {BRAND.legalName} is not a party to any rental agreement between landlord and tenant. We act as the technology facilitator
             for the payment; we do not control the lease, deposit handling, eviction processes, or any landlord-tenant relationship.
           </p>
         </Sec>
@@ -105,14 +106,14 @@ export default function Terms() {
         </Sec>
 
         <Sec title="9. Your content">
-          You keep ownership of the content you upload (photos, applications, documents). By uploading, you grant Stoop
+          You keep ownership of the content you upload (photos, applications, documents). By uploading, you grant {BRAND.legalName}
           a non-exclusive, royalty-free license to host, display, and process that content as needed to provide the Service
           — including transmitting it to the service providers listed in our <Link to="/privacy" className="text-brand-600 hover:underline">Privacy Policy</Link>.
           This license ends when you delete the content or close your account, except where retention is required by law.
         </Sec>
 
         <Sec title="10. Our intellectual property">
-          The Service software, design, brand, and content (excluding user content) are owned by Stoop and protected
+          The Service software, design, brand, and content (excluding user content) are owned by {BRAND.legalName} and protected
           by US copyright and trademark law. You may not copy, modify, distribute, or create derivative works without our
           written permission.
         </Sec>
@@ -136,15 +137,15 @@ export default function Terms() {
         </Sec>
 
         <Sec title="13. Limitation of liability">
-          TO THE MAXIMUM EXTENT PERMITTED BY LAW, FINDSTOOP'S TOTAL LIABILITY UNDER OR RELATING TO THESE TERMS OR THE
-          SERVICE IS LIMITED TO THE GREATER OF (A) THE AMOUNT YOU PAID FINDSTOOP IN THE TWELVE MONTHS BEFORE THE EVENT
+          TO THE MAXIMUM EXTENT PERMITTED BY LAW, {BRAND.legalName.toUpperCase()}'S TOTAL LIABILITY UNDER OR RELATING TO THESE TERMS OR THE
+          SERVICE IS LIMITED TO THE GREATER OF (A) THE AMOUNT YOU PAID {BRAND.legalName.toUpperCase()} IN THE TWELVE MONTHS BEFORE THE EVENT
           GIVING RISE TO THE CLAIM, OR (B) $100. WE ARE NOT LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
           OR PUNITIVE DAMAGES, OR FOR LOST PROFITS, LOST DATA, OR BUSINESS INTERRUPTION, EVEN IF WE'VE BEEN ADVISED OF
           THE POSSIBILITY OF SUCH DAMAGES.
         </Sec>
 
         <Sec title="14. Indemnification">
-          You agree to indemnify and hold harmless Stoop and its officers, employees, and contractors from any claim,
+          You agree to indemnify and hold harmless {BRAND.legalName} and its officers, employees, and contractors from any claim,
           demand, loss, or expense (including reasonable attorneys' fees) arising from your use of the Service, your
           content, or your violation of these Terms or applicable law.
         </Sec>
@@ -161,7 +162,7 @@ export default function Terms() {
             enforceable in any court of competent jurisdiction.
           </p>
           <p className="mt-2">
-            <strong>Class action waiver.</strong> You and Stoop agree to bring disputes only in individual capacity, and
+            <strong>Class action waiver.</strong> You and {BRAND.legalName} agree to bring disputes only in individual capacity, and
             not as a plaintiff or class member in a purported class or representative proceeding. The arbitrator may not
             consolidate more than one person's claims.
           </p>
@@ -192,14 +193,14 @@ export default function Terms() {
 
         <Sec title="Contact">
           <p>
-            Stoop<br />
-            <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>
+            {BRAND.legalName}<br />
+            <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>
           </p>
         </Sec>
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} Stoop.
+        © {new Date().getFullYear()} {BRAND.legalName}.
       </p>
     </div>
   )

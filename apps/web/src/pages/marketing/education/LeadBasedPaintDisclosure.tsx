@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import EducationArticle from '../../../components/marketing/EducationArticle'
 import { useSeo } from '../../../lib/useSeo'
+import { BRAND } from '../../../lib/brand'
 
 export default function LeadBasedPaintDisclosure() {
   useSeo({
@@ -176,7 +177,7 @@ export default function LeadBasedPaintDisclosure() {
         <li>If you have ANY existing inspection or abatement reports, attach them.</li>
       </ol>
       <p>
-        On Stoop, the compliance flow is automated: managers set a Yes/No toggle for "built before 1978"
+        On {BRAND.name}, the compliance flow is automated: managers set a Yes/No toggle for "built before 1978"
         on the property, the lead disclosure form generates automatically, both parties sign electronically,
         and the signed PDF lives in the tenant's Documents tab. The whole thing happens before the lease is
         ever sent for signature.

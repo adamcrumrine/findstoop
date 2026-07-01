@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import EducationArticle from '../../../components/marketing/EducationArticle'
 import { useSeo } from '../../../lib/useSeo'
+import { BRAND } from '../../../lib/brand'
 
 export default function FairHousingGuide() {
   useSeo({
@@ -18,7 +19,7 @@ export default function FairHousingGuide() {
       relatedLinks={[
         { to: '/education/how-to-screen-tenants', label: 'How to screen tenants — complete guide' },
         { to: '/education/lead-based-paint-disclosure', label: 'Federal lead-based paint disclosure' },
-        { to: '/fair-housing', label: 'Stoop\'s Fair Housing posture' },
+        { to: '/fair-housing', label: `${BRAND.name}'s Fair Housing posture` },
       ]}
     >
       <p>

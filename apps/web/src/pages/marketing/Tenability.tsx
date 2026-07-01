@@ -17,11 +17,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 export default function Tenability() {
   useSeo({
     title: 'Tenability™ — the 0–100 AI rentability score (from $5)',
-    description: 'Tenability™ is Stoop\'s private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.',
+    description: `Tenability™ is ${BRAND.name}'s private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.`,
     path: '/tenability',
   })
 
@@ -29,7 +30,7 @@ export default function Tenability() {
     <>
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-brand-50">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(0,168,150,0.10),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgb(var(--brand-grad-from)/0.10),transparent_60%)]" />
         <div className="relative max-w-5xl mx-auto px-5 lg:px-8 pt-20 pb-16 md:pt-28 md:pb-20 text-center">
           <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
             <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -239,7 +240,7 @@ export default function Tenability() {
           </h2>
           <div className="space-y-6">
             <Faq q="What is a Tenability™ score?">
-              Tenability™ is Stoop's private 0–100 rentability score for a rental applicant. It combines
+              Tenability™ is {BRAND.name}'s private 0–100 rentability score for a rental applicant. It combines
               verified income, identity verification, document consistency, and the applicant's self-reported
               history into one number a landlord can read in seconds — alongside a plain-English summary of
               what drove it. Higher is better. It is generated using a proprietary AI pipeline configured to
@@ -249,7 +250,7 @@ export default function Tenability() {
               No. A Tenability™ score is not a FICO or VantageScore and has no relationship to either. It does
               not pull or read your credit report. <strong>Tenability™ Pro</strong> additionally asks the applicant
               to upload their own free AnnualCreditReport.gov PDF and runs an authenticity check on it — that
-              document originates from the applicant, not from a bureau pulled by Stoop.
+              document originates from the applicant, not from a bureau pulled by {BRAND.name}.
             </Faq>
             <Faq q="What's the difference between Tenability™ and Tenability™ Pro?">
               Tenability™ ($5) gives every applicant a 0–100 score based on verified income, ID, and document
@@ -270,7 +271,7 @@ export default function Tenability() {
             </Faq>
             <Faq q="Who pays — landlord or applicant?">
               The applicant pays for their Tenability™ fee directly — $5 for Standard, $25 for Pro. Landlords
-              pay $9 per unit per month for the Stoop platform and never pay for individual applications.
+              pay $9 per unit per month for the {BRAND.name} platform and never pay for individual applications.
             </Faq>
             <Faq q="How long does scoring take?">
               Typically under 60 seconds from the moment the applicant finishes uploading their income docs and

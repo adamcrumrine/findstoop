@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Check, ArrowRight, Sparkles } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 // Single-tier pricing: $9/unit/mo, $90/unit/yr.
 const PER_UNIT_MONTHLY = 9
@@ -80,7 +81,7 @@ export default function Pricing() {
 
             <div className="grid md:grid-cols-2 gap-10 mt-2">
               <div>
-                <p className="text-xs uppercase tracking-wider text-mute font-semibold">Stoop</p>
+                <p className="text-xs uppercase tracking-wider text-mute font-semibold">{BRAND.name}</p>
                 <div className="mt-3 flex items-baseline gap-1.5">
                   <span className="text-5xl font-bold text-ink">${PER_UNIT_MONTHLY}</span>
                   <span className="text-mute">/ unit / month</span>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import ScreeningFlow from '../../components/apply/ScreeningFlow'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 interface UnitCtx {
   unit_id: string
@@ -69,7 +70,7 @@ export default function Apply() {
   // landlords, not public landing pages, and they leak unit detail.
   useSeo({
     title: 'Apply',
-    description: 'Apply for a rental on Stoop. One application, instant submission, decision back from the landlord within days.',
+    description: `Apply for a rental on ${BRAND.name}. One application, instant submission, decision back from the landlord within days.`,
     path: `/apply/${unitId ?? ''}`,
     noindex: true,
   })
@@ -152,7 +153,7 @@ export default function Apply() {
           This application link doesn't match an active listing. Reach out to the landlord
           who shared the link — they may need to resend it.
         </p>
-        <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to Stoop</Link>
+        <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to {BRAND.name}</Link>
       </div>
     )
   }

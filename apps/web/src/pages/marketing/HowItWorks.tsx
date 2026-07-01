@@ -4,6 +4,7 @@ import {
   ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 interface Step {
   number: string
@@ -74,7 +75,7 @@ const steps: Step[] = [
 export default function HowItWorks() {
   useSeo({
     title: 'How it works',
-    description: 'Set up an account, list a vacancy, screen applicants, e-sign the lease, and start collecting rent — the five steps from sign-up to first paycheck on Stoop.',
+    description: `Set up an account, list a vacancy, screen applicants, e-sign the lease, and start collecting rent — the five steps from sign-up to first paycheck on ${BRAND.name}.`,
     path: '/how-it-works',
   })
   return (

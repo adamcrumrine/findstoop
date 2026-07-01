@@ -35,7 +35,7 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-brand-50 flex items-center justify-center p-5">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(0,168,150,0.10),transparent_60%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgb(var(--brand-grad-from)/0.10),transparent_60%)] pointer-events-none" />
 
       <div className="relative w-full max-w-md">
         {/* Logo + heading */}

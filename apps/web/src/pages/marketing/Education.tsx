@@ -5,6 +5,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 interface Article {
   to: string
@@ -104,7 +105,7 @@ export default function Education() {
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
                 <BookOpen className="w-3.5 h-3.5" strokeWidth={1.75} />
-                Stoop Education
+                {BRAND.name} Education
               </div>
               <h1 className="text-4xl md:text-5xl font-bold text-ink tracking-tight">
                 Landlord school, without the school part.

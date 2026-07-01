@@ -5,27 +5,28 @@
 
 import { Link } from 'react-router-dom'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 export default function ScreeningTerms() {
   useSeo({
     title: 'Screening Terms',
-    description: 'Plain-language terms covering Stoop\'s tenant pre-qualification — what we collect, how it\'s used, automated screening tools, your rights, and data deletion.',
+    description: `Plain-language terms covering ${BRAND.name}'s tenant pre-qualification — what we collect, how it's used, automated screening tools, your rights, and data deletion.`,
     path: '/screening-terms',
   })
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">
-      <Link to="/" className="text-sm text-brand-600 hover:underline">← Stoop</Link>
+      <Link to="/" className="text-sm text-brand-600 hover:underline">← {BRAND.name}</Link>
       <h1 className="text-2xl font-bold text-ink mt-4">Screening Terms</h1>
       <p className="text-sm text-mute mt-2">
         Last updated May 23, 2026. Plain English. If anything's unclear, email{' '}
-        <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>.
+        <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
       </p>
 
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
         <div>
           <h2 className="font-semibold text-ink">What pre-qualification does</h2>
           <p className="mt-1 text-mute">
-            When you upload your driver's license and income documents, Stoop verifies that the
+            When you upload your driver's license and income documents, {BRAND.legalName} verifies that the
             information matches what you typed on your application, and prepares a short summary the
             landlord can use to make a decision. We do not pull your credit and we do not run a
             criminal background check at this step — those are part of a separate, optional full
@@ -70,7 +71,7 @@ export default function ScreeningTerms() {
             credit report or background check under the Fair Credit Reporting Act. The landlord may
             choose to order a separate credit / criminal / eviction report from a third-party
             consumer reporting agency (such as TransUnion SmartMove); if they do, that report is
-            ordered directly through the agency, not through Stoop.
+            ordered directly through the agency, not through {BRAND.legalName}.
           </p>
         </div>
 
@@ -78,7 +79,7 @@ export default function ScreeningTerms() {
           <h2 className="font-semibold text-ink">Your rights</h2>
           <p className="mt-1 text-mute">
             You can ask us to delete your screening documents at any time by emailing{' '}
-            <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>.
+            <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
             The $5 pre-qualification fee is non-refundable once your documents have been
             processed (which happens immediately).
           </p>
@@ -86,7 +87,7 @@ export default function ScreeningTerms() {
       </section>
 
       <p className="text-xs text-mute mt-10">
-        © {new Date().getFullYear()} Stoop. Questions? <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>
+        © {new Date().getFullYear()} {BRAND.legalName}. Questions? <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>
       </p>
     </div>
   )

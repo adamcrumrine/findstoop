@@ -4,6 +4,7 @@ import {
   MessageSquare, Folder, BarChart3, ArrowRight, type LucideIcon,
 } from 'lucide-react'
 import { useSeo } from '../../lib/useSeo'
+import { BRAND } from '../../lib/brand'
 
 type Status = 'live' | 'beta' | 'soon'
 
@@ -48,7 +49,7 @@ const features: Feature[] = [
     Icon: Wrench,
     status: 'live',
     title: 'Maintenance, triaged',
-    body: 'Tenants submit requests with photos and priority. You triage in the dashboard and resolve — all without leaving Stoop.',
+    body: `Tenants submit requests with photos and priority. You triage in the dashboard and resolve — all without leaving ${BRAND.name}.`,
     bullets: ['Photo upload from tenant phones', 'Priority routing (emergency, high, medium, low)', 'Status updates visible to the tenant'],
   },
   {
@@ -105,7 +106,7 @@ export default function Features() {
                 Every tool a small landlord actually uses.
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                Stoop bundles the workflow you've been duct-taping together —
+                {BRAND.name} bundles the workflow you've been duct-taping together —
                 with a verified-pre-qualification product no one else in the small-landlord
                 space offers at $5. Every feature is on at one flat price for the landlord —
                 $9 per active unit per month. No tier ladder.

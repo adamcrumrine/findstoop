@@ -4,6 +4,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { Loader2, CreditCard, Landmark, X, Lock, CheckCircle2, Zap, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { BRAND, brandColor } from '../../lib/brand'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe(): ReturnType<typeof loadStripe> {
@@ -305,8 +306,8 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
                 <X className="w-4 h-4" strokeWidth={2} />
               </button>
               <div className="flex items-center gap-2.5 mb-3">
-                <img src="/stoop_logo_square_trans.png" alt="Stoop" className="w-10 h-10 object-contain brightness-0 invert" />
-                <span className="text-sm font-medium tracking-wide opacity-90">Stoop</span>
+                <img src={BRAND.logo.square} alt={BRAND.name} className="w-10 h-10 object-contain brightness-0 invert" />
+                <span className="text-sm font-medium tracking-wide opacity-90">{BRAND.name}</span>
               </div>
               <h2 className="text-2xl font-bold tracking-tight">Save a payment method</h2>
               <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
@@ -321,7 +322,7 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
                   appearance: {
                     theme: 'stripe',
                     variables: {
-                      colorPrimary: '#00A896',
+                      colorPrimary: brandColor('400'),
                       colorBackground: '#FFFFFF',
                       colorText: '#1F2937',
                       colorDanger: '#DC2626',

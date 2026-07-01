@@ -14,6 +14,8 @@
 // (lazy chunk in flight). The `message` prop lets callers tailor copy if
 // useful; the default is gentle enough for either case.
 
+import { BRAND, brandColor } from '../../lib/brand'
+
 interface LoadingSpinnerProps {
   message?: string
 }
@@ -33,7 +35,7 @@ export default function LoadingSpinner({ message = 'Getting things ready…' }: 
             aria-hidden="true"
             className="fs-loader-ring absolute inset-0 rounded-full"
             style={{
-              background: 'conic-gradient(from 0deg, transparent 0deg, transparent 200deg, #00A896 280deg, #00B4A2 320deg, transparent 360deg)',
+              background: `conic-gradient(from 0deg, transparent 0deg, transparent 200deg, ${brandColor('400')} 280deg, ${brandColor('400')} 320deg, transparent 360deg)`,
               filter: 'blur(0.5px)',
             }}
           />
@@ -41,7 +43,7 @@ export default function LoadingSpinner({ message = 'Getting things ready…' }: 
           <div className="absolute inset-[6px] rounded-full bg-white" aria-hidden="true" />
           {/* Logo */}
           <img
-            src="/stoop_logo_square_trans.png"
+            src={BRAND.logo.square}
             alt=""
             aria-hidden="true"
             className="fs-loader-logo relative w-14 h-14 object-contain"

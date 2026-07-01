@@ -3,6 +3,7 @@ import { loadStripe, type Stripe as StripeJs } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { X, Loader2, Lock, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { BRAND, brandColor } from '../../lib/brand'
 
 // Singleton — Stripe recommends one loadStripe per app session.
 let stripePromise: ReturnType<typeof loadStripe> | null = null
@@ -58,13 +59,13 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
           </button>
           <div className="flex items-center gap-2.5 mb-3">
             <img
-              src="/stoop_logo_square_trans.png"
-              alt="Stoop"
+              src={BRAND.logo.square}
+              alt={BRAND.name}
               className="w-10 h-10 object-contain brightness-0 invert"
             />
-            <span className="text-sm font-medium tracking-wide opacity-90">Stoop</span>
+            <span className="text-sm font-medium tracking-wide opacity-90">{BRAND.name}</span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">Subscribe to Stoop</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Subscribe to {BRAND.name}</h2>
           <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
             Unlock the formatted lease PDF, the tenant portal, and rent collection.
           </p>
@@ -87,7 +88,7 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
                 appearance: {
                   theme: 'stripe',
                   variables: {
-                    colorPrimary: '#00A896',
+                    colorPrimary: brandColor('400'),
                     colorBackground: '#FFFFFF',
                     colorText: '#1F2937',
                     colorDanger: '#DC2626',
@@ -164,7 +165,7 @@ function SubscribeForm({
       setDone(true)
       toast.success(paymentIntent.status === 'processing'
         ? 'Payment is processing — we\'ll activate your subscription shortly.'
-        : 'Subscription active — welcome to Stoop!'
+        : `Subscription active — welcome to ${BRAND.name}!`
       )
       setTimeout(() => {
         onSuccess()
@@ -181,7 +182,7 @@ function SubscribeForm({
       <div className="py-6 text-center">
         <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" strokeWidth={1.5} />
         <p className="text-base font-semibold text-ink">Payment confirmed</p>
-        <p className="text-sm text-mute mt-0.5">Activating your Stoop subscription…</p>
+        <p className="text-sm text-mute mt-0.5">Activating your {BRAND.name} subscription…</p>
       </div>
     )
   }
@@ -218,7 +219,7 @@ function SubscribeForm({
       </button>
 
       <p className="text-xs text-mute text-center leading-relaxed">
-        By subscribing, you authorize Stoop to charge your payment method ${total.toLocaleString()}{intervalLabel}
+        By subscribing, you authorize {BRAND.name} to charge your payment method ${total.toLocaleString()}{intervalLabel}
         until you cancel. Cancel any time from the Billing page.
       </p>
     </form>

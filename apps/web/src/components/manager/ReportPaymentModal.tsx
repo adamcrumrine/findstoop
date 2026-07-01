@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { X, Loader2, Lock, CheckCircle2, FileText } from 'lucide-react'
+import { brandColor } from '../../lib/brand'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe(): ReturnType<typeof loadStripe> {
@@ -59,7 +60,7 @@ export default function ReportPaymentModal({ open, onClose, onPaid, clientSecret
                 clientSecret,
                 appearance: {
                   theme: 'stripe',
-                  variables: { colorPrimary: '#00A896', colorBackground: '#FFFFFF', colorText: '#1F2937', colorDanger: '#DC2626', fontFamily: 'system-ui, -apple-system, sans-serif', borderRadius: '8px' },
+                  variables: { colorPrimary: brandColor('400'), colorBackground: '#FFFFFF', colorText: '#1F2937', colorDanger: '#DC2626', fontFamily: 'system-ui, -apple-system, sans-serif', borderRadius: '8px' },
                 },
               }}
             >

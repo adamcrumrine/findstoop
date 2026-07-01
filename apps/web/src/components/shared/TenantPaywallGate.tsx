@@ -13,6 +13,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { BRAND } from '../../lib/brand'
 import { Loader2, Mail, RefreshCw } from 'lucide-react'
 
 interface GateState {
@@ -108,11 +109,11 @@ export default function TenantPaywallGate({ children }: { children: ReactNode })
           <Loader2 className="w-6 h-6 text-amber-700 animate-spin" strokeWidth={1.75} />
         </div>
         <h1 className="text-xl font-semibold text-ink">
-          {state.landlordName ?? 'Your landlord'} is finishing Stoop setup
+          {state.landlordName ?? 'Your landlord'} is finishing {BRAND.name} setup
         </h1>
         <p className="text-sm text-mute mt-2 leading-relaxed">
           Your lease{state.propertyName ? ` at ${state.propertyName}` : ''} has been signed, but
-          {' '}{state.landlordName ? state.landlordName : 'your landlord'} still needs to complete their Stoop
+          {' '}{state.landlordName ? state.landlordName : 'your landlord'} still needs to complete their {BRAND.name}
           billing setup before the rest of the portal opens up. As soon as they do, you'll get access to rent
           payments, your lease document, and maintenance requests.
         </p>

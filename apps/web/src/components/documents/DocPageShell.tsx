@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react'
 import EhoMark from './EhoMark'
+import { BRAND } from '../../lib/brand'
 
 interface DocPageShellProps {
   senderName: string
@@ -19,7 +20,7 @@ export default function DocPageShell({ senderName, propertyAddress, contactEmail
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-8 w-auto" />
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-8 w-auto" />
           <p className="text-xs text-mute text-right truncate">
             Sent by {senderName}{propertyAddress ? <> · <span className="hidden sm:inline">{propertyAddress}</span></> : null}
           </p>

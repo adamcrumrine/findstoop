@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { X, Bug, Sparkles, MessageSquare, Loader2, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { BRAND } from '../../lib/brand'
 
 interface Props {
   open: boolean
@@ -13,7 +14,7 @@ type Kind = 'bug' | 'feature' | 'other'
 
 const KIND_CONFIG: Record<Kind, { Icon: typeof Bug; label: string; placeholder: string }> = {
   bug:     { Icon: Bug,            label: 'Bug',             placeholder: 'What went wrong? Steps to reproduce help a lot.' },
-  feature: { Icon: Sparkles,       label: 'Feature request', placeholder: 'What would make Stoop better for you?' },
+  feature: { Icon: Sparkles,       label: 'Feature request', placeholder: `What would make ${BRAND.name} better for you?` },
   other:   { Icon: MessageSquare,  label: 'Other',           placeholder: 'Tell us what\'s on your mind.' },
 }
 
@@ -72,8 +73,8 @@ export default function FeedbackModal({ open, onClose }: Props) {
             <X className="w-4 h-4" strokeWidth={2} />
           </button>
           <div className="flex items-center gap-2.5 mb-2">
-            <img src="/stoop_logo_square_trans.png" alt="Stoop" className="w-8 h-8 object-contain brightness-0 invert" />
-            <span className="text-xs font-medium tracking-wide opacity-90">Stoop</span>
+            <img src={BRAND.logo.square} alt={BRAND.name} className="w-8 h-8 object-contain brightness-0 invert" />
+            <span className="text-xs font-medium tracking-wide opacity-90">{BRAND.name}</span>
           </div>
           <h2 className="text-xl font-bold tracking-tight">Send feedback</h2>
           <p className="text-sm text-white/85 mt-1">Found a bug? Want a feature? We read every one.</p>
@@ -142,7 +143,7 @@ export default function FeedbackModal({ open, onClose }: Props) {
               {submitting ? 'Sending…' : 'Send feedback'}
             </button>
             <p className="text-[11px] text-mute text-center">
-              Goes to Stoop support. We'll reply at your account email.
+              Goes to {BRAND.name} support. We'll reply at your account email.
             </p>
           </form>
         )}

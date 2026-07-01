@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import type { Payment } from '@findstoop/shared/types/payment'
+import { brandColor } from '../../lib/brand'
 
 // Shared monthly-breakdown donut. Used on the manager Dashboard and the
 // manager Payments page. Accepts the (already filtered) payments array
@@ -12,7 +13,7 @@ import type { Payment } from '@findstoop/shared/types/payment'
 interface DonutSlice { label: string; value: number; cls: string; color: string }
 
 const STATUS_COLORS: Record<string, { cls: string; color: string }> = {
-  'Paid':       { cls: 'bg-brand-500',  color: '#008275' },
+  'Paid':       { cls: 'bg-brand-500',  color: brandColor('500') },
   'Processing': { cls: 'bg-amber-500',  color: '#F59E0B' },
   'Scheduled':  { cls: 'bg-blue-500',   color: '#3B82F6' },
   'Upcoming':   { cls: 'bg-gray-400',   color: '#9CA3AF' },

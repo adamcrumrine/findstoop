@@ -3,6 +3,7 @@
 // advice). Tone matches the brand voice — peer-to-peer, no jargon.
 
 import { Info } from 'lucide-react'
+import { BRAND } from '../../lib/brand'
 
 interface DisclaimerBannerProps {
   className?: string
@@ -14,7 +15,7 @@ export default function DisclaimerBanner({ className = '' }: DisclaimerBannerPro
       <Info className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
       <p className="text-sm text-amber-800 leading-relaxed">
         We built this from your property data. Give it a careful read before you send it —
-        Stoop doesn't provide legal advice.
+        {BRAND.name} doesn't provide legal advice.
       </p>
     </div>
   )

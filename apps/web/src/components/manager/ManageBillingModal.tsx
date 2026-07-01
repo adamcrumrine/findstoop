@@ -4,6 +4,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { X, Loader2, Lock, CreditCard, Landmark, FileText, ExternalLink, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { BRAND, brandColor } from '../../lib/brand'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe(): ReturnType<typeof loadStripe> {
@@ -147,11 +148,11 @@ export default function ManageBillingModal({ open, onClose, onChange }: Props) {
           </button>
           <div className="flex items-center gap-2.5 mb-3">
             <img
-              src="/stoop_logo_square_trans.png"
-              alt="Stoop"
+              src={BRAND.logo.square}
+              alt={BRAND.name}
               className="w-10 h-10 object-contain brightness-0 invert"
             />
-            <span className="text-sm font-medium tracking-wide opacity-90">Stoop</span>
+            <span className="text-sm font-medium tracking-wide opacity-90">{BRAND.name}</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">Manage billing</h2>
           <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
@@ -368,11 +369,11 @@ function CancelConfirmSection({
   return (
     <div className="text-center py-2">
       <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" strokeWidth={1.5} />
-      <h3 className="text-lg font-bold text-ink">Cancel your Stoop subscription?</h3>
+      <h3 className="text-lg font-bold text-ink">Cancel your {BRAND.name} subscription?</h3>
       <p className="text-sm text-mute mt-2 leading-relaxed max-w-md mx-auto">
         Your subscription will stay active through <strong>{fmtDate(periodEnd)}</strong>.
         After that, you'll lose access to the formatted lease PDF, the tenant portal,
-        and Stoop rent payments. You can resume any time before that date.
+        and {BRAND.name} rent payments. You can resume any time before that date.
       </p>
       <div className="mt-5 flex gap-3">
         <button
@@ -419,7 +420,7 @@ function UpdatePaymentSection({
         appearance: {
           theme: 'stripe',
           variables: {
-            colorPrimary: '#00A896',
+            colorPrimary: brandColor('400'),
             colorBackground: '#FFFFFF',
             colorText: '#1F2937',
             colorDanger: '#DC2626',

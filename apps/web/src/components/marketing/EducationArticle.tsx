@@ -4,6 +4,7 @@
 
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Clock, BookOpen } from 'lucide-react'
+import { BRAND, brandColor } from '../../lib/brand'
 
 interface EducationArticleProps {
   category: string                    // e.g. "Screening", "Compliance"
@@ -72,7 +73,7 @@ export default function EducationArticle({
 
       {/* Standard tail CTA */}
       <aside className="mt-10 bg-gradient-to-br from-brand-50 to-white border border-brand-200 rounded-2xl p-6">
-        <p className="text-sm uppercase tracking-wider text-brand-700 font-bold mb-1">Try Stoop</p>
+        <p className="text-sm uppercase tracking-wider text-brand-700 font-bold mb-1">Try {BRAND.name}</p>
         <h3 className="text-xl font-bold text-ink">Everything in this article — automated.</h3>
         <p className="mt-2 text-sm text-mute">
           $9 per unit per month, every feature included. Applicants pay $5 for verified pre-qualification with a Tenability™ score.
@@ -95,13 +96,13 @@ export default function EducationArticle({
         .article-body ul { list-style: disc; }
         .article-body ol { list-style: decimal; }
         .article-body li { margin-bottom: 0.5rem; }
-        .article-body a { color: #006e62; text-decoration: underline; text-underline-offset: 2px; }
-        .article-body a:hover { color: #005951; }
+        .article-body a { color: ${brandColor('600')}; text-decoration: underline; text-underline-offset: 2px; }
+        .article-body a:hover { color: ${brandColor('700')}; }
         .article-body strong { font-weight: 600; color: #3A3A3C; }
         .article-body blockquote {
-          border-left: 3px solid #008275;
+          border-left: 3px solid ${brandColor('500')};
           padding: 0.75rem 1rem;
-          background: #e6f9f6;
+          background: ${brandColor('50')};
           margin: 1.5rem 0;
           border-radius: 0 0.5rem 0.5rem 0;
         }

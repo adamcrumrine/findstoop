@@ -5,6 +5,7 @@ import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
 import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, LogOut, type LucideIcon } from 'lucide-react'
 import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
+import { BRAND } from '../../lib/brand'
 
 interface NavItem {
   to: string
@@ -89,8 +90,8 @@ export default function TenantLayout() {
         className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        <Link to="/" aria-label="Stoop home">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-10 w-auto" />
+        <Link to="/" aria-label={`${BRAND.name} home`}>
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
         </Link>
         <div className="relative" ref={menuRef}>
           <button

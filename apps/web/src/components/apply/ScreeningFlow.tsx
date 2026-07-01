@@ -34,6 +34,7 @@ import {
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { verifyDocMagicBytes } from '../../lib/fileValidation'
+import { BRAND, brandColor } from '../../lib/brand'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe() {
@@ -192,7 +193,7 @@ export default function ScreeningFlow({ applicationId, applicantName, applicantE
               clientSecret,
               appearance: {
                 theme: 'stripe',
-                variables: { colorPrimary: '#00A896', borderRadius: '8px', fontFamily: 'system-ui, -apple-system, sans-serif' },
+                variables: { colorPrimary: brandColor('400'), borderRadius: '8px', fontFamily: 'system-ui, -apple-system, sans-serif' },
               },
             }}
           >
@@ -336,8 +337,8 @@ function IntroCard({ applicantName, onStart, requirements, error }: {
       )}
 
       <p className="text-xs text-mute text-center mt-5 leading-relaxed max-w-md mx-auto">
-        By continuing, you authorize Stoop to use automated tools, including AI, to verify
-        your documents and prepare a private summary for the landlord.{hasFcraChecks ? ' You also authorize Stoop and its consumer-reporting partners to obtain the consumer reports the landlord requested above, under 15 U.S.C. § 1681b(a)(3)(F).' : ''} See our{' '}
+        By continuing, you authorize {BRAND.name} to use automated tools, including AI, to verify
+        your documents and prepare a private summary for the landlord.{hasFcraChecks ? ` You also authorize ${BRAND.name} and its consumer-reporting partners to obtain the consumer reports the landlord requested above, under 15 U.S.C. § 1681b(a)(3)(F).` : ''} See our{' '}
         <Link to="/screening-terms" target="_blank" className="text-mute underline hover:text-ink">screening&nbsp;terms</Link>.
       </p>
 
@@ -713,7 +714,7 @@ function DoneCard() {
         The landlord will review your application and reach out via the email you provided.
         Verified applications are typically decided within 24 hours.
       </p>
-      <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to Stoop</Link>
+      <Link to="/" className="mt-6 inline-block text-brand-600 font-medium hover:underline">← Back to {BRAND.name}</Link>
     </div>
   )
 }

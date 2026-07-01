@@ -6,6 +6,7 @@ import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { supabase } from '../../lib/supabase'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import { BRAND } from '../../lib/brand'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -161,14 +162,14 @@ export default function Login({ role }: Props) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
         {/* Logo — click returns to the marketing landing page */}
-        <Link to="/" aria-label="Stoop home" className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-20 w-auto" />
+        <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
         </Link>
 
         {/* Heading */}
         <h1 className="text-xl font-medium text-ink">Welcome back</h1>
         <p className="text-sm text-mute mt-1 mb-6">
-          Welcome to Stoop. Continue as a {label}.
+          Welcome to {BRAND.name}. Continue as a {label}.
         </p>
 
         {/* Wrong-role error */}

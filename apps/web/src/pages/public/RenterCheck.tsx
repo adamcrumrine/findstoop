@@ -10,6 +10,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
 import { useRenterPartner } from '../../hooks/useRenterPartner'
+import { BRAND } from '../../lib/brand'
 import type { LeaseAnalysis, ExplainLeaseResponse, RedFlagSeverity } from '@findstoop/shared/types/leaseAnalysis'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import {
@@ -129,7 +130,7 @@ export default function RenterCheck() {
             </>
           ) : (
             <>
-              <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-8 w-auto" />
+              <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-8 w-auto" />
               <span className="text-xs font-semibold uppercase tracking-wider text-mute">Renter Check</span>
             </>
           )}
@@ -316,7 +317,7 @@ export default function RenterCheck() {
                   </h2>
                   {lead.onPlatform ? (
                     <p className="text-sm text-ink">
-                      Good news — your landlord already uses Stoop, so you can pay rent and handle documents in one place.{' '}
+                      Good news — your landlord already uses {BRAND.name}, so you can pay rent and handle documents in one place.{' '}
                       <Link to="/login/renter" className="text-brand-600 font-medium underline">Renter sign in</Link>
                     </p>
                   ) : analysis.parties.landlord_email ? (
@@ -333,7 +334,7 @@ export default function RenterCheck() {
                       </>
                     )
                   ) : (
-                    <p className="text-sm text-mute">Know a landlord who'd use a tool like this? Point them to <span className="text-brand-600 font-medium">findstoop.com/renter-check</span>.</p>
+                    <p className="text-sm text-mute">Know a landlord who'd use a tool like this? Point them to <span className="text-brand-600 font-medium">{BRAND.domain}/renter-check</span>.</p>
                   )}
                 </div>
                 {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}

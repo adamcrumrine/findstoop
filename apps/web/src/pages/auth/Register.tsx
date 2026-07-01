@@ -8,6 +8,7 @@ import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { checkPasswordStrength, hibpCheckPassword } from '../../lib/passwordSecurity'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import { BRAND } from '../../lib/brand'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -116,8 +117,8 @@ export default function Register({ role }: Props) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8 text-center">
-          <Link to="/" aria-label="Stoop home" className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
-            <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-20 w-auto" />
+          <Link to="/" aria-label={`${BRAND.name} home`} className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
           </Link>
           <h1 className="text-xl font-medium text-ink">Check your email</h1>
           <p className="text-sm text-mute mt-2 mb-6">
@@ -139,14 +140,14 @@ export default function Register({ role }: Props) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
         {/* Logo — click returns to the marketing landing page */}
-        <Link to="/" aria-label="Stoop home" className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-20 w-auto" />
+        <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
         </Link>
 
         {/* Heading */}
         <h1 className="text-xl font-medium text-ink">Create an account</h1>
         <p className="text-sm text-mute mt-1 mb-6">
-          Set up your Stoop {label} account.
+          Set up your {BRAND.name} {label} account.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -263,22 +264,22 @@ function GeoBlockedPage({ state }: { state: string }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[480px] p-8">
-        <Link to="/" aria-label="Stoop home" className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-16 w-auto" />
+        <Link to="/" aria-label={`${BRAND.name} home`} className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-16 w-auto" />
         </Link>
-        <h1 className="text-xl font-semibold text-ink text-center">Stoop isn't open in {blockedStateName(state)} yet</h1>
+        <h1 className="text-xl font-semibold text-ink text-center">{BRAND.name} isn't open in {blockedStateName(state)} yet</h1>
         <p className="text-sm text-mute mt-3 leading-relaxed text-center">
           We're rolling out state by state and completing the compliance work each one requires.
           Right now we're paused for new signups in {BLOCKED_STATES_DISPLAY}. Everything else on
-          Stoop — pricing, features, education — stays open to you while we get there.
+          {BRAND.name} — pricing, features, education — stays open to you while we get there.
         </p>
         <p className="text-xs text-mute mt-5 text-center">
           Think this is a mistake? (VPN, work network, etc.) Email{' '}
-          <a href="mailto:support@findstoop.com" className="text-brand-600 hover:underline">support@findstoop.com</a>{' '}
+          <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>{' '}
           and we'll sort it out.
         </p>
         <div className="mt-6 flex justify-center">
-          <Link to="/" className="text-sm font-medium text-brand-600 hover:underline">← Back to Stoop</Link>
+          <Link to="/" className="text-sm font-medium text-brand-600 hover:underline">← Back to {BRAND.name}</Link>
         </div>
       </div>
     </div>

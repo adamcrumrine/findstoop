@@ -4,6 +4,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { UserRole } from '@findstoop/shared/types/profile'
 import toast from 'react-hot-toast'
 import { Smartphone, Phone, ShieldCheck, KeyRound, type LucideIcon } from 'lucide-react'
+import { BRAND } from '../../lib/brand'
 
 interface MfaState {
   role: UserRole
@@ -86,8 +87,8 @@ export default function VerifyMethod() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        <Link to="/" aria-label="Stoop home" className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-20 w-auto" />
+        <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
         </Link>
 
         <h1 className="text-xl font-medium text-ink">Try another method</h1>

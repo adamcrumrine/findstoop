@@ -6,6 +6,7 @@ import { Mail, Bell, Loader2, CheckCircle2, UserCircle, IdCard, Lock } from 'luc
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
 import { formatPhone, formatUsdCents, formatAddress } from '@findstoop/shared/lib/format'
+import { BRAND } from '../../lib/brand'
 
 interface BioForm {
   date_of_birth: string
@@ -227,7 +228,7 @@ export default function TenantSettings() {
     <div className="max-w-2xl mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink">Settings</h1>
-        <p className="text-sm text-mute mt-1">Your profile and how Stoop reaches you.</p>
+        <p className="text-sm text-mute mt-1">Your profile and how {BRAND.name} reaches you.</p>
       </header>
 
       {/* Profile */}

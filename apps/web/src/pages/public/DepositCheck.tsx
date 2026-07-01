@@ -10,6 +10,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
 import { useRenterPartner } from '../../hooks/useRenterPartner'
+import { BRAND } from '../../lib/brand'
 import type { DepositCheckResult, CheckDepositResponse, DeductionVerdict } from '@findstoop/shared/types/depositCheck'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import { Loader2, UploadCloud, Scale, RotateCcw, CheckCircle2, AlertTriangle, XCircle, Banknote, ArrowRight } from 'lucide-react'
@@ -82,7 +83,7 @@ export default function DepositCheck() {
             </>
           ) : (
             <>
-              <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-8 w-auto" />
+              <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-8 w-auto" />
               <span className="text-xs font-semibold uppercase tracking-wider text-mute">Deposit Check</span>
             </>
           )}

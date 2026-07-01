@@ -5,6 +5,7 @@ import type { UserRole } from '@findstoop/shared/types/profile'
 import OtpInput from '../../components/auth/OtpInput'
 import { ShieldCheck } from 'lucide-react'
 import { defaultPathForRole } from '../../lib/roleRouting'
+import { BRAND } from '../../lib/brand'
 
 const LOCKOUT_KEY  = 'mfa_lockout_until'
 const MAX_ATTEMPTS = 5
@@ -108,13 +109,13 @@ export default function VerifyTotp() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
-        <Link to="/" aria-label="Stoop home" className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src="/stoop_logo_horizontal_trans.png" alt="Stoop" className="h-20 w-auto" />
+        <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
         </Link>
 
         <h1 className="text-xl font-medium text-ink">Verify your identity</h1>
         <p className="text-sm text-mute mt-1 mb-5">
-          Welcome to Stoop. Continue as a {state.role === 'manager' ? 'landlord' : 'renter'}.
+          Welcome to {BRAND.name}. Continue as a {state.role === 'manager' ? 'landlord' : 'renter'}.
         </p>
 
         <div className="mb-5">

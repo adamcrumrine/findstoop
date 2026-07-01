@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import SignaturePad, { type SignaturePadHandle } from '../../components/shared/SignaturePad'
 import { FileSignature, ShieldCheck, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { BRAND } from '../../lib/brand'
 
 interface LeaseDetail {
   id: string
@@ -371,7 +372,7 @@ export default function SignLease() {
             <p className="text-sm text-mute mt-1.5 leading-relaxed">
               The lease is signed by both parties. To unlock the formatted lease
               PDF, open the tenant's portal (rent payments, maintenance,
-              documents), and collect rent through Stoop, set up your
+              documents), and collect rent through {BRAND.name}, set up your
               subscription now.
             </p>
             <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-mute">
@@ -410,7 +411,7 @@ export default function SignLease() {
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
               <h2 className="text-lg font-semibold text-ink">Confirm new monthly bill</h2>
               <p className="text-sm text-mute mt-1">
-                Signing this lease activates the unit. Your Stoop subscription will charge $9/unit/month on active units.
+                Signing this lease activates the unit. Your {BRAND.name} subscription will charge $9/unit/month on active units.
               </p>
               <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-1">
                 <div className="flex justify-between text-mute">

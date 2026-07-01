@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, GraduationCap, Building2, UserCheck, Send } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { BRAND } from '../../lib/brand'
 
 interface SchoolRow {
   school: string
@@ -95,7 +96,7 @@ export default function AdminRenterCheck() {
             <Tile icon={GraduationCap} label="Leases checked" value={totals.total} />
             <Tile icon={Building2} label="Landlords surfaced" value={totals.with_landlord} />
             <Tile icon={UserCheck} label="Convertible" value={totals.convertible} sub="have email, not on platform" />
-            <Tile icon={UserCheck} label="Already on Stoop" value={totals.on_platform} />
+            <Tile icon={UserCheck} label={`Already on ${BRAND.name}`} value={totals.on_platform} />
             <Tile icon={Send} label="Invited by renter" value={totals.invited} />
           </div>
 

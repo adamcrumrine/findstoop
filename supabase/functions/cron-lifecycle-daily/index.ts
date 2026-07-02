@@ -8,6 +8,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
+import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName, DEFAULT_ACCENT } from '../_shared/emailBranding.ts'
 
 const APP_URL          = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const CRON_SECRET      = Deno.env.get('CRON_SECRET') ?? ''
@@ -74,12 +75,12 @@ interface LeaseRenewalVars {
 
 type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars | LeaseRenewalVars
 
-function brandHeader() {
-  return `
-    <div style="text-align:center;padding:24px 0;border-bottom:1px solid #eee;margin-bottom:24px">
-      <span style="font-size:24px;font-weight:700;color:#00A896;letter-spacing:-0.02em">FindStoop</span>
-    </div>
-  `
+// Landlord branding for tenant-facing sends (see _shared/emailBranding.ts).
+// null / undefined ⇒ stock FindStoop presentation, exactly as before.
+interface LeaseBrand {
+  company_name: string | null
+  company_logo_url: string | null
+  brand_color: string | null
 }
 
 function brandFooter() {
@@ -102,12 +103,14 @@ function brandFooterManager() {
   `
 }
 
-function wrapHtml(body: string, footer: string = brandFooter()) {
+function wrapHtml(body: string, footer: string = brandFooter(), brand?: LeaseBrand | null) {
+  const company = companyDisplayName(brand?.company_name)
   return `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
-      ${brandHeader()}
+      ${emailHeaderHtml(company, brand?.company_logo_url, brand?.brand_color)}
       ${body}
       ${footer}
+      ${company ? emailFooterHtml(company) : ''}
     </div>
   `
 }
@@ -120,14 +123,17 @@ function payButton(href: string, label: string) {
   `
 }
 
+// Tenant-facing templates take an optional LeaseBrand (landlord white-label);
+// manager-facing templates (lease_renewal_manager, onboarding_*) ignore it
+// and stay platform-branded.
 // deno-lint-ignore no-explicit-any
-const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) => string }> = {
+const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, brand?: LeaseBrand | null) => string }> = {
   // Sent when an auto-pay charge fails (e.g. card declined, requires 3DS).
   // Treated as a critical transactional alert — NOT suppressed by the email
   // preference flag, since a failed rent payment needs the tenant's action.
   autopay_failed: {
     subject: (v: PaymentFailedVars) => `Action needed: your auto-pay didn't go through at ${v.property_name}`,
-    html: (v: PaymentFailedVars) => wrapHtml(`
+    html: (v: PaymentFailedVars, brand?: LeaseBrand | null) => wrapHtml(`
       <p>Hi ${v.first_name},</p>
       <p>We tried to process your scheduled rent payment, but it <strong>didn't go through</strong>:</p>
       <ul style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
@@ -137,7 +143,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       <p style="margin-top:16px">This usually means your card was declined, expired, or needs verification. Please update your payment method and make a one-time payment so you don't fall behind.</p>
       ${payButton(v.pay_url, 'Update payment & pay')}
       <p style="color:#8E8E93;font-size:13px">If you've already resolved this, you can ignore this email.</p>
-    `),
+    `, brandFooter(), brand),
   },
   // Lease-renewal nudge to the MANAGER (manager footer, links to the lease list).
   lease_renewal_manager: {
@@ -156,7 +162,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
   // Lease-renewal heads-up to the TENANT.
   lease_renewal_tenant: {
     subject: (v: LeaseRenewalVars) => `Your lease at ${v.property_name} ends ${v.end_date}`,
-    html: (v: LeaseRenewalVars) => wrapHtml(`
+    html: (v: LeaseRenewalVars, brand?: LeaseBrand | null) => wrapHtml(`
       <p>Hi ${v.first_name},</p>
       <p>A friendly heads-up that your lease ends in <strong>${v.days_left} days</strong> (${v.end_date}):</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
@@ -164,11 +170,11 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       </ul>
       <p style="margin-top:16px">If you'd like to renew, reach out to your property manager — they may be in touch soon with options.</p>
       ${payButton(v.url, 'Open your dashboard')}
-    `),
+    `, brandFooter(), brand),
   },
   rent_reminder_3d: {
     subject: (v: RentReminderVars) => `Reminder: rent is due in 3 days at ${v.property_name}`,
-    html: (v: RentReminderVars) => wrapHtml(`
+    html: (v: RentReminderVars, brand?: LeaseBrand | null) => wrapHtml(`
       <p>Hi ${v.first_name},</p>
       <p>A friendly heads-up that your rent is due in <strong>3 days</strong>:</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
@@ -178,11 +184,11 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       </ul>
       ${payButton(v.pay_url, 'Pay rent online')}
       <p style="color:#8E8E93;font-size:13px">ACH is free. Card payments incur a small processing fee. Paying online creates an instant receipt for your records.</p>
-    `),
+    `, brandFooter(), brand),
   },
   rent_reminder_1d: {
     subject: (v: RentReminderVars) => `Heads up: rent is due tomorrow at ${v.property_name}`,
-    html: (v: RentReminderVars) => wrapHtml(`
+    html: (v: RentReminderVars, brand?: LeaseBrand | null) => wrapHtml(`
       <p>Hi ${v.first_name},</p>
       <p>Your rent is due <strong>tomorrow</strong>:</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
@@ -192,11 +198,11 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       </ul>
       ${payButton(v.pay_url, 'Pay rent now')}
       <p style="color:#8E8E93;font-size:13px">If you've already paid by check, you can ignore this email.</p>
-    `),
+    `, brandFooter(), brand),
   },
   rent_reminder_0d: {
     subject: (v: RentReminderVars) => `Rent is due today at ${v.property_name}`,
-    html: (v: RentReminderVars) => wrapHtml(`
+    html: (v: RentReminderVars, brand?: LeaseBrand | null) => wrapHtml(`
       <p>Hi ${v.first_name},</p>
       <p>Today's the day — your rent payment is due:</p>
       <ul style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
@@ -206,11 +212,11 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       </ul>
       ${payButton(v.pay_url, 'Pay rent now')}
       <p style="color:#8E8E93;font-size:13px">Paying today avoids any late fees per your lease agreement.</p>
-    `),
+    `, brandFooter(), brand),
   },
   late_fee_assessed: {
     subject: (v: LateFeeVars) => `Late fee added: $${v.fee_amount} on your ${v.property_name} rent`,
-    html: (v: LateFeeVars) => wrapHtml(`
+    html: (v: LateFeeVars, brand?: LeaseBrand | null) => wrapHtml(`
       <p>Hi ${v.first_name},</p>
       <p>Your rent for ${v.property_name} (Unit ${v.unit_number}) is now <strong>${v.days_overdue} days overdue</strong>. As outlined in your lease, a late fee has been added to your balance:</p>
       <ul style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
@@ -220,7 +226,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any) =>
       </ul>
       ${payButton(v.pay_url, 'Settle balance now')}
       <p style="color:#8E8E93;font-size:13px">Paying online resolves both the rent and the late fee in one transaction. If you've already paid by check that hasn't cleared yet, reply to this email and we'll help reconcile it.</p>
-    `),
+    `, brandFooter(), brand),
   },
   onboarding_welcome: {
     subject: (v: OnboardingVars) => `Welcome to FindStoop, ${v.first_name}`,
@@ -291,6 +297,9 @@ interface FireTriggerParams {
   // When set, the owning landlord is BCC'd so they have a copy of what their
   // tenant received. Resolved per-lease (cached) at the call site.
   bccEmail?: string
+  // Landlord white-label branding for tenant-facing sends. Resolved per-lease
+  // (cached) at the call site; omitted for manager-facing emails.
+  brand?: LeaseBrand | null
 }
 
 async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'duplicate' | 'no_template' | 'send_failed'> {
@@ -306,7 +315,15 @@ async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'd
   if (!template) return 'no_template'
 
   const subject = template.subject(p.templateVars)
-  const html    = template.html(p.templateVars)
+  let html      = template.html(p.templateVars, p.brand)
+
+  // Landlord accent color: every template uses the FindStoop teal only as an
+  // accent (header wordmark, buttons, links), so a straight swap re-skins the
+  // email without touching the copy or layout.
+  const accent = brandAccent(p.brand?.brand_color)
+  if (p.brand && companyDisplayName(p.brand.company_name) && accent !== DEFAULT_ACCENT) {
+    html = html.split(DEFAULT_ACCENT).join(accent)
+  }
 
   let resendId: string | null = null
   let status: 'sent' | 'failed' = 'sent'
@@ -314,7 +331,7 @@ async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'd
 
   try {
     const { data, error } = await resend.emails.send({
-      from: `FindStoop <${RESEND_FROM}>`,
+      from: emailFrom(p.brand?.company_name, RESEND_FROM),
       to: p.recipientEmail,
       bcc: p.bccEmail || undefined,
       subject,
@@ -369,6 +386,36 @@ Deno.serve(async (req) => {
     return mgrEmailCache.get(leaseId) || undefined
   }
 
+  // Resolve the owning landlord's white-label branding for a lease (cached per
+  // run). Any lookup failure just means the stock FindStoop presentation.
+  const brandCache = new Map<string, LeaseBrand | null>()
+  async function brandForLease(leaseId: string | null | undefined): Promise<LeaseBrand | null> {
+    if (!leaseId) return null
+    if (!brandCache.has(leaseId)) {
+      let brand: LeaseBrand | null = null
+      try {
+        const { data } = await admin
+          .from('leases')
+          .select('unit:units(property:properties(manager:profiles(company_name, company_logo_url, brand_color)))')
+          .eq('id', leaseId)
+          .maybeSingle()
+        // deno-lint-ignore no-explicit-any
+        const unit = data && (Array.isArray((data as any).unit) ? (data as any).unit[0] : (data as any).unit)
+        const property = unit && (Array.isArray(unit.property) ? unit.property[0] : unit.property)
+        const manager = property && (Array.isArray(property.manager) ? property.manager[0] : property.manager)
+        if (manager) {
+          brand = {
+            company_name: manager.company_name ?? null,
+            company_logo_url: manager.company_logo_url ?? null,
+            brand_color: manager.brand_color ?? null,
+          }
+        }
+      } catch { /* tolerate — email still sends unbranded */ }
+      brandCache.set(leaseId, brand)
+    }
+    return brandCache.get(leaseId) ?? null
+  }
+
   // ── Rent reminders: 3d / 1d / due today ────────────────────────────────
   for (const daysBefore of [3, 1, 0] as const) {
     const triggerKey = `rent_reminder_${daysBefore}d`
@@ -390,6 +437,7 @@ Deno.serve(async (req) => {
         userId: row.tenant_id,
         recipientEmail: row.tenant_email,
         bccEmail: await bccForLease(row.lease_id),
+        brand: await brandForLease(row.lease_id),
         dedupToken: `payment:${row.payment_id}:${daysBefore}d`,
         templateVars: {
           first_name: firstName,
@@ -447,6 +495,7 @@ Deno.serve(async (req) => {
             userId: row.tenant_id,
             recipientEmail: row.tenant_email,
             bccEmail: row.manager_email || undefined,
+            brand: await brandForLease(row.lease_id),
             dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
             templateVars: {
               first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
@@ -497,6 +546,7 @@ Deno.serve(async (req) => {
         userId: row.tenant_id,
         recipientEmail: row.tenant_email,
         bccEmail: await bccForLease(row.lease_id),
+        brand: await brandForLease(row.lease_id),
         dedupToken: `late_fee:payment:${row.payment_id}`,
         templateVars: {
           first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
@@ -680,6 +730,7 @@ Deno.serve(async (req) => {
             userId: row.tenant_id,
             recipientEmail: tenant.email,
             bccEmail: await bccForLease(row.lease_id),
+            brand: await brandForLease(row.lease_id),
             // Date-stamped so a retry on a later day can re-alert if it fails again.
             dedupToken: `autopay_failed:${row.id}:${new Date().toISOString().split('T')[0]}`,
             templateVars: {

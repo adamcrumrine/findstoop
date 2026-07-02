@@ -4,6 +4,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
+import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName } from '../_shared/emailBranding.ts'
 
 const APP_URL          = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const RESEND_API_KEY   = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await admin
       .from('profiles')
-      .select('full_name, role, email')
+      .select('full_name, role, email, company_name, company_logo_url, brand_color')
       .eq('id', user.id)
       .single()
     if (!callerProfile || (callerProfile.role !== 'manager' && callerProfile.role !== 'admin')) {
@@ -122,7 +123,12 @@ Deno.serve(async (req) => {
     }
 
     const actionLink = linkData.properties.action_link
-    const inviterName = callerProfile.full_name ?? 'Your landlord'
+    // The invite goes out on behalf of the landlord — when they've set a
+    // company name, present the company as the inviter (branding); otherwise
+    // fall back to their personal name, exactly as before.
+    const company = companyDisplayName(callerProfile.company_name)
+    const accent = brandAccent(company ? callerProfile.brand_color : null)
+    const inviterName = company ?? callerProfile.full_name ?? 'Your landlord'
     const tenantFirstName = (callerFullName?.split(' ')[0]) || 'there'
     const newTenantId = linkData.user?.id ?? null
 
@@ -159,14 +165,12 @@ Deno.serve(async (req) => {
 
     const html = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
-        <div style="text-align:center;padding:24px 0;border-bottom:1px solid #eee;margin-bottom:24px">
-          <span style="font-size:24px;font-weight:700;color:#00A896;letter-spacing:-0.02em">FindStoop</span>
-        </div>
+        ${emailHeaderHtml(company, callerProfile.company_logo_url, callerProfile.brand_color)}
         <p>Hi ${escapeHtml(tenantFirstName)},</p>
         <p>${headline}.</p>
         ${body}
         <p style="text-align:center;margin:28px 0">
-          <a href="${actionLink}" style="display:inline-block;background:#00A896;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">${isMigration ? 'Claim my renter account' : 'Set up my renter account'}</a>
+          <a href="${actionLink}" style="display:inline-block;background:${accent};color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">${isMigration ? 'Claim my renter account' : 'Set up my renter account'}</a>
         </p>
         ${isMigration ? `
         <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
@@ -182,7 +186,7 @@ Deno.serve(async (req) => {
         <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0 0 8px 0;font-weight:600;color:#00736B">Apply for the unit</p>
           <p style="margin:0 0 12px 0;font-size:13px;color:#3A3A3C">${escapeHtml(inviterName)} also shared a rental application for you to fill out:</p>
-          <a href="${applyLink}" style="display:inline-block;background:white;color:#00A896;border:1px solid #00A896;padding:8px 20px;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Open application</a>
+          <a href="${applyLink}" style="display:inline-block;background:white;color:${accent};border:1px solid ${accent};padding:8px 20px;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Open application</a>
         </div>
         ` : ''}
         <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link into your browser:<br><a href="${actionLink}" style="color:#00A896;word-break:break-all">${actionLink}</a></p>
@@ -190,6 +194,7 @@ Deno.serve(async (req) => {
           <p>You're receiving this because ${escapeHtml(inviterName)} ${isMigration ? 'moved your lease to FindStoop' : 'added you as a renter on FindStoop'}.</p>
           <p>If you weren't expecting this, you can safely ignore this email.</p>
         </div>
+        ${company ? emailFooterHtml(company) : ''}
       </div>
     `
 
@@ -209,7 +214,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: emailData, error: emailErr } = await resend.emails.send({
-      from: `FindStoop <${RESEND_FROM}>`,
+      from: emailFrom(company, RESEND_FROM),
       to: cleanEmail,
       bcc: callerProfile.email ?? undefined, // owning landlord gets a copy
       subject,

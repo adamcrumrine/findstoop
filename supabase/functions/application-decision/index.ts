@@ -17,6 +17,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import { generateLeaseText } from '../_shared/leaseTemplates.ts'
+import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName } from '../_shared/emailBranding.ts'
 
 const APP_URL        = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -81,7 +82,7 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await admin
       .from('profiles')
-      .select('full_name, role, email, phone, company_name')
+      .select('full_name, role, email, phone, company_name, company_logo_url, brand_color')
       .eq('id', user.id)
       .single()
     if (!callerProfile || (callerProfile.role !== 'manager' && callerProfile.role !== 'admin')) {
@@ -125,8 +126,15 @@ Deno.serve(async (req) => {
       return json({ error: 'You do not manage this property' }, { status: 403 })
     }
 
+    // When the landlord has set a company name, both decision emails present
+    // as coming from the company (with "via FindStoop" attribution);
+    // otherwise they keep today's exact FindStoop presentation.
+    const company       = companyDisplayName(callerProfile.company_name)
+    const accent        = brandAccent(company ? callerProfile.brand_color : null)
+    const headerHtml    = emailHeaderHtml(company, callerProfile.company_logo_url, callerProfile.brand_color)
+    const footerHtml    = company ? emailFooterHtml(company) : ''
     const landlordName  = callerProfile.full_name ?? 'Your landlord'
-    const companyName   = callerProfile.company_name ?? landlordName
+    const companyName   = company ?? landlordName
     const replyTo       = callerProfile.email ?? undefined
     const firstName     = appRow.first_name || 'there'
     const fullName      = `${appRow.first_name} ${appRow.last_name}`.trim()
@@ -149,16 +157,18 @@ Deno.serve(async (req) => {
         : ''
       const html = renderEmail({
         title: `Update on your application`,
+        headerHtml,
+        footerHtml,
         bodyHtml: `
           <p>Hi ${escapeHtml(firstName)},</p>
-          <p>Thank you for applying to <strong>${escapeHtml(propertyLabel)}</strong>. After reviewing your application, ${escapeHtml(landlordName)} won't be moving forward with your application this time.</p>
+          <p>Thank you for applying to <strong>${escapeHtml(propertyLabel)}</strong>. After reviewing your application, ${escapeHtml(companyName)} won't be moving forward with your application this time.</p>
           ${reasonBlock}
           <p>We know this isn't the news you were hoping for. We wish you the best in your housing search.</p>
-          <p style="color:#8E8E93;font-size:13px">— FindStoop, on behalf of ${escapeHtml(companyName)}</p>
+          <p style="color:#8E8E93;font-size:13px">${company ? `— ${escapeHtml(company)}, via FindStoop` : `— FindStoop, on behalf of ${escapeHtml(companyName)}`}</p>
         `,
       })
       const { error: emailErr } = await resend.emails.send({
-        from: `FindStoop <${RESEND_FROM}>`,
+        from: emailFrom(company, RESEND_FROM),
         to: cleanEmail,
         bcc: replyTo, // owning landlord gets a copy
         subject,
@@ -297,9 +307,11 @@ Deno.serve(async (req) => {
     const subject = `You've been approved for ${propertyLabel}`
     const html = renderEmail({
       title: 'You’re approved!',
+      headerHtml,
+      footerHtml,
       bodyHtml: `
         <p>Hi ${escapeHtml(firstName)},</p>
-        <p>Great news — <strong>${escapeHtml(landlordName)}</strong> approved your application for:</p>
+        <p>Great news — <strong>${escapeHtml(companyName)}</strong> approved your application for:</p>
         <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0;font-weight:600;color:#00736B">${escapeHtml(propertyLabel)}</p>
           <p style="margin:4px 0 0 0;color:#3A3A3C;font-size:13px">${escapeHtml(propertyAddr)}</p>
@@ -307,7 +319,7 @@ Deno.serve(async (req) => {
         </div>
         <p>The next step is to set up your FindStoop account so you can review and sign your lease, pay rent, and submit maintenance requests — all from one place.</p>
         <p style="text-align:center;margin:28px 0">
-          <a href="${ctaHref}" style="display:inline-block;background:#00A896;color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">${ctaLabel}</a>
+          <a href="${ctaHref}" style="display:inline-block;background:${accent};color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">${ctaLabel}</a>
         </p>
         ${actionLink ? `<p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn’t work, copy and paste this link into your browser:<br><a href="${actionLink}" style="color:#00A896;word-break:break-all">${actionLink}</a></p>` : ''}
         <p style="color:#8E8E93;font-size:12px;margin-top:24px">After you sign in, your draft lease will be waiting in your dashboard.</p>
@@ -315,7 +327,7 @@ Deno.serve(async (req) => {
     })
 
     const { error: emailErr } = await resend.emails.send({
-      from: `FindStoop <${RESEND_FROM}>`,
+      from: emailFrom(company, RESEND_FROM),
       to: cleanEmail,
       bcc: replyTo, // owning landlord gets a copy
       subject,
@@ -346,14 +358,18 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function renderEmail({ title, bodyHtml }: { title: string; bodyHtml: string }): string {
+function renderEmail({ title, bodyHtml, headerHtml = emailHeaderHtml(), footerHtml = '' }: {
+  title: string
+  bodyHtml: string
+  headerHtml?: string   // defaults to the stock FindStoop header
+  footerHtml?: string   // "Sent by <Company> via FindStoop" attribution, when branded
+}): string {
   return `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
-      <div style="text-align:center;padding:24px 0;border-bottom:1px solid #eee;margin-bottom:24px">
-        <span style="font-size:24px;font-weight:700;color:#00A896;letter-spacing:-0.02em">FindStoop</span>
-      </div>
+      ${headerHtml}
       <h1 style="font-size:22px;font-weight:700;color:#3A3A3C;margin:0 0 16px 0">${title}</h1>
       ${bodyHtml}
+      ${footerHtml}
     </div>
   `
 }

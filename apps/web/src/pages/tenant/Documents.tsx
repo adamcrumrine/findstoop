@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import ComplianceWidget from '../../components/tenant/ComplianceWidget'
+import AskLeaseCard from '../../components/tenant/AskLeaseCard'
 import { Link } from 'react-router-dom'
 import {
   ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder, ExternalLink,
@@ -232,6 +233,11 @@ export default function TenantDocuments() {
       {/* Move-in / move-out checklists the manager has started or completed
           for this tenant. Lives in the inspections table, not documents. */}
       {lease?.id && <TenantInspections leaseId={lease.id} />}
+
+      {/* AI Q&A grounded in the tenant's own lease — answers "can I have a
+          dog?"-type questions from the signed document instead of a message
+          to the landlord. */}
+      {lease?.id && <AskLeaseCard leaseId={lease.id} />}
 
       {/* List */}
       {loading ? (

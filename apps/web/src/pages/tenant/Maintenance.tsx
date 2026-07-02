@@ -5,6 +5,7 @@ import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import Modal from '../../components/shared/Modal'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
+import SelfTriageCard, { fetchSelfTriage, type SelfTriageResult } from '../../components/tenant/SelfTriageCard'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
 import { Wrench, Camera } from 'lucide-react'
@@ -68,12 +69,22 @@ export default function TenantMaintenance() {
   const [previews, setPreviews] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Pre-submit self-triage ("try this first"). checking = the ~6s AI lookup;
+  // triage = suggestions being shown; triageChecked = we already tried once,
+  // so the next submit goes straight through.
+  const [triage, setTriage] = useState<SelfTriageResult | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [triageChecked, setTriageChecked] = useState(false)
+
   const resetForm = () => {
     setTitle('')
     setDescription('')
     setPriority('low')
     setPhotos([])
     setPreviews([])
+    setTriage(null)
+    setChecking(false)
+    setTriageChecked(false)
   }
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,14 +93,20 @@ export default function TenantMaintenance() {
     setPreviews(files.map((f) => URL.createObjectURL(f)))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Creates the ticket. If self-triage ran and the tenant proceeded anyway,
+  // note the tried steps in the description so the landlord sees "tenant
+  // already tried X" (no dedicated column exists; the description feeds the
+  // landlord-side AI triage too, which benefits from the context).
+  const doSubmit = async (tried: SelfTriageResult | null) => {
     if (!tenantId || !lease) return
     try {
+      const triedNote = tried && tried.self_fixes.length > 0
+        ? `\n\n(Before submitting, tried the app's quick-fix suggestions without success: ${tried.self_fixes.map((f) => f.step).join('; ')})`
+        : ''
       await submit(tenantId, {
         unit_id: lease.unit_id,
         title,
-        description,
+        description: (description + triedNote).trim(),
         priority,
         photos,
       })
@@ -99,6 +116,32 @@ export default function TenantMaintenance() {
     } catch (err) {
       toast.error((err as Error).message)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!tenantId || !lease) return
+    // One best-effort "try this first" check before creating the ticket.
+    // Skipped for emergencies; any failure or timeout falls through to a
+    // normal submit — this must never block a request.
+    if (!triageChecked && priority !== 'emergency' && (title.trim() || description.trim())) {
+      setChecking(true)
+      const result = await fetchSelfTriage(title, description)
+      setChecking(false)
+      setTriageChecked(true)
+      if (result && (result.self_fixes.length > 0 || result.safety_warning)) {
+        setTriage(result)
+        return
+      }
+    }
+    await doSubmit(null)
+  }
+
+  // "That fixed it!" — dismiss without creating a ticket.
+  const handleResolved = () => {
+    setShowNew(false)
+    resetForm()
+    toast.success('Glad that fixed it — no request was sent.')
   }
 
   const filtered = filterStatus === 'all'
@@ -202,6 +245,14 @@ export default function TenantMaintenance() {
 
       {/* New Request Modal */}
       <Modal open={showNew} onClose={() => { setShowNew(false); resetForm() }} title="New Maintenance Request">
+        {triage ? (
+          <SelfTriageCard
+            triage={triage}
+            submitting={submitting}
+            onResolved={handleResolved}
+            onSubmit={() => { void doSubmit(triage) }}
+          />
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="Title" required>
             <input
@@ -280,13 +331,14 @@ export default function TenantMaintenance() {
             </button>
             <button
               type="submit"
-              disabled={submitting || !title}
+              disabled={submitting || checking || !title}
               className="flex-1 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
             >
-              {submitting ? 'Submitting…' : 'Submit Request'}
+              {checking ? 'Checking for quick fixes…' : submitting ? 'Submitting…' : 'Submit Request'}
             </button>
           </div>
         </form>
+        )}
       </Modal>
 
       {/* Detail Modal */}

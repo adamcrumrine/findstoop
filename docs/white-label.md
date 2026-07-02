@@ -62,12 +62,40 @@ a new accent color (`profiles.brand_color`, migration
   order) and applies the accent while mounted; a **"Powered by Stoop"**
   attribution shows whenever another brand fronts the portal.
 
+## Landlord-branded email
+
+Tenant-facing transactional emails (invite, lease/document ready, application
+decisions, rent/late/renewal/auto-pay lifecycle) present as the landlord's
+company when `company_name` is set: `"Company via FindStoop" <noreply@…>`
+from-header, logo/name header, `brand_color` accent, and a "Sent by …
+via FindStoop" footer (`supabase/functions/_shared/emailBranding.ts`).
+Manager-facing and security emails stay platform-branded. Everything still
+sends from the existing Resend address — a custom from-domain per brand would
+need DNS + Resend setup. Supabase *auth* emails (password reset, OTP) are
+dashboard-managed templates; keep their copy brand-neutral ("your rental
+portal") if white-label matters there.
+
+## Pre-auth applicant branding
+
+The `/apply/:unitId` flow (and its Stripe payment form) brands itself via the
+anon-callable `get_unit_public_brand(unit_id)` RPC
+(migration `20260702000001`), which exposes only the manager's
+name/logo/color. Signed documents and the tenant portal use the authed
+`useLandlordBranding` hook instead.
+
 ## Guardrails
 
 - `apps/web/src/lib/brandLeaks.test.ts` fails CI if anyone hardcodes
   user-visible Stoop branding outside the registry (comments and the
   intentional attribution strings are exempt).
 - `apps/web/src/lib/landlordBrand.test.ts` proves the contrast guarantee.
+- CI builds the hawk brand alongside the default on every PR.
+- `npm run smoke:brands` builds every brand and asserts the output carries its
+  metadata, manifest, and rendered homepage branding (Chromium optional).
+- `/brand-preview` (dev only): palette, core treatments, and a landlord
+  accent-color simulator.
+- White-label builds tag analytics events with `metadata.brand` for
+  segmentation; default-brand rows are unchanged.
 
 Component code never hardcodes a brand: it imports `BRAND` (and
 `IS_WHITE_LABEL`, `brandColor()` for chart/SVG colors) from `lib/brand`.

@@ -33,8 +33,12 @@ const BUCKET = 'user-uploads'
  * Resize an image client-side via canvas to keep storage small and rendering
  * crisp. Returns a JPEG blob at the requested max-dimension (longest edge),
  * preserving aspect ratio. Pass 0 for maxDim to return the file as-is.
+ *
+ * Exported for reuse anywhere an image needs a client-side downscale before
+ * leaving the browser (e.g. the Expenses receipt scan shrinks photos before
+ * sending them to the parse-receipt edge function).
  */
-async function resizeImage(file: File, maxDim: number, quality = 0.9): Promise<Blob> {
+export async function resizeImage(file: File, maxDim: number, quality = 0.9): Promise<Blob> {
   if (maxDim <= 0) return file
   const bitmap = await createImageBitmap(file)
   try {

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Trash2, FileText, Loader2, Wallet, ArrowLeft } from 'lucide-react'
+import { Plus, Trash2, FileText, Loader2, Wallet, ArrowLeft, ScanLine } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getProperties } from '@findstoop/shared/api/properties'
 import { getExpenses, createExpense, deleteExpense } from '@findstoop/shared/api/expenses'
@@ -9,8 +9,45 @@ import { EXPENSE_CATEGORY_META, EXPENSE_LABEL } from '@findstoop/shared/types/ex
 import type { PropertyExpense, ExpenseCategory } from '@findstoop/shared/types/expense'
 import type { Property } from '@findstoop/shared/types/property'
 import { formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
+import { supabase } from '../../lib/supabase'
+import { verifyImageMagicBytes } from '../../lib/fileValidation'
+import { resizeImage } from '../../components/shared/ImageUploader'
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
+
+// ── Receipt scan (parse-receipt edge function) ─────────────────────────
+// The AI reads the photo and we PREFILL the form below — the landlord always
+// reviews and hits "Add expense" themselves; nothing is auto-saved. The image
+// is parse-and-discard: property_expenses has no receipt attachment column,
+// so the photo never leaves this page except for the one parsing call.
+
+interface ParsedReceipt {
+  vendor: string | null
+  date: string | null            // YYYY-MM-DD
+  total_amount: number | null
+  suggested_category: ExpenseCategory | null
+  line_summary: string | null
+  confidence: 'high' | 'medium' | 'low'
+}
+
+interface ParseReceiptResponse {
+  ok: boolean
+  receipt?: ParsedReceipt
+  code?: 'not_a_receipt' | 'unreadable' | 'rate_limited' | 'too_large' | 'bad_input' | 'unavailable'
+  message?: string
+}
+
+// Longest edge sent to the vision model — receipts stay legible at this size
+// and the payload drops from multi-MB camera photos to ~100-400 KB.
+const SCAN_MAX_DIM = 1568
+const SCAN_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
+const blobToBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+  reader.onerror = () => reject(new Error('Could not read file'))
+  reader.readAsDataURL(blob)
+})
 
 export default function Expenses() {
   const { profile } = useAuth()
@@ -25,6 +62,11 @@ export default function Expenses() {
   const [form, setForm] = useState({
     property_id: '', category: 'repairs' as ExpenseCategory, amount: '', expense_date: todayStr(), vendor: '', note: '',
   })
+  const scanInputRef = useRef<HTMLInputElement>(null)
+  const [scanning, setScanning] = useState(false)
+  // Which fields the last scan prefilled + how confident the model was, so
+  // non-high-confidence values get visually flagged for review.
+  const [scan, setScan] = useState<{ confidence: 'high' | 'medium' | 'low'; fields: string[] } | null>(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -55,6 +97,67 @@ export default function Expenses() {
     return [...m.entries()].sort((a, b) => b[1] - a[1])
   }, [expenses])
 
+  const scanReceipt = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) return toast.error('Image must be under 10 MB')
+    // Magic-byte check — the browser-reported MIME type is trivially spoofable.
+    const verifiedMime = await verifyImageMagicBytes(file)
+    if (!verifiedMime) return toast.error("That file doesn't look like a real image (JPEG, PNG, or WebP).")
+    setScanning(true)
+    setScan(null)
+    try {
+      // Downscale before sending — same canvas helper the logo/avatar uploader uses.
+      const resized = await resizeImage(file, SCAN_MAX_DIM, 0.85)
+      const mediaType = resized.type || file.type
+      if (!SCAN_MEDIA_TYPES.includes(mediaType)) {
+        // e.g. a tiny HEIC that skipped re-encoding — the model can't read it.
+        toast.error('Could not convert that photo — try a JPEG or PNG.')
+        return
+      }
+      const image_base64 = await blobToBase64(resized)
+      const { data, error } = await supabase.functions.invoke('parse-receipt', {
+        body: { image_base64, media_type: mediaType },
+      })
+      if (error) throw new Error('Could not reach the receipt reader')
+      const res = data as ParseReceiptResponse
+      if (!res?.ok || !res.receipt) {
+        if (res?.code === 'not_a_receipt') {
+          toast.error("That doesn't look like a receipt — enter the expense below instead.")
+        } else if (res?.code === 'rate_limited') {
+          toast.error(res.message ?? 'Too many scans today — enter it manually.')
+        } else {
+          toast.error("Couldn't read that receipt — enter it below instead.")
+        }
+        return
+      }
+      const r = res.receipt
+      const prefill: Partial<typeof form> = {}
+      if (r.vendor) prefill.vendor = r.vendor
+      if (r.date) prefill.expense_date = r.date
+      if (r.total_amount != null && r.total_amount > 0) prefill.amount = r.total_amount.toFixed(2)
+      if (r.suggested_category && EXPENSE_CATEGORY_META.some((c) => c.key === r.suggested_category)) {
+        prefill.category = r.suggested_category
+      }
+      if (r.line_summary) prefill.note = r.line_summary
+      if (Object.keys(prefill).length === 0) {
+        toast.error("Couldn't read that receipt — enter it below instead.")
+        return
+      }
+      setForm((f) => ({ ...f, ...prefill }))
+      setScan({ confidence: r.confidence, fields: Object.keys(prefill) })
+      toast.success('Receipt scanned — review the details, then add')
+    } catch {
+      // Parse failure / timeout / network — the form below stays usable.
+      toast.error("Couldn't read that receipt — enter it below instead.")
+    } finally {
+      setScanning(false)
+      if (scanInputRef.current) scanInputRef.current.value = ''
+    }
+  }
+
+  // Amber-flag prefilled fields when the scan wasn't high-confidence.
+  const flagged = (field: string) => scan !== null && scan.confidence !== 'high' && scan.fields.includes(field)
+  const fieldBorder = (field: string) => (flagged(field) ? 'border-amber-400 bg-amber-50' : 'border-gray-300')
+
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
     const amt = parseFloat(form.amount)
@@ -70,6 +173,7 @@ export default function Expenses() {
         setExpenses((x) => [created, ...x].sort((a, b) => b.expense_date.localeCompare(a.expense_date)))
       }
       setForm((f) => ({ ...f, amount: '', vendor: '', note: '' }))
+      setScan(null)
       toast.success('Expense added')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not add expense')
@@ -122,7 +226,38 @@ export default function Expenses() {
 
       {/* Add expense */}
       <form onSubmit={add} className="bg-white rounded-2xl border border-gray-200 p-4">
-        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">Add an expense</h2>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Add an expense</h2>
+          <button
+            type="button"
+            onClick={() => scanInputRef.current?.click()}
+            disabled={scanning}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink bg-white border border-gray-300 hover:border-brand-400 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
+          >
+            {scanning
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />
+              : <ScanLine className="w-3.5 h-3.5" strokeWidth={1.75} />}
+            {scanning ? 'Reading receipt…' : 'Scan receipt'}
+          </button>
+          <input
+            ref={scanInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => e.target.files?.[0] && scanReceipt(e.target.files[0])}
+          />
+        </div>
+        {scan && (
+          <p className={`text-xs rounded-lg border px-3 py-2 mb-3 ${
+            scan.confidence === 'high'
+              ? 'bg-gray-50 border-gray-200 text-mute'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+          }`}>
+            {scan.confidence === 'high'
+              ? 'Scanned from your receipt — review the details, then add.'
+              : 'Scanned with ' + scan.confidence + ' confidence — double-check the highlighted fields before adding.'}
+          </p>
+        )}
         <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <label className="text-xs text-mute lg:col-span-2">
             Property
@@ -140,7 +275,7 @@ export default function Expenses() {
             <select
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as ExpenseCategory }))}
-              className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className={`mt-1 w-full border ${fieldBorder('category')} rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500`}
             >
               {EXPENSE_CATEGORY_META.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
@@ -151,7 +286,7 @@ export default function Expenses() {
               type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00"
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className={`mt-1 w-full border ${fieldBorder('amount')} rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500`}
             />
           </label>
           <label className="text-xs text-mute">
@@ -159,7 +294,7 @@ export default function Expenses() {
             <input
               type="date" value={form.expense_date}
               onChange={(e) => setForm((f) => ({ ...f, expense_date: e.target.value }))}
-              className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className={`mt-1 w-full border ${fieldBorder('expense_date')} rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500`}
             />
           </label>
           <label className="text-xs text-mute lg:col-span-3">
@@ -168,7 +303,7 @@ export default function Expenses() {
               type="text" placeholder="e.g. ABC Plumbing"
               value={form.vendor}
               onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))}
-              className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className={`mt-1 w-full border ${fieldBorder('vendor')} rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500`}
             />
           </label>
           <label className="text-xs text-mute lg:col-span-3">
@@ -177,7 +312,7 @@ export default function Expenses() {
               type="text" placeholder="What was it for?"
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              className="mt-1 w-full border border-gray-300 rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className={`mt-1 w-full border ${fieldBorder('note')} rounded-lg px-2 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-500`}
             />
           </label>
         </div>

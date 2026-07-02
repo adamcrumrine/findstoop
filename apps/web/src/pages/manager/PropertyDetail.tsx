@@ -1,5 +1,5 @@
 // Property detail page — top-level tabs for one property.
-// Tabs: Overview · Units · Leases · Tenants · Maintenance · Payments
+// Tabs: Overview · Units · Leases · Tenants · Maintenance · Payments · Compliance
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -18,18 +18,19 @@ import type { Payment } from '@findstoop/shared/types/payment'
 import {
   ArrowLeft, Building2, Loader2, Home, FileText, Users, Wrench, CreditCard,
   CheckCircle2, Calendar, DollarSign, Copy, AlertCircle, Pencil, Trash2, MessageSquare,
-  ShieldCheck, RefreshCw, ChevronDown, GraduationCap,
+  ShieldCheck, RefreshCw, ChevronDown, GraduationCap, Scale,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
+import CompliancePanel from '../../components/manager/CompliancePanel'
 import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import Avatar from '../../components/shared/Avatar'
 import { BRAND, brandColor } from '../../lib/brand'
 
-type TabId = 'overview' | 'units' | 'leases' | 'tenants' | 'maintenance' | 'payments'
+type TabId = 'overview' | 'units' | 'leases' | 'tenants' | 'maintenance' | 'payments' | 'compliance'
 
 const tabs: { id: TabId; label: string; Icon: typeof Home }[] = [
   { id: 'overview',    label: 'Overview',    Icon: Home },
@@ -38,6 +39,7 @@ const tabs: { id: TabId; label: string; Icon: typeof Home }[] = [
   { id: 'tenants',     label: 'Tenants',     Icon: Users },
   { id: 'maintenance', label: 'Maintenance', Icon: Wrench },
   { id: 'payments',    label: 'Payments',    Icon: CreditCard },
+  { id: 'compliance',  label: 'Compliance',  Icon: Scale },
 ]
 
 export default function ManagerPropertyDetail() {
@@ -263,6 +265,7 @@ export default function ManagerPropertyDetail() {
       {tab === 'tenants' && <TenantsTab tenants={scopedTenants} getActiveLease={getActiveLease} units={scopedUnits} />}
       {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
       {tab === 'payments' && <PaymentsTab leases={scopedLeases} units={scopedUnits} leaseStatusFilter={leaseStatusFilter} />}
+      {tab === 'compliance' && <CompliancePanel property={property} leases={scopedLeases} />}
 
       {/* Danger zone — Overview only. Rendering it under every tab put a
           permanent red "Delete property" next to routine work (checking a

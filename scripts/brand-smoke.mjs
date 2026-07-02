@@ -6,9 +6,10 @@
 //   node scripts/brand-smoke.mjs            # build + verify all brands
 //   node scripts/brand-smoke.mjs --no-build # verify current dist only (one brand)
 //
-// A headless browser is optional: set CHROME_BIN, or it's auto-detected from
-// the Playwright cache / common install paths. Without one, the DOM check is
-// skipped (static checks still run).
+// The static checks (index.html metadata + PWA manifest) are the default and
+// take ~10s per brand (one vite build each). The rendered-DOM check needs a
+// Chromium binary AND working network to your Supabase project, so it's
+// opt-in: SMOKE_DOM=1 (auto-detects CHROME_BIN / Playwright cache paths).
 
 import { execSync, execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -33,7 +34,7 @@ const CHROME_CANDIDATES = [
   '/usr/bin/google-chrome',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].filter(Boolean)
-const CHROME = CHROME_CANDIDATES.find((p) => existsSync(p)) ?? null
+const CHROME = process.env.SMOKE_DOM === '1' ? (CHROME_CANDIDATES.find((p) => existsSync(p)) ?? null) : null
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' }
 
@@ -81,18 +82,23 @@ for (const brand of BRANDS) {
     const server = await serveDist()
     const url = `http://127.0.0.1:${server.address().port}/`
     try {
+      // --timeout forces the dump even if the page never settles (the app's
+      // API calls point at a placeholder Supabase and hang forever), and the
+      // execFileSync timeout is the hard backstop — this step can never wedge.
       const dom = execFileSync(
         CHROME,
-        ['--headless', '--disable-gpu', '--no-sandbox', '--virtual-time-budget=8000', '--dump-dom', url],
-        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+        ['--headless', '--disable-gpu', '--no-sandbox', '--virtual-time-budget=8000', '--timeout=10000', '--dump-dom', url],
+        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 30_000, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'ignore'] },
       )
       check(brand.id, 'rendered homepage shows brand logo', dom.includes(brand.logoNeedle))
       check(brand.id, 'rendered homepage names the brand', dom.includes(brand.name))
+    } catch (err) {
+      check(brand.id, 'rendered homepage DOM check', false, `chromium failed or timed out (${err.code ?? err.status ?? 'unknown'})`)
     } finally {
       server.close()
     }
   } else {
-    console.log(`  - [${brand.id}] DOM check skipped (no Chromium found; set CHROME_BIN)`)
+    console.log(`  - [${brand.id}] DOM check skipped (opt in with SMOKE_DOM=1; needs Chromium + network)`)
   }
 
   if (NO_BUILD) break // dist only holds one brand's output

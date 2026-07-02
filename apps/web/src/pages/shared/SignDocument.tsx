@@ -16,6 +16,8 @@ import DisclaimerBanner from '../../components/documents/DisclaimerBanner'
 import SignaturePad, { type SignaturePadHandle } from '../../components/shared/SignaturePad'
 import { Loader2, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
+import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 
 async function bestEffortIp(): Promise<string | null> {
   try {
@@ -44,6 +46,19 @@ export default function SignDocument() {
   const [submitting, setSubmitting] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [progress, setProgress] = useState<{ signed: number; required: number } | null>(null)
+
+  // The signer is an authed tenant, so their landlord's branding resolves the
+  // same way as in TenantLayout (no public RPC needed). Managers previewing
+  // their own document keep the build brand.
+  const landlord = useLandlordBranding(profile?.role === 'tenant' ? profile.id : undefined)
+
+  // Landlord accent color — layered over the build brand while this page is
+  // mounted; cleanup restores the build palette so it never leaks elsewhere.
+  useEffect(() => {
+    if (!landlord?.brandColor) return
+    applyLandlordBrand(landlord.brandColor)
+    return () => clearLandlordBrand()
+  }, [landlord?.brandColor])
 
   useEffect(() => {
     if (!id || authLoading) return
@@ -115,7 +130,7 @@ export default function SignDocument() {
 
   if (!bundle || !bundle.doc.generated_body) {
     return (
-      <DocPageShell senderName="your landlord">
+      <DocPageShell senderName="your landlord" landlord={landlord}>
         <div className="text-center py-16 text-mute">This document isn't available.</div>
       </DocPageShell>
     )
@@ -125,7 +140,7 @@ export default function SignDocument() {
   const alreadySigned = doc.status === 'signed' || completed
 
   return (
-    <DocPageShell senderName={managerName} propertyAddress={propertyName} contactEmail={managerEmail}>
+    <DocPageShell senderName={managerName} propertyAddress={propertyName} contactEmail={managerEmail} landlord={landlord}>
       <div className="space-y-4">
         <DisclaimerBanner />
 

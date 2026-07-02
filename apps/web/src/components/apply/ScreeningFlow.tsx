@@ -42,6 +42,15 @@ function getStripe() {
   return stripePromise
 }
 
+// Stripe renders inside an iframe, so Tailwind's brand utilities can't reach
+// it. Read the live --brand-400 custom property instead — it carries the
+// landlord's palette when ApplyLayout applied one — falling back to the
+// build brand's static value.
+function liveAccent(): string {
+  const triplet = getComputedStyle(document.documentElement).getPropertyValue('--brand-400').trim()
+  return triplet ? `rgb(${triplet})` : brandColor('400')
+}
+
 type Step = 'intro' | 'pay' | 'id' | 'income' | 'credit_self' | 'review' | 'done'
 type IncomePath = 'w2' | '1099' | 'self_employed' | 'fixed_income' | 'new_hire'
 type DocKind = 'paystub' | 'ten99' | 'bank_statement' | 'tax_return' | 'ssa_1099' | 'offer_letter'
@@ -193,7 +202,7 @@ export default function ScreeningFlow({ applicationId, applicantName, applicantE
               clientSecret,
               appearance: {
                 theme: 'stripe',
-                variables: { colorPrimary: brandColor('400'), borderRadius: '8px', fontFamily: 'system-ui, -apple-system, sans-serif' },
+                variables: { colorPrimary: liveAccent(), borderRadius: '8px', fontFamily: 'system-ui, -apple-system, sans-serif' },
               },
             }}
           >

@@ -287,8 +287,8 @@ export default function ManagerDashboard() {
       out.push({
         key: 'renewal', Icon: CalendarClock, tone: 'brand',
         title: `${where} — lease ends in ${d}d`,
-        body: 'Renewals land best with 30+ days of runway. Start the conversation now.',
-        to: '/manager/leases', cta: 'View lease',
+        body: 'Renewals land best with 30+ days of runway. The renewal advisor suggests a number and drafts the offer letter.',
+        to: '/manager/leases', cta: 'Open renewal advisor',
       })
     }
     return out.slice(0, 3)

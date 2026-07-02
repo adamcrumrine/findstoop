@@ -12,6 +12,7 @@ import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pen
 import Avatar from '../../components/shared/Avatar'
 import { Link } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
+import RenewalAdvisor from '../../components/manager/RenewalAdvisor'
 
 function Skeleton() {
   return (
@@ -395,6 +396,12 @@ export default function ManagerLeases() {
           </button>
         </div>
       </div>
+
+      {/* Renewal advisor — active leases ending soon, with a suggested
+          renewal rent and a one-click prefilled offer letter. */}
+      {!loading && (
+        <RenewalAdvisor leases={leases} unitMap={unitMap} propertyMap={propertyMap} />
+      )}
 
       {/* Filter — native dropdown on mobile (compact + native picker UX),
           pill row on sm+ where horizontal room is no problem. */}

@@ -109,7 +109,13 @@ export default function DocumentBuilder() {
     stepParam === 'day10' ? 'late_payment_d10' : stepParam === 'day15' ? 'late_payment_d15' : 'late_payment_d5'
   )
   const [bundle, setBundle] = useState<LeaseDocBundle | null>(null)
-  const [values, setValues] = useState<Record<string, string>>({})
+  // Deep links (e.g. the Renewal advisor) can pre-seed field values via
+  // `f_<key>` query params — explicit seeds win over the standard prefills.
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const seeded: Record<string, string> = {}
+    params.forEach((v, k) => { if (k.startsWith('f_')) seeded[k.slice(2)] = v })
+    return seeded
+  })
   const [seeds, setSeeds] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [docId, setDocId] = useState<string | null>(null)

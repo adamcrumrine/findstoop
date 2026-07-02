@@ -192,28 +192,42 @@ const moveOut: TemplateDef = {
 const securityDeposit: TemplateDef = {
   type: 'security_deposit',
   state: 'OH',
-  version: '1.0.0',
+  version: '1.1.0',
   label: 'Security Deposit Disposition',
   description: 'Itemize what was kept and what is being returned (ORC 5321.16).',
   requiresSignature: false,
   deliveryRule: 'any',
   fields: [
+    { key: 'move_out_date', label: 'Tenancy ended on', type: 'date', required: true, prefill: 'lease_end' },
     { key: 'deposit_amount', label: 'Original deposit', type: 'number', required: true, prefill: 'security_deposit' },
-    { key: 'deductions', label: 'Itemized deductions', type: 'textarea', required: true, help: 'One per line: what it was for and the amount.' },
+    { key: 'deductions', label: 'Itemized deductions', type: 'textarea', required: true, help: 'One per line: what it was for and the amount. Ohio does not allow deductions for ordinary wear and tear.' },
     { key: 'total_deductions', label: 'Total deductions', type: 'number', required: true },
     { key: 'amount_returned', label: 'Amount being returned', type: 'number', required: true },
+    { key: 'forwarding_address', label: 'Forwarding address (optional)', type: 'textarea', help: 'Where the refund is being sent. Leave blank if delivered another way.' },
   ],
-  render: (ctx) => wrap(ctx, 'Security Deposit Disposition', `
-    <p>Thanks for returning your home. Here's the full accounting of your security deposit, as required under Ohio Revised Code 5321.16.</p>
-    <table class="doc-terms">
-      <tr><th>Original deposit</th><td>${money(ctx.f.deposit_amount)}</td></tr>
-      <tr><th>Total deductions</th><td>${money(ctx.f.total_deductions)}</td></tr>
-      <tr class="doc-total"><th>Amount returned to you</th><td>${money(ctx.f.amount_returned)}</td></tr>
-    </table>
-    <h2 class="doc-h2">Itemized deductions</h2>
-    ${paragraphs(ctx.f.deductions)}
-    <p>Your refund is enclosed or on its way to the forwarding address you gave us. If anything here looks off, reach out and we'll go over it with you.</p>
-  `),
+  render: (ctx) => {
+    const total = Number(ctx.f.total_deductions ?? 0)
+    const deposit = Number(ctx.f.deposit_amount ?? 0)
+    const balanceOwed = Math.round(Math.max(0, total - deposit) * 100) / 100
+    return wrap(ctx, 'Security Deposit Disposition', `
+      <p>Thanks for returning your home. Your tenancy ended on <strong>${longDate(ctx.f.move_out_date as string)}</strong>, and this is the itemized accounting of your security deposit required under <strong>Ohio Revised Code § 5321.16</strong>, which calls for the itemized statement and any refund within 30 days of the end of the tenancy.</p>
+      <table class="doc-terms">
+        <tr><th>Original deposit</th><td>${money(ctx.f.deposit_amount)}</td></tr>
+        <tr><th>Total deductions</th><td>${money(ctx.f.total_deductions)}</td></tr>
+        <tr class="doc-total"><th>Amount returned to you</th><td>${money(ctx.f.amount_returned)}</td></tr>
+        ${balanceOwed > 0 ? `<tr><th>Balance remaining owed</th><td>${money(balanceOwed)}</td></tr>` : ''}
+      </table>
+      <h2 class="doc-h2">Itemized deductions</h2>
+      ${paragraphs(ctx.f.deductions)}
+      <p>Each deduction above is for unpaid rent or damage beyond ordinary wear and tear — ordinary wear and tear has not been charged, as ORC § 5321.16 does not allow it.</p>
+      ${balanceOwed > 0
+        ? `<p>Because the deductions exceed the deposit, a balance of <strong>${money(balanceOwed)}</strong> remains. Please contact us to arrange payment.</p>`
+        : ctx.f.forwarding_address
+          ? `<p>Your refund is on its way to the forwarding address you provided:</p>${paragraphs(ctx.f.forwarding_address)}`
+          : `<p>Your refund is enclosed or on its way to the forwarding address you gave us.</p>`}
+      <p>If anything here looks off, reach out and we'll go over it with you.</p>
+    `)
+  },
 }
 
 // ── Maintenance Acknowledgment ──────────────────────────────────────────────

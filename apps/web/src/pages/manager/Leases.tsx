@@ -13,6 +13,8 @@ import Avatar from '../../components/shared/Avatar'
 import { Link } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
 import RenewalAdvisor from '../../components/manager/RenewalAdvisor'
+import DepositReturnAdvisor from '../../components/manager/DepositReturnAdvisor'
+import DepositReturnWizard from '../../components/manager/DepositReturnWizard'
 
 function Skeleton() {
   return (
@@ -313,6 +315,8 @@ export default function ManagerLeases() {
 
   const [filterStatus, setFilterStatus] = useState<LeaseStatus | 'all'>('all')
   const [wizardOpen, setWizardOpen] = useState(false)
+  // Lease currently open in the Deposit Return wizard (null = closed).
+  const [depositLease, setDepositLease] = useState<LeaseWithTenant | null>(null)
   const [sendingId, setSendingId] = useState<string | null>(null)
   // Map of leaseId → roles that have signed. Lets us distinguish
   // "awaiting tenant" from "awaiting your countersignature".
@@ -401,6 +405,17 @@ export default function ManagerLeases() {
           renewal rent and a one-click prefilled offer letter. */}
       {!loading && (
         <RenewalAdvisor leases={leases} unitMap={unitMap} propertyMap={propertyMap} />
+      )}
+
+      {/* Deposit return advisor — tenancies that just ended (or end soon)
+          with a held deposit: statutory-deadline countdown + wizard entry. */}
+      {!loading && (
+        <DepositReturnAdvisor
+          leases={leases}
+          unitMap={unitMap}
+          propertyMap={propertyMap}
+          onStart={setDepositLease}
+        />
       )}
 
       {/* Filter — native dropdown on mobile (compact + native picker UX),
@@ -504,6 +519,15 @@ export default function ManagerLeases() {
       )}
 
       <LeaseWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={() => reload()} />
+
+      {depositLease && (
+        <DepositReturnWizard
+          lease={depositLease}
+          unit={unitMap[depositLease.unit_id]}
+          property={unitMap[depositLease.unit_id] ? propertyMap[unitMap[depositLease.unit_id].property_id] : undefined}
+          onClose={() => setDepositLease(null)}
+        />
+      )}
     </div>
   )
 }

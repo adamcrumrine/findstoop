@@ -76,12 +76,15 @@ export default function DocumentBuilder() {
     ;(async () => {
       const leases = await getLeasesWithTenants(unitIds)
       if (cancelled) return
+      // Ended tenancies (expired/terminated) stay selectable — deposit
+      // dispositions and move-out paperwork address exactly those leases.
+      // They're labeled so the manager doesn't confuse them with current ones.
       const opts: Recipient[] = leases
-        .filter((l) => l.status !== 'terminated')
         .map((l) => {
           const unit = units.find((u) => u.id === l.unit_id)
           const prop = properties.find((p) => p.id === unit?.property_id)
           const tenantName = l.profile?.full_name ?? l.profile?.email ?? 'Tenant'
+          const ended = l.status === 'expired' || l.status === 'terminated'
           return {
             leaseId: l.id,
             state: prop?.state ?? '',
@@ -92,7 +95,7 @@ export default function DocumentBuilder() {
             tenantId: l.tenant_id ?? null,
             tenantName,
             status: l.status,
-            label: `${tenantName} — ${prop?.name ?? 'Property'}${unit?.unit_number ? ` · Unit ${unit.unit_number}` : ''}`,
+            label: `${tenantName} — ${prop?.name ?? 'Property'}${unit?.unit_number ? ` · Unit ${unit.unit_number}` : ''}${ended ? ' (lease ended)' : ''}`,
           }
         })
       setRecipients(opts)

@@ -17,6 +17,7 @@ const MarketingHome        = lazy(() =>
     ? import('./pages/marketing/PortalHome')
     : import('./pages/marketing/Home'),
 )
+const BrandPreview         = lazy(() => import('./pages/shared/BrandPreview'))
 const MarketingFeatures    = lazy(() => import('./pages/marketing/Features'))
 const MarketingPricing     = lazy(() => import('./pages/marketing/Pricing'))
 const MarketingHowItWorks  = lazy(() => import('./pages/marketing/HowItWorks'))
@@ -157,6 +158,9 @@ export default function App() {
             <Route path="/fair-housing" element={<FairHousing />} />
             <Route path="/accessibility" element={<Accessibility />} />
           </Route>
+
+          {/* Dev-only brand QA page — palette, treatments, landlord-color simulator. */}
+          {import.meta.env.DEV && <Route path="/brand-preview" element={<BrandPreview />} />}
 
           {/* Public rental application — bare layout, no marketing nav, no auth redirect */}
           <Route element={<ApplyLayout />}>

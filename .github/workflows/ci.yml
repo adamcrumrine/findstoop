@@ -25,5 +25,12 @@ jobs:
       # `build` runs `tsc && vite build`, so this is the typecheck + bundle gate.
       - name: Typecheck & build
         run: npm run build
+      # White-label gate: the hawk brand must keep building (skips tsc — same
+      # sources were just typechecked above).
+      - name: Build white-label brand (hawk)
+        run: npx vite build
+        working-directory: apps/web
+        env:
+          VITE_BRAND: hawk
       - name: Unit tests
         run: npm test

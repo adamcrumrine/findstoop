@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // Build-time brand data (VITE_BRAND) for the PWA manifest and the static
@@ -138,6 +139,23 @@ function brandIndexHtml() {
         `<noscript>${b.name} requires JavaScript. Please enable JavaScript or use a modern browser to continue.</noscript>`,
       )
       return html
+    },
+    // The static public/ assets (offline page, sitemap, robots) are copied
+    // verbatim by Vite; rebrand them in the build output so a white-label
+    // deploy never serves Stoop naming or findstoop.com URLs from them.
+    closeBundle() {
+      const b = buildBrand.html
+      if (!b) return
+      const outDir = resolve(__dirname, 'dist')
+      for (const file of ['offline.html', 'sitemap.xml', 'robots.txt']) {
+        const path = resolve(outDir, file)
+        if (!existsSync(path)) continue
+        const rebranded = readFileSync(path, 'utf8')
+          .replace(/https:\/\/findstoop\.com/g, b.origin)
+          .replace(/findstoop\.com/g, b.origin.replace(/^https:\/\//, ''))
+          .replace(/FindStoop|Stoop/g, b.name)
+        writeFileSync(path, rebranded)
+      }
     },
   }
 }

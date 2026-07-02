@@ -11,6 +11,7 @@
     "build": "npm run build --workspace=apps/web",
     "lint": "npm run lint --workspace=apps/web",
     "test": "npm run test --workspace=apps/web",
+    "smoke:brands": "node scripts/brand-smoke.mjs",
     "deploy:dev": "node scripts/deploy-dev.mjs",
     "deploy:test": "node scripts/deploy-test.mjs",
     "deploy:prod": "node scripts/deploy-prod.mjs"

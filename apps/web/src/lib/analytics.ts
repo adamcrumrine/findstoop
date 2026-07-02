@@ -11,6 +11,7 @@
 //   • Failures are silent — we never block the UI on a tracking write.
 
 import { supabase } from './supabase'
+import { BRAND, IS_WHITE_LABEL } from './brand'
 
 type EventType = 'page_view' | 'sign_in' | 'sign_up' | 'sign_out' | 'action' | 'error'
 
@@ -127,13 +128,17 @@ export async function track({ event_type, page_path, metadata }: TrackArgs): Pro
 
     const geo = await getSessionGeo()
 
+    // Tag white-label traffic so brand deployments can be segmented in the
+    // admin dashboard. Default-brand rows are unchanged.
+    const taggedMetadata = IS_WHITE_LABEL ? { ...(metadata ?? {}), brand: BRAND.id } : metadata ?? null
+
     await supabase.from('analytics_events').insert({
       session_id: getSessionId(),
       user_id: user?.id ?? null,
       user_role,
       event_type,
       page_path: page_path ? normalizePath(page_path) : null,
-      metadata: metadata ?? null,
+      metadata: taggedMetadata,
       country_code: geo?.country ?? null,
       region:       geo?.region  ?? null,
       city:         geo?.city    ?? null,

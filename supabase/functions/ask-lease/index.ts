@@ -23,7 +23,9 @@
 //   3. Neither (e.g. bare imported lease with no document) → we decline with
 //      a clear "answers aren't available" response rather than hallucinate.
 
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
+// 0.39.0 (not the repo-wide 0.27.3 pin): this function sends the lease PDF
+// as a document content block, which 0.27.3's types predate.
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.39.0'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'

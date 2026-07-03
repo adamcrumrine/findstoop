@@ -19,7 +19,9 @@
 // leases. When neither exists we still draft (from the thread + ledger) but
 // the model is told there is no lease text and must never cite sections.
 
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
+// 0.39.0 (not the repo-wide 0.27.3 pin): this function sends the lease PDF
+// as a document content block, which 0.27.3's types predate.
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.39.0'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
@@ -226,7 +228,9 @@ Deno.serve(async (req) => {
       .select('user_id, profile:profiles(full_name, email)')
       .eq('conversation_id', conversationId)
     const nameById = new Map<string, string>()
-    for (const p of (partRows ?? []) as Array<{ user_id: string; profile: { full_name: string | null; email: string | null } | null }>) {
+    // supabase-js types the to-one profiles join as an array; at runtime a
+    // single-FK join returns one object (or null), hence the unknown hop.
+    for (const p of (partRows ?? []) as unknown as Array<{ user_id: string; profile: { full_name: string | null; email: string | null } | null }>) {
       nameById.set(p.user_id, p.profile?.full_name ?? p.profile?.email ?? 'Tenant')
     }
 

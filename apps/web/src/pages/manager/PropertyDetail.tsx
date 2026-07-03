@@ -25,6 +25,7 @@ import Modal from '../../components/shared/Modal'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import CompliancePanel from '../../components/manager/CompliancePanel'
 import TurnoverPanel from '../../components/manager/TurnoverPanel'
+import SeasonalMaintenanceCard from '../../components/manager/SeasonalMaintenanceCard'
 import VacancyCostTicker from '../../components/manager/VacancyCostTicker'
 import { vacancyCostForUnit } from '../../lib/turnover'
 import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
@@ -269,6 +270,7 @@ export default function ManagerPropertyDetail() {
 
       {/* Tab content */}
       {tab === 'overview' && <OverviewTab property={property} units={scopedUnits} leases={scopedLeases} onPropertyUpdate={setProperty} />}
+      {tab === 'overview' && <SeasonalMaintenanceCard property={property} units={scopedUnits} leases={scopedLeases} />}
       {tab === 'units' && <UnitsTab units={scopedUnits} property={property} leases={scopedLeases} />}
       {tab === 'turnover' && <TurnoverPanel property={property} units={scopedUnits} leases={scopedLeases} />}
       {tab === 'leases' && <LeasesTab leases={scopedLeases} units={scopedUnits} property={property} />}

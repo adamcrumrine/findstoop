@@ -13,6 +13,9 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import type { Inspection, ChecklistItem, ItemCondition } from '@findstoop/shared/hooks/useInspection'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Loader2, Camera, TrendingDown, Scale } from 'lucide-react'
+import type { PhotoHashRecord } from '../../lib/photoIntegrity'
+import { fetchPhotoHashRecords } from '../../lib/photoIntegrityStore'
+import PhotoVerifyBadge from '../../components/shared/PhotoVerifyBadge'
 
 const CONDITION_LABEL: Record<string, string> = {
   excellent: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Poor', damaged: 'Damaged',
@@ -43,6 +46,7 @@ export default function InspectionCompare() {
   const [moveIn, setMoveIn]   = useState<Inspection | null>(null)
   const [moveOut, setMoveOut] = useState<Inspection | null>(null)
   const [urls, setUrls]       = useState<Record<string, string>>({})
+  const [hashRecords, setHashRecords] = useState<Record<string, PhotoHashRecord>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
 
@@ -67,11 +71,19 @@ export default function InspectionCompare() {
       const paths = [mi, mo].flatMap((insp) =>
         insp?.checklist_data?.rooms?.flatMap((r) => r.items.flatMap((it) => it.photos)) ?? [])
       if (paths.length > 0) {
-        const { data: signed } = await supabase.storage.from('inspection-photos').createSignedUrls(paths, 3600)
-        if (signed && !cancelled) {
-          const map: Record<string, string> = {}
-          signed.forEach((s, i) => { if (s.signedUrl) map[paths[i]] = s.signedUrl })
-          setUrls(map)
+        // Signed URLs for display + tamper-evident hash records (photos with a
+        // record get a lazy "Verify" badge; legacy photos just have no badge).
+        const [{ data: signed }, records] = await Promise.all([
+          supabase.storage.from('inspection-photos').createSignedUrls(paths, 3600),
+          fetchPhotoHashRecords(paths),
+        ])
+        if (!cancelled) {
+          if (signed) {
+            const map: Record<string, string> = {}
+            signed.forEach((s, i) => { if (s.signedUrl) map[paths[i]] = s.signedUrl })
+            setUrls(map)
+          }
+          setHashRecords(records)
         }
       }
       setLoading(false)
@@ -172,8 +184,8 @@ export default function InspectionCompare() {
                           )}
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                          <Side label="Move-in" item={item.from} urls={urls} />
-                          <Side label="Move-out" item={item.to} urls={urls} />
+                          <Side label="Move-in" item={item.from} urls={urls} hashRecords={hashRecords} />
+                          <Side label="Move-out" item={item.to} urls={urls} hashRecords={hashRecords} />
                         </div>
                       </div>
                     )
@@ -207,7 +219,12 @@ export default function InspectionCompare() {
   )
 }
 
-function Side({ label, item, urls }: { label: string; item: ChecklistItem | null; urls: Record<string, string> }) {
+function Side({ label, item, urls, hashRecords }: {
+  label: string
+  item: ChecklistItem | null
+  urls: Record<string, string>
+  hashRecords: Record<string, PhotoHashRecord>
+}) {
   const cond = item?.condition
   return (
     <div className="min-w-0">
@@ -221,13 +238,16 @@ function Side({ label, item, urls }: { label: string; item: ChecklistItem | null
       )}
       {item?.notes && <p className="text-xs text-mute mt-1.5">{item.notes}</p>}
       {item && item.photos.length > 0 && (
-        <div className="flex gap-1.5 mt-2 flex-wrap">
+        <div className="flex gap-1.5 mt-2 flex-wrap items-start">
           {item.photos.map((path) => (
-            urls[path]
-              ? <a key={path} href={urls[path]} target="_blank" rel="noopener noreferrer" className="block w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
-                  <img src={urls[path]} alt="" className="w-full h-full object-cover" />
-                </a>
-              : <div key={path} className="w-14 h-14 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center"><Camera className="w-4 h-4 text-mute-400" strokeWidth={1.5} /></div>
+            <div key={path} className="flex flex-col gap-1">
+              {urls[path]
+                ? <a href={urls[path]} target="_blank" rel="noopener noreferrer" className="block w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
+                    <img src={urls[path]} alt="" className="w-full h-full object-cover" />
+                  </a>
+                : <div className="w-14 h-14 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center"><Camera className="w-4 h-4 text-mute-400" strokeWidth={1.5} /></div>}
+              <PhotoVerifyBadge record={hashRecords[path]} />
+            </div>
           ))}
         </div>
       )}

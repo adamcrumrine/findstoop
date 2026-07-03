@@ -29,6 +29,9 @@ import {
   X, ArrowLeft, ArrowRight, Banknote, CalendarClock, Camera, FileText,
   Plus, Scale, Trash2, TrendingDown,
 } from 'lucide-react'
+import type { PhotoHashRecord } from '../../lib/photoIntegrity'
+import { fetchPhotoHashRecords } from '../../lib/photoIntegrityStore'
+import PhotoVerifyBadge from '../shared/PhotoVerifyBadge'
 
 interface Props {
   lease: LeaseWithTenant
@@ -60,6 +63,7 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
   const [suggestions, setSuggestions] = useState<SuggestedDeduction[]>([])
   const [hasComparison, setHasComparison] = useState(false)
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({})
+  const [hashRecords, setHashRecords] = useState<Record<string, PhotoHashRecord>>({})
   const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -80,14 +84,22 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
         moveOutInsp?.checklist_data?.rooms ?? null,
       )
       setSuggestions(sugg)
-      // Sign the move-out evidence photos so the suggestions show thumbnails.
+      // Sign the move-out evidence photos so the suggestions show thumbnails,
+      // and pull their tamper-evident hash records so each piece of evidence
+      // can be verified on the spot (legacy photos have no record — no badge).
       const paths = Array.from(new Set(sugg.flatMap((s) => s.photoPaths))).slice(0, 40)
       if (paths.length > 0) {
-        const { data: signed } = await supabase.storage.from('inspection-photos').createSignedUrls(paths, 3600)
-        if (signed && !cancelled) {
-          const map: Record<string, string> = {}
-          signed.forEach((s, i) => { if (s.signedUrl) map[paths[i]] = s.signedUrl })
-          setPhotoUrls(map)
+        const [{ data: signed }, records] = await Promise.all([
+          supabase.storage.from('inspection-photos').createSignedUrls(paths, 3600),
+          fetchPhotoHashRecords(paths),
+        ])
+        if (!cancelled) {
+          if (signed) {
+            const map: Record<string, string> = {}
+            signed.forEach((s, i) => { if (s.signedUrl) map[paths[i]] = s.signedUrl })
+            setPhotoUrls(map)
+          }
+          setHashRecords(records)
         }
       }
     })()
@@ -274,13 +286,16 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
                               {s.notes ? ` · ${s.notes}` : ''}
                             </p>
                             {s.photoPaths.length > 0 && (
-                              <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                              <div className="flex gap-1.5 mt-1.5 flex-wrap items-start">
                                 {s.photoPaths.slice(0, 4).map((path) => (
-                                  photoUrls[path]
-                                    ? <a key={path} href={photoUrls[path]} target="_blank" rel="noopener noreferrer" className="block w-10 h-10 rounded-md overflow-hidden border border-gray-200" title="Move-out photo">
-                                        <img src={photoUrls[path]} alt="" className="w-full h-full object-cover" />
-                                      </a>
-                                    : <span key={path} className="w-10 h-10 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center"><Camera className="w-3.5 h-3.5 text-mute-400" strokeWidth={1.5} /></span>
+                                  <div key={path} className="flex flex-col gap-1">
+                                    {photoUrls[path]
+                                      ? <a href={photoUrls[path]} target="_blank" rel="noopener noreferrer" className="block w-10 h-10 rounded-md overflow-hidden border border-gray-200" title="Move-out photo">
+                                          <img src={photoUrls[path]} alt="" className="w-full h-full object-cover" />
+                                        </a>
+                                      : <span className="w-10 h-10 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center"><Camera className="w-3.5 h-3.5 text-mute-400" strokeWidth={1.5} /></span>}
+                                    <PhotoVerifyBadge record={hashRecords[path]} />
+                                  </div>
                                 ))}
                                 {s.photoPaths.length > 4 && <span className="text-[11px] text-mute self-center">+{s.photoPaths.length - 4} photos</span>}
                               </div>

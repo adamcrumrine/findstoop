@@ -10,6 +10,8 @@ import { Loader2, ShieldCheck, Printer, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Inspection } from '@findstoop/shared/hooks/useInspection'
 import { BRAND } from '../../lib/brand'
+import { capturedDateTime, verifyBytesAgainstRecord } from '../../lib/photoIntegrity'
+import { fetchPhotoHashRecords } from '../../lib/photoIntegrityStore'
 
 interface LeaseCtx {
   unit_number: string
@@ -41,11 +43,20 @@ const CONDITION_CLS: Record<string, string> = {
   damaged:   'text-red-700',
 }
 
+// Per-photo integrity stamp printed under each image. We only claim
+// "verified" after actually re-hashing the stored bytes against the
+// fingerprint recorded at upload — never on trust.
+interface PhotoVerification {
+  status: 'verified' | 'mismatch' | 'unverified' | 'error'
+  recordedAt: string | null
+}
+
 export default function InspectionPdf() {
   const { id } = useParams<{ id: string }>()
   const [inspection, setInspection] = useState<Inspection | null>(null)
   const [lease, setLease] = useState<LeaseCtx | null>(null)
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({})
+  const [verifications, setVerifications] = useState<Record<string, PhotoVerification>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -120,17 +131,48 @@ export default function InspectionPdf() {
         })
       }
 
-      // Pre-sign all photo URLs for offline-friendly rendering
+      // Photos: download each file ONCE, render it from an object URL, and —
+      // when a fingerprint was recorded at upload — re-hash those same bytes
+      // against it. That way the image printed on this report is the exact
+      // file the "verified" stamp refers to. Legacy photos (no fingerprint on
+      // file) are stamped "unverified" — we never claim what we can't prove.
+      // Object URLs are not revoked: this is a standalone print page and they
+      // live for its lifetime.
       const photoPaths = insp.checklist_data.rooms
         .flatMap((r) => r.items.flatMap((i) => i.photos))
       if (photoPaths.length > 0) {
-        const { data: signed } = await supabase.storage
-          .from('inspection-photos')
-          .createSignedUrls(photoPaths, 3600)
-        if (signed && !cancelled) {
-          const map: Record<string, string> = {}
-          signed.forEach((s, i) => { if (s.signedUrl) map[photoPaths[i]] = s.signedUrl })
-          setPhotoUrls(map)
+        const [{ data: signed }, records] = await Promise.all([
+          supabase.storage.from('inspection-photos').createSignedUrls(photoPaths, 3600),
+          fetchPhotoHashRecords(photoPaths),
+        ])
+        const urlMap: Record<string, string> = {}
+        const verifyMap: Record<string, PhotoVerification> = {}
+        await Promise.all(photoPaths.map(async (path, i) => {
+          const rec = records[path]
+          const signedUrl = signed?.[i]?.signedUrl
+          if (!signedUrl) {
+            if (rec) verifyMap[path] = { status: 'error', recordedAt: rec.hash_recorded_at }
+            return
+          }
+          try {
+            const res = await fetch(signedUrl)
+            if (!res.ok) throw new Error(String(res.status))
+            const bytes = await res.arrayBuffer()
+            urlMap[path] = URL.createObjectURL(new Blob([bytes]))
+            verifyMap[path] = rec
+              ? { status: await verifyBytesAgainstRecord(bytes, rec), recordedAt: rec.hash_recorded_at }
+              : { status: 'unverified', recordedAt: null }
+          } catch {
+            // Fall back to the signed URL for display; verification stays open.
+            urlMap[path] = signedUrl
+            verifyMap[path] = rec
+              ? { status: 'error', recordedAt: rec.hash_recorded_at }
+              : { status: 'unverified', recordedAt: null }
+          }
+        }))
+        if (!cancelled) {
+          setPhotoUrls(urlMap)
+          setVerifications(verifyMap)
         }
       }
 
@@ -243,11 +285,14 @@ export default function InspectionPdf() {
                       <td className="py-2 text-mute text-sm leading-relaxed">
                         {item.notes || <span className="text-gray-300">—</span>}
                         {item.photos.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          <div className="flex flex-wrap gap-1.5 mt-1.5 items-start">
                             {item.photos.map((p, i) => (
-                              photoUrls[p]
-                                ? <img key={i} src={photoUrls[p]} alt="" className="w-20 h-20 object-cover rounded border border-gray-200" />
-                                : <div key={i} className="w-20 h-20 bg-gray-100 rounded" />
+                              <figure key={i} className="w-20 m-0">
+                                {photoUrls[p]
+                                  ? <img src={photoUrls[p]} alt="" className="w-20 h-20 object-cover rounded border border-gray-200" />
+                                  : <div className="w-20 h-20 bg-gray-100 rounded" />}
+                                <PhotoStamp verification={verifications[p]} />
+                              </figure>
                             ))}
                           </div>
                         )}
@@ -336,6 +381,24 @@ export default function InspectionPdf() {
           )}
         </section>
 
+        {/* Photo verification footnote — only when the report contains photos */}
+        {Object.keys(verifications).length > 0 && (
+          <section className="mt-6 pt-3 border-t border-gray-200 text-[10px] text-mute leading-relaxed break-inside-avoid">
+            <p className="font-semibold text-ink text-[10px] uppercase tracking-wider mb-1">About photo verification</p>
+            <p>
+              When a photo is added to an inspection, {BRAND.name} records a digital fingerprint
+              (a SHA-256 hash) of the exact file, with the date and time stamped by our servers —
+              not by either party&rsquo;s device. That record cannot be changed or backdated by anyone,
+              including the landlord or tenant. When this report was generated, each photo was
+              downloaded and re-checked against its recorded fingerprint. &ldquo;SHA-256 verified&rdquo;
+              means the photo shown is identical, byte for byte, to the file captured on the recorded
+              date — it has not been edited, retouched, or replaced since. Photos marked
+              &ldquo;unverified&rdquo; were uploaded before fingerprinting was available; no claim is
+              made about them either way.
+            </p>
+          </section>
+        )}
+
         {/* Footer */}
         <footer className="mt-8 pt-4 border-t border-gray-200 text-[10px] text-mute leading-relaxed">
           This inspection report was generated by {BRAND.name}. Both parties have a copy
@@ -344,6 +407,37 @@ export default function InspectionPdf() {
         </footer>
       </article>
     </div>
+  )
+}
+
+function PhotoStamp({ verification }: { verification?: PhotoVerification }) {
+  if (!verification) return null
+  const { status, recordedAt } = verification
+  if (status === 'verified' && recordedAt) {
+    return (
+      <figcaption className="mt-0.5 text-[8px] leading-tight text-emerald-700">
+        SHA-256 verified — captured {capturedDateTime(recordedAt)}, unaltered
+      </figcaption>
+    )
+  }
+  if (status === 'mismatch') {
+    return (
+      <figcaption className="mt-0.5 text-[8px] leading-tight text-red-700 font-semibold">
+        Does not match the original upload — file may have been altered
+      </figcaption>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <figcaption className="mt-0.5 text-[8px] leading-tight text-mute">
+        Verification unavailable — the file could not be re-checked
+      </figcaption>
+    )
+  }
+  return (
+    <figcaption className="mt-0.5 text-[8px] leading-tight text-mute">
+      Unverified — uploaded before photo verification was available
+    </figcaption>
   )
 }
 

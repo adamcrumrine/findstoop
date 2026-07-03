@@ -23,6 +23,9 @@ import {
 } from '@findstoop/shared/hooks/useInspection'
 import { supabase } from '../../lib/supabase'
 import { verifyImageMagicBytes } from '../../lib/fileValidation'
+import type { PhotoHashRecord } from '../../lib/photoIntegrity'
+import { fetchPhotoHashRecords, recordInspectionPhotoHash } from '../../lib/photoIntegrityStore'
+import PhotoVerifyBadge from '../../components/shared/PhotoVerifyBadge'
 
 const CONDITIONS: { key: Exclude<ItemCondition, null>; label: string; cls: string }[] = [
   { key: 'excellent', label: 'Excellent', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -52,6 +55,24 @@ export default function InspectionEditor() {
       setLocalNotes(role === 'manager' ? (inspection.manager_notes ?? '') : (inspection.tenant_notes ?? ''))
     }
   }, [inspection, role])
+
+  // Tamper-evident photo fingerprints, keyed by storage path. Loaded once per
+  // inspection; new uploads merge their record in as they're hashed. Photos
+  // without a record (uploaded before fingerprinting) simply show no badge.
+  const [hashRecords, setHashRecords] = useState<Record<string, PhotoHashRecord>>({})
+  const inspectionId = inspection?.id
+  useEffect(() => {
+    if (!inspection) return
+    let cancelled = false
+    const paths = inspection.checklist_data.rooms.flatMap((r) => r.items.flatMap((i) => i.photos))
+    if (paths.length === 0) return
+    ;(async () => {
+      const map = await fetchPhotoHashRecords(paths)
+      if (!cancelled) setHashRecords((prev) => ({ ...map, ...prev }))
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspectionId])
 
   // ── Whether the calling role can still edit ──────────────────────────
   const mySignedAt    = role === 'manager' ? inspection?.manager_signed_at : inspection?.tenant_signed_at
@@ -110,6 +131,23 @@ export default function InspectionEditor() {
       upsert: false,
     })
     if (error) { toast.error(error.message); return }
+
+    // Fingerprint the exact bytes we just uploaded (SHA-256 via Web Crypto)
+    // and record it server-side — the DB stamps the time and the row can
+    // never be updated, so neither party can backdate or alter the record.
+    const rec = await recordInspectionPhotoHash({
+      leaseId: inspection.lease_id,
+      inspectionId: inspection.id,
+      storagePath: path,
+      file,
+    })
+    if (rec) {
+      setHashRecords((prev) => ({ ...prev, [path]: rec }))
+    } else {
+      // Non-fatal: the photo is saved, it just won't carry a verification badge.
+      toast('Photo saved, but its verification fingerprint could not be recorded.')
+    }
+
     setItem(roomIdx, itemIdx, { photos: [...item.photos, path] })
   }
 
@@ -202,6 +240,7 @@ export default function InspectionEditor() {
             key={room.name}
             room={room}
             canEdit={canEdit}
+            hashRecords={hashRecords}
             onItemChange={(itemIdx, patch) => setItem(roomIdx, itemIdx, patch)}
             onPhotoUpload={(itemIdx, file) => uploadPhoto(roomIdx, itemIdx, file)}
             onPhotoRemove={(itemIdx, photo) => removePhoto(roomIdx, itemIdx, photo)}
@@ -368,9 +407,10 @@ function SigBadge({ label, signed, ts }: { label: string; signed: boolean; ts: s
   )
 }
 
-function RoomCard({ room, canEdit, onItemChange, onPhotoUpload, onPhotoRemove }: {
+function RoomCard({ room, canEdit, hashRecords, onItemChange, onPhotoUpload, onPhotoRemove }: {
   room: ChecklistRoom
   canEdit: boolean
+  hashRecords: Record<string, PhotoHashRecord>
   onItemChange: (itemIdx: number, patch: Partial<ChecklistItem>) => void
   onPhotoUpload: (itemIdx: number, file: File) => void
   onPhotoRemove: (itemIdx: number, photo: string) => void
@@ -386,6 +426,7 @@ function RoomCard({ room, canEdit, onItemChange, onPhotoUpload, onPhotoRemove }:
             key={item.key}
             item={item}
             canEdit={canEdit}
+            hashRecords={hashRecords}
             onChange={(patch) => onItemChange(i, patch)}
             onPhotoAdd={(file) => onPhotoUpload(i, file)}
             onPhotoDelete={(photo) => onPhotoRemove(i, photo)}
@@ -396,9 +437,10 @@ function RoomCard({ room, canEdit, onItemChange, onPhotoUpload, onPhotoRemove }:
   )
 }
 
-function ItemRow({ item, canEdit, onChange, onPhotoAdd, onPhotoDelete }: {
+function ItemRow({ item, canEdit, hashRecords, onChange, onPhotoAdd, onPhotoDelete }: {
   item: ChecklistItem
   canEdit: boolean
+  hashRecords: Record<string, PhotoHashRecord>
   onChange: (patch: Partial<ChecklistItem>) => void
   onPhotoAdd: (file: File) => void
   onPhotoDelete: (photo: string) => void
@@ -462,9 +504,12 @@ function ItemRow({ item, canEdit, onChange, onPhotoAdd, onPhotoDelete }: {
       )}
 
       {item.photos.length > 0 && (
-        <div className="flex gap-2 mt-2 flex-wrap">
+        <div className="flex gap-2 mt-2 flex-wrap items-start">
           {item.photos.map((path) => (
-            <Thumb key={path} path={path} onRemove={canEdit ? () => onPhotoDelete(path) : undefined} />
+            <div key={path} className="flex flex-col gap-1">
+              <Thumb path={path} onRemove={canEdit ? () => onPhotoDelete(path) : undefined} />
+              <PhotoVerifyBadge record={hashRecords[path]} />
+            </div>
           ))}
         </div>
       )}

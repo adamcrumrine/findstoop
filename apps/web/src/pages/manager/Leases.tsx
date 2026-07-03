@@ -10,7 +10,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
 import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
 import RenewalAdvisor from '../../components/manager/RenewalAdvisor'
 import DepositReturnAdvisor from '../../components/manager/DepositReturnAdvisor'
@@ -317,6 +317,20 @@ export default function ManagerLeases() {
   const [wizardOpen, setWizardOpen] = useState(false)
   // Lease currently open in the Deposit Return wizard (null = closed).
   const [depositLease, setDepositLease] = useState<LeaseWithTenant | null>(null)
+  // Deep link: /manager/leases?deposit=<leaseId> opens the Deposit Return
+  // wizard directly — the turnover checklist links here. Param is cleared
+  // once consumed so closing the wizard doesn't re-open it.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const depositParam = searchParams.get('deposit')
+  useEffect(() => {
+    if (!depositParam || loading) return
+    const target = leases.find((l) => l.id === depositParam)
+    if (target) setDepositLease(target)
+    const next = new URLSearchParams(searchParams)
+    next.delete('deposit')
+    setSearchParams(next, { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depositParam, loading])
   const [sendingId, setSendingId] = useState<string | null>(null)
   // Map of leaseId → roles that have signed. Lets us distinguish
   // "awaiting tenant" from "awaiting your countersignature".

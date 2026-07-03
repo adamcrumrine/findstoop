@@ -1,8 +1,8 @@
 // Property detail page — top-level tabs for one property.
-// Tabs: Overview · Units · Leases · Tenants · Maintenance · Payments · Compliance
+// Tabs: Overview · Units · Turnover · Leases · Tenants · Maintenance · Payments · Compliance
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useUnitsByProperty } from '@findstoop/shared/hooks/useUnits'
@@ -24,17 +24,21 @@ import toast from 'react-hot-toast'
 import Modal from '../../components/shared/Modal'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import CompliancePanel from '../../components/manager/CompliancePanel'
+import TurnoverPanel from '../../components/manager/TurnoverPanel'
+import VacancyCostTicker from '../../components/manager/VacancyCostTicker'
+import { vacancyCostForUnit } from '../../lib/turnover'
 import { isBlockedState, blockedStateName } from '../../lib/blockedStates'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import Avatar from '../../components/shared/Avatar'
 import { BRAND, brandColor } from '../../lib/brand'
 
-type TabId = 'overview' | 'units' | 'leases' | 'tenants' | 'maintenance' | 'payments' | 'compliance'
+type TabId = 'overview' | 'units' | 'turnover' | 'leases' | 'tenants' | 'maintenance' | 'payments' | 'compliance'
 
 const tabs: { id: TabId; label: string; Icon: typeof Home }[] = [
   { id: 'overview',    label: 'Overview',    Icon: Home },
   { id: 'units',       label: 'Units',       Icon: Building2 },
+  { id: 'turnover',    label: 'Turnover',    Icon: RefreshCw },
   { id: 'leases',      label: 'Leases',      Icon: FileText },
   { id: 'tenants',     label: 'Tenants',     Icon: Users },
   { id: 'maintenance', label: 'Maintenance', Icon: Wrench },
@@ -46,9 +50,14 @@ export default function ManagerPropertyDetail() {
   const { id } = useParams<{ id: string }>()
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [property, setProperty] = useState<Property | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<TabId>('overview')
+  // Deep-linkable tab (?tab=turnover) — dashboard insight cards land here.
+  const [tab, setTab] = useState<TabId>(() => {
+    const t = searchParams.get('tab')
+    return tabs.some((x) => x.id === t) ? (t as TabId) : 'overview'
+  })
   // Lease-status filter for the Payments tab — lifted here so it can sit inline
   // with the unit "Viewing" selector instead of taking its own row.
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<'all' | 'past' | 'active' | 'upcoming'>('active')
@@ -260,7 +269,8 @@ export default function ManagerPropertyDetail() {
 
       {/* Tab content */}
       {tab === 'overview' && <OverviewTab property={property} units={scopedUnits} leases={scopedLeases} onPropertyUpdate={setProperty} />}
-      {tab === 'units' && <UnitsTab units={scopedUnits} property={property} />}
+      {tab === 'units' && <UnitsTab units={scopedUnits} property={property} leases={scopedLeases} />}
+      {tab === 'turnover' && <TurnoverPanel property={property} units={scopedUnits} leases={scopedLeases} />}
       {tab === 'leases' && <LeasesTab leases={scopedLeases} units={scopedUnits} property={property} />}
       {tab === 'tenants' && <TenantsTab tenants={scopedTenants} getActiveLease={getActiveLease} units={scopedUnits} />}
       {tab === 'maintenance' && <MaintenanceTab unitIds={scopedUnitIds} units={scopedUnits} />}
@@ -329,13 +339,19 @@ function OverviewTab({ property, units, leases, onPropertyUpdate }: {
   return (
     <div className="grid sm:grid-cols-2 gap-4">
       <Card title="Vacant units" empty={vacantUnits.length === 0 ? 'All units leased' : undefined}>
-        <ul className="space-y-2 text-sm">
-          {vacantUnits.map((u) => (
-            <li key={u.id} className="flex items-center justify-between">
-              <span className="text-ink">Unit {u.unit_number}</span>
-              <span className="text-mute">${Number(u.rent_amount).toLocaleString()}/mo</span>
-            </li>
-          ))}
+        <ul className="space-y-2.5 text-sm">
+          {vacantUnits.map((u) => {
+            const cost = vacancyCostForUnit(u, leases, new Date().toISOString().slice(0, 10))
+            return (
+              <li key={u.id}>
+                <div className="flex items-center justify-between">
+                  <span className="text-ink">Unit {u.unit_number}</span>
+                  <span className="text-mute">${Number(u.rent_amount).toLocaleString()}/mo</span>
+                </div>
+                {cost && <VacancyCostTicker cost={cost} className="mt-0.5" />}
+              </li>
+            )
+          })}
         </ul>
       </Card>
 
@@ -564,7 +580,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 // ── Units tab ─────────────────────────────────────────────────────────────────
-function UnitsTab({ units, property }: { units: Unit[]; property: Property }) {
+function UnitsTab({ units, property, leases }: { units: Unit[]; property: Property; leases: ReturnType<typeof useLeases>['leases'] }) {
   const [localUnits, setLocalUnits] = useState<Unit[]>(units)
 
   useEffect(() => { setLocalUnits(units) }, [units])
@@ -606,7 +622,9 @@ function UnitsTab({ units, property }: { units: Unit[]; property: Property }) {
 
   return (
     <div className="space-y-3">
-      {localUnits.map((u) => (
+      {localUnits.map((u) => {
+        const vacancy = vacancyCostForUnit(u, leases, new Date().toISOString().slice(0, 10))
+        return (
         <div key={u.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-ink">Unit {u.unit_number}</p>
@@ -616,6 +634,7 @@ function UnitsTab({ units, property }: { units: Unit[]; property: Property }) {
               {u.square_feet && <span>{u.square_feet} sqft</span>}
               <span>${Number(u.rent_amount).toLocaleString()}/mo</span>
             </div>
+            {vacancy && <VacancyCostTicker cost={vacancy} className="mt-1" />}
           </div>
           <select
             value={u.status}
@@ -636,7 +655,8 @@ function UnitsTab({ units, property }: { units: Unit[]; property: Property }) {
             <Copy className="w-3.5 h-3.5" strokeWidth={1.75} /> Apply link
           </button>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

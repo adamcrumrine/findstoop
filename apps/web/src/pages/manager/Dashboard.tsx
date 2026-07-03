@@ -2,13 +2,15 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FileSignature, ChevronRight, CreditCard, CheckCircle2,
-  Plus, Link2, CalendarClock, AlertTriangle, DoorOpen, type LucideIcon,
+  Plus, Link2, CalendarClock, AlertTriangle, DoorOpen, RefreshCw, type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
+import { useTurnovers } from '../../hooks/useTurnovers'
+import { portfolioVacancy, type TurnoverStepKey } from '../../lib/turnover'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
@@ -259,8 +261,25 @@ export default function ManagerDashboard() {
     return { upcomingThisMonth: upcoming, pastDueThisMonth: pastDue }
   }, [allPayments])
 
+  // Turnovers in progress — leases ending soon or ended with the unit not
+  // re-leased. Derived from data the dashboard already loads plus a light
+  // fetch of the evidence tables (inspections, deposit letters, applications).
+  const stateByPropertyId = useMemo(
+    () => Object.fromEntries(properties.map((p) => [p.id, p.state])),
+    [properties],
+  )
+  const { turnovers } = useTurnovers(leases, units, stateByPropertyId)
+  const openTurnovers = useMemo(() => turnovers.filter((t) => !t.complete), [turnovers])
+
+  // What the portfolio's vacant units are bleeding per day.
+  const vacancy = useMemo(
+    () => portfolioVacancy(units, leases, new Date().toISOString().slice(0, 10)),
+    [units, leases],
+  )
+
   // Up to three "do this next" suggestions, ordered by urgency: money that's
-  // late, units earning nothing, then the renewal with the shortest runway.
+  // late, units earning nothing, turnovers mid-flight, then the renewal with
+  // the shortest runway.
   const insights = useMemo<Insight[]>(() => {
     const out: Insight[] = []
     if (pastDueThisMonth > 0) {
@@ -272,12 +291,52 @@ export default function ManagerDashboard() {
       })
     }
     const vacant = stats.totalUnits - stats.occupiedUnits
-    if (vacant > 0) {
+    if (vacancy.vacantUnits > 0) {
+      const s = vacancy.vacantUnits === 1 ? '' : 's'
+      out.push({
+        key: 'vacant', Icon: DoorOpen, tone: 'amber',
+        title: `${vacancy.vacantUnits} vacant unit${s} costing you ~${formatUsd(Math.round(vacancy.dailyLoss))}/day`,
+        body: vacancy.totalLoss >= 1
+          ? `About ${formatUsd(Math.round(vacancy.totalLoss))} of rent has walked out the door so far. Share your apply link to start showings.`
+          : 'Every vacant day is lost rent — share your apply link to start showings.',
+        to: '/manager/applications', cta: 'Share apply link',
+      })
+    } else if (vacant > 0) {
       out.push({
         key: 'vacant', Icon: DoorOpen, tone: 'amber',
         title: `${vacant} vacant unit${vacant === 1 ? '' : 's'}`,
         body: 'Every vacant month is lost rent — share your apply link to start showings.',
         to: '/manager/applications', cta: 'Share apply link',
+      })
+    }
+    if (openTurnovers.length > 0) {
+      // Most urgent first: an unreturned deposit with the fewest days left
+      // beats everything else in the queue.
+      const urgent = openTurnovers.slice().sort((a, b) =>
+        (a.depositDaysLeft ?? Number.MAX_SAFE_INTEGER) - (b.depositDaysLeft ?? Number.MAX_SAFE_INTEGER))[0]
+      const blockingCopy: Record<TurnoverStepKey, string> = {
+        inspection: 'move-out inspection not done',
+        deposit: 'deposit return not started',
+        listing: 'the unit isn’t listed yet',
+        screening: 'applicants are waiting on screening',
+        lease: 'no new lease signed yet',
+      }
+      let detail = urgent.blocking ? blockingCopy[urgent.blocking] : 'almost done'
+      let tone: Insight['tone'] = 'brand'
+      if (urgent.blocking === 'deposit' && urgent.depositDaysLeft != null) {
+        detail = urgent.depositDaysLeft < 0
+          ? `deposit return ${Math.abs(urgent.depositDaysLeft)}d overdue`
+          : urgent.depositDaysLeft === 0
+            ? 'deposit return due today'
+            : `deposit return due in ${urgent.depositDaysLeft}d`
+        if (urgent.depositDaysLeft <= 7) tone = 'red'
+      }
+      const n = openTurnovers.length
+      out.push({
+        key: 'turnover', Icon: RefreshCw, tone,
+        title: `${n} turnover${n === 1 ? '' : 's'} in progress — ${detail}`,
+        body: `${unitLabelById.get(urgent.unit.id) ?? 'A unit'} is between tenants. The checklist walks inspection, deposit, listing, screening, and the new lease in order.`,
+        to: `/manager/properties/${urgent.unit.property_id}?tab=turnover`, cta: 'Open turnover checklist',
       })
     }
     const next = upcomingRenewals.slice().sort((a, b) => +new Date(a.end_date) - +new Date(b.end_date))[0]
@@ -292,7 +351,7 @@ export default function ManagerDashboard() {
       })
     }
     return out.slice(0, 3)
-  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById])
+  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById, vacancy, openTurnovers])
 
   if (error) {
     return (

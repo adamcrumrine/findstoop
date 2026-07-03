@@ -36,6 +36,7 @@ interface Application {
   landlord_notes: string | null
   submitted_at: string
   archived_at: string | null
+  status_token: string
   unit?: {
     unit_number: string
     properties: { name: string }
@@ -310,6 +311,13 @@ function ApplicationDetail({
   const [declineReason, setDeclineReason] = useState('')
   const isArchived = app.archived_at != null
   const isDecided = app.status === 'approved' || app.status === 'declined'
+
+  // Public token-keyed status page — the applicant sees a coarse
+  // received → review → screening → decision stepper, nothing else.
+  const copyStatusLink = async () => {
+    await navigator.clipboard.writeText(`${window.location.origin}/application-status/${app.status_token}`)
+    toast.success('Status link copied — send it to the applicant so they can track progress without emailing you')
+  }
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
       <div className="p-5 border-b border-gray-100">
@@ -321,6 +329,14 @@ function ApplicationDetail({
           <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5" strokeWidth={1.75} /> {app.email}</p>
           {app.phone && <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" strokeWidth={1.75} /> {app.phone}</p>}
         </div>
+        <button
+          onClick={copyStatusLink}
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
+          title="Copy a link the applicant can open to check where their application stands — no account needed"
+        >
+          <LinkIcon className="w-3.5 h-3.5" strokeWidth={1.75} />
+          Copy status link
+        </button>
       </div>
 
       {/* Decisions */}

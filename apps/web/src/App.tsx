@@ -6,6 +6,7 @@ import ManagerLayout from './components/layout/ManagerLayout'
 import TenantLayout from './components/layout/TenantLayout'
 import MarketingLayout from './components/layout/MarketingLayout'
 import ApplyLayout from './components/layout/ApplyLayout'
+import ApplicationStatusLayout from './components/layout/ApplicationStatusLayout'
 import AdminLayout from './components/layout/AdminLayout'
 import { trackPageView } from './lib/analytics'
 import { BRAND } from './lib/brand'
@@ -31,6 +32,7 @@ const EduFairHousing       = lazy(() => import('./pages/marketing/education/Fair
 const EduLeadPaint         = lazy(() => import('./pages/marketing/education/LeadBasedPaintDisclosure'))
 const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
+const ApplicationStatus    = lazy(() => import('./pages/public/ApplicationStatus'))
 const RenterCheck          = lazy(() => import('./pages/public/RenterCheck'))
 const DepositDemand        = lazy(() => import('./pages/public/DepositDemand'))
 const DepositCheck         = lazy(() => import('./pages/public/DepositCheck'))
@@ -165,6 +167,11 @@ export default function App() {
           {/* Public rental application — bare layout, no marketing nav, no auth redirect */}
           <Route element={<ApplyLayout />}>
             <Route path="/apply/:unitId" element={<MarketingApply />} />
+          </Route>
+
+          {/* Public applicant status tracker — bare layout, token-keyed, no auth */}
+          <Route element={<ApplicationStatusLayout />}>
+            <Route path="/application-status/:token" element={<ApplicationStatus />} />
           </Route>
 
           {/* Auth */}

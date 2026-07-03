@@ -8,9 +8,12 @@ import { useConversations, useMessages } from '@findstoop/shared/hooks/useMessag
 import { findOrCreateDirectConversation, createGroupConversation, uploadChatImage } from '@findstoop/shared/api/messages'
 import type { ConversationSummary } from '@findstoop/shared/api/messages'
 import { supabase } from '../../lib/supabase'
-import { MessageSquare, Users as UsersIcon, ImagePlus, Loader2, Plus, X, ArrowLeft, Check, Building2, ChevronRight } from 'lucide-react'
+import { MessageSquare, Users as UsersIcon, ImagePlus, Loader2, Plus, X, ArrowLeft, Check, Building2, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Avatar from '../../components/shared/Avatar'
+import FairHousingFindings from '../../components/manager/FairHousingFindings'
+import { runFairHousingLint, applyLintSuggestion } from '../../lib/fairHousingLint'
+import type { LintFinding, LintResult } from '../../lib/fairHousingLint'
 
 function MessageBubble({ msg, isOwn, senderName }: {
   msg: { id: string; body: string; created_at: string; image_url?: string | null; image_purged_at?: string | null; sender_id: string }
@@ -139,6 +142,12 @@ function ChatThread({
   const { messages, loading, sending, send } = useMessages(conversation.conversationId, managerId)
   const [draft, setDraft] = useState('')
   const [uploading, setUploading] = useState(false)
+  // Fair Housing check + AI reply draft — advisory only, never blocks sending.
+  const [linting, setLinting] = useState(false)
+  const [lintResult, setLintResult] = useState<LintResult | null>(null)
+  const [lintOpen, setLintOpen] = useState(false)
+  const [drafting, setDrafting] = useState(false)
+  const [aiDraftNote, setAiDraftNote] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -146,12 +155,91 @@ function ChatThread({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Switching threads discards composer-side AI state.
+  useEffect(() => {
+    setLintResult(null)
+    setLintOpen(false)
+    setAiDraftNote(false)
+  }, [conversation.conversationId])
+
+  const clearComposerAiState = () => {
+    setLintResult(null)
+    setLintOpen(false)
+    setAiDraftNote(false)
+  }
+
   const handleSend = async () => {
     if (!draft.trim() || sending) return
     const body = draft
     setDraft('')
+    clearComposerAiState()
     await send(body)
   }
+
+  const handleLint = async () => {
+    const text = draft.trim()
+    if (!text || linting) return
+    setLinting(true)
+    try {
+      const result = await runFairHousingLint(text, 'message')
+      setLintResult(result)
+      setLintOpen(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not run the Fair Housing check.')
+    } finally {
+      setLinting(false)
+    }
+  }
+
+  const handleUseSuggestion = (finding: LintFinding) => {
+    const next = applyLintSuggestion(draft, finding)
+    if (next == null) {
+      toast.error("Couldn't find that phrase in your draft — it may have changed.")
+      return
+    }
+    setDraft(next)
+    // Drop the applied finding; when none remain, show the all-clear state.
+    setLintResult((prev) => {
+      if (!prev) return prev
+      const remaining = prev.findings.filter((f) => f !== finding)
+      return { clear: remaining.length === 0, findings: remaining }
+    })
+  }
+
+  const handleDraftReply = async () => {
+    if (drafting) return
+    setDrafting(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('draft-reply', {
+        body: { conversation_id: conversation.conversationId },
+      })
+      if (error) throw new Error('Could not draft a reply. Please try again.')
+      const res = data as { ok: boolean; draft?: string; message?: string }
+      if (!res?.ok || !res.draft) throw new Error(res?.message || 'Could not draft a reply. Please try again.')
+      setDraft(res.draft)
+      setAiDraftNote(true)
+      setLintResult(null)
+      setLintOpen(false)
+      // Quietly run the Fair Housing check on the draft; only surface it if
+      // something is worth a look — an all-clear would just be noise here.
+      void runFairHousingLint(res.draft, 'message')
+        .then((result) => {
+          if (!result.clear) {
+            setLintResult(result)
+            setLintOpen(true)
+          }
+        })
+        .catch(() => { /* advisory only — never block the draft */ })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not draft a reply.')
+    } finally {
+      setDrafting(false)
+    }
+  }
+
+  // Offer a draft when the thread's latest message is from the tenant side.
+  const lastMessage = messages[messages.length - 1]
+  const canDraftReply = !!lastMessage && lastMessage.sender_id !== managerId
 
   const handleImage = async (file: File) => {
     setUploading(true)
@@ -159,6 +247,7 @@ function ChatThread({
       const img = await uploadChatImage(conversation.conversationId, file)
       await send(draft.trim(), img)
       setDraft('')
+      clearComposerAiState()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Image upload failed')
     } finally {
@@ -255,41 +344,98 @@ function ChatThread({
       )}
 
       {/* Input */}
-      <div className="bg-white border-t border-gray-200 px-3 py-3 flex items-end gap-2 shrink-0">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); e.target.value = '' }}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40"
-          title="Send image"
-        >
-          {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
-        </button>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={`Message ${conversation.displayName}…`}
-          rows={1}
-          className="flex-1 px-3 py-2.5 border border-gray-300 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 max-h-28 overflow-y-auto"
-          style={{ minHeight: '40px' }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={!draft.trim() || sending}
-          className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 transition-opacity"
-        >
-          <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-          </svg>
-        </button>
+      <div className="bg-white border-t border-gray-200 shrink-0">
+        {/* Fair Housing check results — advisory, dismissible, never blocks send. */}
+        {lintOpen && lintResult && (
+          <div className="mx-3 mt-3 border border-gray-200 rounded-xl bg-gray-50/60 px-3 py-3 max-h-56 overflow-y-auto">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-xs font-semibold text-gray-700 inline-flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-brand-600" strokeWidth={1.75} />
+                Fair Housing check
+              </p>
+              <button
+                type="button"
+                onClick={() => setLintOpen(false)}
+                className="w-6 h-6 rounded-full hover:bg-gray-200 inline-flex items-center justify-center text-gray-500"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={1.75} />
+              </button>
+            </div>
+            <FairHousingFindings
+              clear={lintResult.clear}
+              findings={lintResult.findings}
+              onUseSuggestion={handleUseSuggestion}
+            />
+          </div>
+        )}
+
+        {/* Draft reply — fills the composer for editing; never auto-sends. */}
+        {canDraftReply && !draft.trim() && (
+          <div className="px-3 pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={handleDraftReply}
+              disabled={drafting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors disabled:opacity-60"
+            >
+              {drafting
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+                : <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />}
+              {drafting ? 'Drafting…' : 'Draft reply'}
+            </button>
+          </div>
+        )}
+
+        {aiDraftNote && draft.trim() && (
+          <p className="px-4 pt-2 text-[11px] text-gray-400">AI draft — review before sending.</p>
+        )}
+
+        <div className="px-3 py-3 flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); e.target.value = '' }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40"
+            title="Send image"
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
+          </button>
+          <button
+            type="button"
+            onClick={handleLint}
+            disabled={!draft.trim() || linting}
+            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40"
+            title="Check message for Fair Housing concerns"
+          >
+            {linting ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />}
+          </button>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message ${conversation.displayName}…`}
+            rows={1}
+            className="flex-1 px-3 py-2.5 border border-gray-300 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 max-h-28 overflow-y-auto"
+            style={{ minHeight: '40px' }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!draft.trim() || sending}
+            className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 transition-opacity"
+          >
+            <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   )

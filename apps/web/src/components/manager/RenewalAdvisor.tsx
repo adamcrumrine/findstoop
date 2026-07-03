@@ -1,9 +1,10 @@
 // Renewal advisor — sits at the top of the Leases page. For active leases
 // ending within 120 days it shows days-to-end, current rent, a market estimate
 // (reused from the landlord's saved Rental Analysis reports — never a fresh
-// paid lookup), a suggested renewal number with plain-English reasoning, and a
-// one-click "Draft offer letter" that opens the Document Builder prefilled
-// with the lease-renewal template.
+// paid lookup), a suggested renewal number with plain-English reasoning, a
+// rules-based flight-risk read (renewalRisk.ts — maintenance, payment history,
+// market position, tenure), and a one-click "Draft offer letter" that opens
+// the Document Builder prefilled with the lease-renewal template.
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -11,10 +12,15 @@ import { CalendarClock, FileText, TrendingUp } from 'lucide-react'
 import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { Unit } from '@findstoop/shared/types/unit'
 import type { Property } from '@findstoop/shared/types/property'
-import { listRentReports, type SavedRentReport } from '@findstoop/shared'
+import type { Payment } from '@findstoop/shared/types/payment'
+import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
+import {
+  listRentReports, getPaymentsByLeaseIds, getMaintenanceRequests, type SavedRentReport,
+} from '@findstoop/shared'
 import {
   RENEWAL_WINDOW_DAYS, suggestRenewalRent, matchRentReport, defaultRespondBy,
 } from '../../lib/renewalAdvisor'
+import { assessRenewalRisk, RISK_TIER_LABEL, type RiskTier } from '../../lib/renewalRisk'
 
 interface RenewalAdvisorProps {
   leases: LeaseWithTenant[]
@@ -24,8 +30,20 @@ interface RenewalAdvisorProps {
 
 const money = (n: number) => '$' + Math.round(Number(n)).toLocaleString()
 
+// Badge palette per flight-risk tier — same generic hue family as the lease
+// status pills (no brand-specific colors).
+const riskPill: Record<RiskTier, string> = {
+  low:    'bg-green-100 text-green-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  high:   'bg-red-100 text-red-700',
+}
+
 export default function RenewalAdvisor({ leases, unitMap, propertyMap }: RenewalAdvisorProps) {
   const [reports, setReports] = useState<SavedRentReport[]>([])
+  // Flight-risk evidence — batched across every upcoming lease (two queries
+  // total, no per-row fetches). Null until loaded so rows don't flash a
+  // false "low risk" before the data arrives.
+  const [riskData, setRiskData] = useState<{ payments: Payment[]; maintenance: MaintenanceRequest[] } | null>(null)
 
   // Fixed-term active leases ending within the window (month-to-month tenancies
   // have no term to renew, so they're excluded — the M2M card handles those).
@@ -54,6 +72,31 @@ export default function RenewalAdvisor({ leases, unitMap, propertyMap }: Renewal
     return () => { cancelled = true }
   }, [upcoming.length])
 
+  // Flight-risk evidence: payments for each upcoming tenant's lease chain on
+  // the unit (renewals included, so tenure/payment history spans the whole
+  // tenancy) + maintenance for the upcoming units. Two batched queries.
+  const upcomingKey = upcoming.map((l) => l.id).sort().join(',')
+  useEffect(() => {
+    if (upcoming.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const unitIds = [...new Set(upcoming.map((l) => l.unit_id))]
+        const chainIds = [...new Set(upcoming.flatMap((u) =>
+          leases
+            .filter((l) => l.unit_id === u.unit_id && l.tenant_id === u.tenant_id)
+            .map((l) => l.id)))]
+        const [payments, maintenance] = await Promise.all([
+          getPaymentsByLeaseIds(chainIds),
+          getMaintenanceRequests(unitIds),
+        ])
+        if (!cancelled) setRiskData({ payments, maintenance })
+      } catch { /* rows simply render without the risk badge */ }
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upcomingKey])
+
   if (upcoming.length === 0) return null
 
   return (
@@ -76,6 +119,8 @@ export default function RenewalAdvisor({ leases, unitMap, propertyMap }: Renewal
               unit={unit}
               property={property}
               reports={reports}
+              allLeases={leases}
+              riskData={riskData}
             />
           )
         })}
@@ -84,11 +129,13 @@ export default function RenewalAdvisor({ leases, unitMap, propertyMap }: Renewal
   )
 }
 
-function RenewalRow({ lease, unit, property, reports }: {
+function RenewalRow({ lease, unit, property, reports, allLeases, riskData }: {
   lease: LeaseWithTenant
   unit?: Unit
   property?: Property
   reports: SavedRentReport[]
+  allLeases: LeaseWithTenant[]
+  riskData: { payments: Payment[]; maintenance: MaintenanceRequest[] } | null
 }) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const daysLeft = Math.ceil((new Date(lease.end_date).getTime() - today.getTime()) / 86_400_000)
@@ -102,6 +149,18 @@ function RenewalRow({ lease, unit, property, reports }: {
     : null
   const currentRent = Number(lease.rent_amount)
   const suggestion = suggestRenewalRent(currentRent, report?.estimate ?? null)
+
+  // Flight-risk read — pure rules over data already fetched above (renewalRisk.ts).
+  const risk = riskData
+    ? assessRenewalRisk({
+        lease,
+        allLeases,
+        payments: riskData.payments,
+        maintenance: riskData.maintenance,
+        marketEstimate: report?.estimate ?? null,
+        todayIso: today.toISOString().slice(0, 10),
+      })
+    : null
 
   // One click opens the Document Builder with tenant + Lease Renewal selected
   // and the suggested numbers pre-seeded (f_* params). The builder's review
@@ -143,6 +202,23 @@ function RenewalRow({ lease, unit, property, reports }: {
       </div>
 
       {report && <p className="mt-1 text-xs text-gray-500 leading-relaxed">{suggestion.reasoning}</p>}
+
+      {/* Flight-risk badge + the signals behind it. Renders once the batched
+          payments/maintenance evidence has loaded; the recommendation line is
+          the advisor's "so what" for this tenant. */}
+      {risk && (
+        <div className="mt-2 text-xs">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded ${riskPill[risk.tier]}`}>
+              {RISK_TIER_LABEL[risk.tier]}
+            </span>
+            {risk.reasons.length > 0 && (
+              <span className="text-gray-500">{risk.reasons.join(' · ')}</span>
+            )}
+          </div>
+          <p className="mt-1 text-gray-600 leading-relaxed">{risk.recommendation}</p>
+        </div>
+      )}
 
       <div className="mt-2">
         <Link

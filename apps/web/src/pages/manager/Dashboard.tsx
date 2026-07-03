@@ -11,6 +11,7 @@ import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import { useTurnovers } from '../../hooks/useTurnovers'
 import { portfolioVacancy, type TurnoverStepKey } from '../../lib/turnover'
+import { assessRenewalRisk, RISK_TIER_LABEL } from '../../lib/renewalRisk'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
@@ -198,7 +199,7 @@ function Section({ title, children, loading, empty, emptyText }: {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { profile } = useAuth()
-  const { stats, recentPayments, allPayments, openMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, properties, units, leases, loading, error } =
+  const { stats, recentPayments, allPayments, openMaintenance, allMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, properties, units, leases, loading, error } =
     useManagerDashboard(profile?.id)
 
   // "301 E 14th Ave · Unit 303" labels so list rows answer "which rental?"
@@ -343,15 +344,29 @@ export default function ManagerDashboard() {
     if (next) {
       const d = Math.ceil((new Date(next.end_date).getTime() - Date.now()) / 86_400_000)
       const where = unitLabelById.get(next.unit_id) ?? 'A lease'
+      // Flight-risk read over data the dashboard already loaded (no extra
+      // fetch; no market estimate here — that signal just contributes 0).
+      // High risk swaps the generic runway copy for the specific signals.
+      const risk = assessRenewalRisk({
+        lease: next,
+        allLeases: leases,
+        payments: allPayments,
+        maintenance: allMaintenance,
+        marketEstimate: null,
+        todayIso: new Date().toISOString().slice(0, 10),
+      })
+      const lc = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
       out.push({
-        key: 'renewal', Icon: CalendarClock, tone: 'brand',
+        key: 'renewal', Icon: CalendarClock, tone: risk.tier === 'high' ? 'amber' : 'brand',
         title: `${where} — lease ends in ${d}d`,
-        body: 'Renewals land best with 30+ days of runway. The renewal advisor suggests a number and drafts the offer letter.',
+        body: risk.tier === 'high'
+          ? `${RISK_TIER_LABEL.high}: ${risk.reasons.slice(0, 2).map(lc).join('; ')}. ${risk.recommendation}`
+          : 'Renewals land best with 30+ days of runway. The renewal advisor suggests a number and drafts the offer letter.',
         to: '/manager/leases', cta: 'Open renewal advisor',
       })
     }
     return out.slice(0, 3)
-  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById, vacancy, openTurnovers])
+  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById, vacancy, openTurnovers, leases, allPayments, allMaintenance])
 
   if (error) {
     return (

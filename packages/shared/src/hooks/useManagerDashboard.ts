@@ -27,6 +27,10 @@ export interface DashboardData {
    *  donut chart so it can recompute per month without re-fetching. */
   allPayments: Payment[]
   openMaintenance: MaintenanceRequest[]
+  /** Every maintenance request across the manager's units (open AND resolved)
+   *  — the renewal flight-risk heuristic needs full history, not just the
+   *  open queue. Same fetch as openMaintenance; no extra query. */
+  allMaintenance: MaintenanceRequest[]
   upcomingRenewals: Lease[]
   /** Leases the tenant has e-signed but the manager hasn't — waiting on the
    *  manager to finalize. Surfaced as a CTA on the dashboard. */
@@ -50,6 +54,7 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
   const [recentPayments, setRecentPayments] = useState<Payment[]>([])
   const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [openMaintenance, setOpenMaintenance] = useState<MaintenanceRequest[]>([])
+  const [allMaintenance, setAllMaintenance] = useState<MaintenanceRequest[]>([])
   const [upcomingRenewals, setUpcomingRenewals] = useState<Lease[]>([])
   const [awaitingManagerSignature, setAwaitingManagerSignature] = useState<Lease[]>([])
   const [needsBillingSetup, setNeedsBillingSetup] = useState(false)
@@ -86,6 +91,7 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
         if (cancelled) return
         setLeases(allLeases)
         setOpenMaintenance(maintenance.filter((m) => m.status === 'open' || m.status === 'in_progress'))
+        setAllMaintenance(maintenance)
         setUpcomingRenewals(renewals)
 
         const leaseIds = allLeases.map((l) => l.id)
@@ -176,6 +182,7 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
     recentPayments,
     allPayments,
     openMaintenance: openMaintenance.slice(0, 5),
+    allMaintenance,
     upcomingRenewals,
     awaitingManagerSignature,
     needsBillingSetup,

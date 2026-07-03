@@ -1,10 +1,11 @@
 // Download Center — the manager's exports in one place: the rent roll
-// (per-unit snapshot, PDF + CSV) and the tax center (year-end transactions CSV
-// + auto-filled Schedule E worksheet). Linked from Reports.
+// (per-unit snapshot, PDF + CSV), the annual portfolio physical, and the tax
+// center (year-end transactions CSV + auto-filled Schedule E worksheet).
+// Linked from Reports.
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, FileText, Loader2, ArrowLeft } from 'lucide-react'
+import { Download, FileText, Loader2, ArrowLeft, Stethoscope } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getProperties } from '@findstoop/shared/api/properties'
@@ -38,7 +39,57 @@ export default function DownloadCenter() {
       </div>
 
       <RentRollCard />
+      <PortfolioPhysicalCard />
       <TaxCenter />
+    </div>
+  )
+}
+
+// ── Annual portfolio physical ───────────────────────────────────────────────
+// The once-a-year health report: rent vs market, expense ratio, lease-end
+// clustering, deposit exposure, compliance gaps, collection health.
+function PortfolioPhysicalCard() {
+  const { user } = useAuth()
+  const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
+  const [scope, setScope] = useState('all')
+
+  useEffect(() => {
+    if (!user?.id) return
+    getProperties(user.id).then((p) => setProperties(p.map((x) => ({ id: x.id, name: x.name })))).catch(() => {})
+  }, [user?.id])
+
+  const href = scope === 'all' ? '/manager/portfolio-physical' : `/manager/portfolio-physical?property=${scope}`
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <SectionHeader
+        title="Portfolio physical"
+        subtitle="Annual health check — rent vs market, expense ratio, lease timing, deposits, compliance, collections"
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm text-gray-600">
+          Scope
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value)}
+            className="ml-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="all">All properties</option>
+            {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg"
+        >
+          <Stethoscope className="w-4 h-4" strokeWidth={1.75} /> Run the physical
+        </a>
+      </div>
+      <p className="text-xs text-gray-500 mt-3">
+        Built from your recorded leases, payments, and expenses — with an optional AI executive summary. Run it once a year.
+      </p>
     </div>
   )
 }

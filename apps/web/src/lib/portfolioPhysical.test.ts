@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import {
   computeRentDrift, computeExpenseSection, computeLeaseClusters,
   computeDepositSection, computeComplianceSection, computeCollectionSection,
   propertyPhysical, summarizePortfolio, physicalMetricsForAi,
+  priorYearSummary, hasPriorYearSignal, pctChange,
   matchRentReport, normalizeAddress,
   type PhysicalPropertyLike, type PhysicalUnitLike, type PhysicalLeaseLike,
   type PhysicalPaymentLike, type PhysicalExpenseLike, type PhysicalRentReportLike,
@@ -38,7 +39,7 @@ const report = (over: Partial<PhysicalRentReportLike> = {}): PhysicalRentReportL
   estimate: 1400, low: 1250, high: 1550, created_at: '2026-05-01T00:00:00Z', ...over,
 })
 
-// ── Address matching ─────────────────────────────────────────────────────────
+// â”€â”€ Address matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('matchRentReport', () => {
   it('matches on normalized street line and prefers unit + bedroom agreement', () => {
@@ -68,14 +69,14 @@ describe('matchRentReport', () => {
   })
 })
 
-// ── Rent drift ───────────────────────────────────────────────────────────────
+// â”€â”€ Rent drift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('computeRentDrift', () => {
   it('reports drift for units with an estimate and flags below-market ones', () => {
     const s = computeRentDrift(property(), [unit()], [lease()], [report()], TODAY)
     expect(s.rows).toHaveLength(1)
     expect(s.rows[0].estimate).toBe(1400)
-    // 1200 vs 1400 = −14.3%
+    // 1200 vs 1400 = âˆ’14.3%
     expect(s.rows[0].driftPct).toBeCloseTo(-14.3, 1)
     expect(s.belowMarketUnits).toBe(1)
     expect(s.monthlyGapDollars).toBe(200)
@@ -95,13 +96,13 @@ describe('computeRentDrift', () => {
     expect(s.rows[0].stale).toBe(true)
   })
 
-  it('skips vacant units — occupied active leases only', () => {
+  it('skips vacant units â€” occupied active leases only', () => {
     const s = computeRentDrift(property(), [unit({ id: 'u9', status: 'vacant' })], [], [report()], TODAY)
     expect(s.rows).toHaveLength(0)
   })
 })
 
-// ── Expense ratio ────────────────────────────────────────────────────────────
+// â”€â”€ Expense ratio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('computeExpenseSection', () => {
   it('computes 12-month expenses over collected rent with a category breakdown', () => {
@@ -134,7 +135,7 @@ describe('computeExpenseSection', () => {
   })
 })
 
-// ── Lease-end clustering ─────────────────────────────────────────────────────
+// â”€â”€ Lease-end clustering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('computeLeaseClusters', () => {
   it('flags months where two or more fixed-term leases end together', () => {
@@ -161,7 +162,7 @@ describe('computeLeaseClusters', () => {
   })
 })
 
-// ── Deposit exposure ─────────────────────────────────────────────────────────
+// â”€â”€ Deposit exposure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('computeDepositSection', () => {
   it('totals deposits held and surfaces a recent move-out with the OH deadline', () => {
@@ -201,12 +202,12 @@ describe('computeDepositSection', () => {
   })
 })
 
-// ── Compliance gaps ──────────────────────────────────────────────────────────
+// â”€â”€ Compliance gaps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('computeComplianceSection', () => {
   it('counts deposit-cap warnings via the compliance rules table', () => {
     // NC caps deposits; if NC has a cap on file this trips it. Use OH grace-days
-    // rule instead: OH has no grace requirement, so use a state-agnostic check —
+    // rule instead: OH has no grace requirement, so use a state-agnostic check â€”
     // an oversized deposit in a cap state. Verify with whatever is on file:
     const s = computeComplianceSection(property(), [lease()], {
       late_fee_enabled: false, late_fee_amount: 0, late_fee_grace_days: 0,
@@ -214,7 +215,7 @@ describe('computeComplianceSection', () => {
     })
     expect(s.rulesOnFile).toBe(true)
     expect(s.stateName).toBe('Ohio')
-    // Late fees off + reasonable deposit ⇒ no warnings.
+    // Late fees off + reasonable deposit â‡’ no warnings.
     expect(s.gapCount).toBe(0)
   })
 
@@ -225,7 +226,7 @@ describe('computeComplianceSection', () => {
   })
 })
 
-// ── Collection health ────────────────────────────────────────────────────────
+// â”€â”€ Collection health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('computeCollectionSection', () => {
   it('computes the on-time rate from due rents in the window', () => {
@@ -233,8 +234,8 @@ describe('computeCollectionSection', () => {
       payment({ due_date: '2026-05-01', paid_at: '2026-05-01' }),               // on time
       payment({ due_date: '2026-04-01', paid_at: '2026-04-09' }),               // late
       payment({ due_date: '2026-06-01', paid_at: null, status: 'pending' }),    // open + overdue
-      payment({ due_date: '2026-08-01', paid_at: null, status: 'pending' }),    // future — excluded
-      payment({ due_date: '2026-05-01', type: 'late_fee' }),                    // not rent — excluded
+      payment({ due_date: '2026-08-01', paid_at: null, status: 'pending' }),    // future â€” excluded
+      payment({ due_date: '2026-05-01', type: 'late_fee' }),                    // not rent â€” excluded
     ], new Set(['l1']), TODAY)
     expect(s.dueCount).toBe(3)
     expect(s.paidLateCount).toBe(1)
@@ -250,7 +251,7 @@ describe('computeCollectionSection', () => {
   })
 })
 
-// ── Whole exam + portfolio rollup ────────────────────────────────────────────
+// â”€â”€ Whole exam + portfolio rollup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('propertyPhysical / summarizePortfolio', () => {
   const inputs: PhysicalInputs = {
@@ -276,7 +277,7 @@ describe('propertyPhysical / summarizePortfolio', () => {
     expect(p.deposits.totalHeld).toBe(1200)
   })
 
-  it('ignores other properties’ units and expenses', () => {
+  it('ignores other propertiesâ€™ units and expenses', () => {
     const p = propertyPhysical({
       ...inputs,
       units: [unit(), unit({ id: 'ux', property_id: 'p2' })],
@@ -308,3 +309,46 @@ describe('propertyPhysical / summarizePortfolio', () => {
     expect(m.properties[0].compliance_rules_on_file).toBe(true)
   })
 })
+
+// â”€â”€ Year over year â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+describe('year over year', () => {
+  const inputsWithHistory: PhysicalInputs = {
+    property: property(),
+    units: [unit()],
+    leases: [lease()],
+    payments: [
+      payment(), // current window (June 2026)
+      payment({ amount: 1000, due_date: '2025-06-01', paid_at: '2025-06-01' }), // prior window
+    ],
+    expenses: [
+      expense(), // current window
+      expense({ amount: 500, expense_date: '2025-05-10' }), // prior window
+    ],
+    rentReports: [report()],
+    depositDocs: [],
+    lateFeeConfig: null,
+    todayIso: TODAY,
+  }
+
+  it('priorYearSummary computes the previous 12-month window from the same inputs', () => {
+    const prior = priorYearSummary([inputsWithHistory])
+    expect(prior.totalCollected).toBe(1000)
+    expect(prior.totalExpenses).toBe(500)
+    expect(hasPriorYearSignal(prior)).toBe(true)
+  })
+
+  it('first-year portfolios have no prior signal', () => {
+    const prior = priorYearSummary([{ ...inputsWithHistory, payments: [payment()], expenses: [expense()] }])
+    expect(prior.totalCollected).toBe(0)
+    expect(prior.totalExpenses).toBe(0)
+    expect(hasPriorYearSignal(prior)).toBe(false)
+  })
+
+  it('pctChange is signed and refuses a zero base', () => {
+    expect(pctChange(1200, 1000)).toBe(20)
+    expect(pctChange(800, 1000)).toBe(-20)
+    expect(pctChange(100, 0)).toBeNull()
+  })
+})
+

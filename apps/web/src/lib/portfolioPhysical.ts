@@ -574,6 +574,37 @@ export function summarizePortfolio(perProperty: PropertyPhysical[]): PortfolioSu
   }
 }
 
+// ── Year-over-year ───────────────────────────────────────────────────────────
+// Every money section windows backward from todayIso, so "last year" is the
+// same computation with todayIso shifted back one window. Only the flow
+// metrics (collected, expenses, ratio, on-time rate) are meaningful across
+// years — point-in-time sections (deposits held, compliance, drift) are not
+// diffed.
+
+/** The prior-year portfolio summary for the same inputs. */
+export function priorYearSummary(perPropertyInputs: PhysicalInputs[]): PortfolioSummary {
+  return summarizePortfolio(
+    perPropertyInputs.map((i) =>
+      propertyPhysical({ ...i, todayIso: addDaysIso(i.todayIso, -PHYSICAL_WINDOW_DAYS) }),
+    ),
+  )
+}
+
+/**
+ * Whether the prior window has enough activity to make comparisons honest —
+ * a portfolio in its first year gets no YoY strip rather than "∞% growth"
+ * against an empty year.
+ */
+export function hasPriorYearSignal(prior: PortfolioSummary): boolean {
+  return prior.totalCollected > 0 || prior.totalExpenses > 0
+}
+
+/** Signed percent change, null when the prior value can't support one. */
+export function pctChange(current: number, prior: number): number | null {
+  if (prior === 0) return null
+  return round1(((current - prior) / prior) * 100)
+}
+
 /**
  * Compact metrics payload for the portfolio-physical edge function. The model
  * narrates and prioritizes these numbers; the report UI renders the full

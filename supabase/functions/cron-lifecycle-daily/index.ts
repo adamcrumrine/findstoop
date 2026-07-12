@@ -76,6 +76,12 @@ interface LeaseRenewalVars {
   url: string
 }
 
+interface AnnualPhysicalVars {
+  first_name: string
+  year_label: string
+  url: string
+}
+
 interface SeasonalDigestVars {
   first_name: string
   month_label: string
@@ -84,7 +90,7 @@ interface SeasonalDigestVars {
   url: string
 }
 
-type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars | LeaseRenewalVars | SeasonalDigestVars
+type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars | LeaseRenewalVars | SeasonalDigestVars | AnnualPhysicalVars
 
 // Landlord branding for tenant-facing sends (see _shared/emailBranding.ts).
 // null / undefined ⇒ stock FindStoop presentation, exactly as before.
@@ -238,6 +244,19 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
       ${payButton(v.pay_url, 'Settle balance now')}
       <p style="color:#8E8E93;font-size:13px">Paying online resolves both the rent and the late fee in one transaction. If you've already paid by check that hasn't cleared yet, reply to this email and we'll help reconcile it.</p>
     `, brandFooter(), brand),
+  },
+  // January nudge: last year's numbers are complete — the part-time-CFO
+  // report is at its most useful exactly once a year, unprompted.
+  annual_physical_ready: {
+    subject: (v: { first_name: string; year_label: string; url: string }) =>
+      `Your ${v.year_label} portfolio physical is ready`,
+    html: (v: { first_name: string; year_label: string; url: string }) => wrapHtml(`
+      <p>Hi ${v.first_name},</p>
+      <p>A full year of your portfolio's numbers is in the books. Your <strong>annual portfolio physical</strong> pulls it together: rent vs market, expense ratio with category breakdown, lease-end clustering, deposit exposure, compliance gaps, and collection health — with year-over-year comparisons once you have two years of history.</p>
+      <p>It's computed entirely from data already in your account — nothing to prepare. Print it, save it as a PDF for your records, or hand it to your accountant.</p>
+      ${payButton(v.url, 'Open your annual report')}
+      <p style="color:#8E8E93;font-size:13px">You'll find it any time under Download Center → Annual portfolio physical.</p>
+    `, brandFooterManager()),
   },
   // Monthly seasonal-maintenance digest to the MANAGER — the "autopilot" half
   // of the seasonal schedule that previously only showed in the UI.
@@ -930,6 +949,52 @@ Deno.serve(async (req) => {
         else outcome.failed++
       }
     } catch { /* tolerate — next month's run will try again */ }
+    totals.push(outcome)
+  }
+
+  // ── Annual portfolio physical nudge: each January, one per manager ──────
+  // Dedup keys on the year, so daily runs through January send exactly once.
+  {
+    const outcome: Outcome = { triggerKey: 'annual_physical_ready', sent: 0, duplicate: 0, paused: 0, failed: 0, skipped: 0 }
+    try {
+      const now = new Date()
+      if (now.getUTCMonth() === 0) { // January
+        const yearLabel = String(now.getUTCFullYear() - 1)
+        const { data: owners } = await admin
+          .from('properties')
+          .select('manager_id, manager:profiles(email, full_name, notification_email_enabled)')
+          .limit(2000)
+        const seen = new Set<string>()
+        for (const p of owners ?? []) {
+          if (seen.has(p.manager_id)) continue
+          seen.add(p.manager_id)
+          // deno-lint-ignore no-explicit-any
+          const manager = Array.isArray((p as any).manager) ? (p as any).manager[0] : (p as any).manager
+          if (!manager?.email || manager.notification_email_enabled === false) { outcome.skipped++; continue }
+          const result = await fireTrigger({
+            triggerKey: 'annual_physical_ready',
+            userId: p.manager_id,
+            recipientEmail: manager.email,
+            dedupToken: `manager:${p.manager_id}:${yearLabel}`,
+            push: {
+              title: `Your ${yearLabel} portfolio physical is ready`,
+              body: 'A year of numbers, summarized like a part-time CFO would — rent drift, expenses, deposits, collections.',
+              url: '/manager/portfolio-physical',
+              tag: `annual-physical-${yearLabel}`,
+            },
+            templateVars: {
+              first_name: (manager.full_name?.split(' ')[0]) ?? 'there',
+              year_label: yearLabel,
+              url: `${APP_URL}/manager/portfolio-physical`,
+            },
+          })
+          if (result === 'sent') outcome.sent++
+          else if (result === 'duplicate') outcome.duplicate++
+          else if (result === 'paused') outcome.paused++
+          else outcome.failed++
+        }
+      }
+    } catch { /* tolerate — every January day retries */ }
     totals.push(outcome)
   }
 

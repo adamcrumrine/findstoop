@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase'
 import { BRAND } from '../../lib/brand'
 import {
   propertyPhysical, summarizePortfolio, physicalMetricsForAi,
+  priorYearSummary, hasPriorYearSignal, pctChange,
   PHYSICAL_WINDOW_DAYS, BELOW_MARKET_THRESHOLD_PCT,
   type PhysicalInputs, type PropertyPhysical, type PortfolioSummary,
   type PhysicalLeaseLike, type PhysicalPaymentLike, type PhysicalRentReportLike,
@@ -32,6 +33,8 @@ interface Narrative {
 interface LoadedData {
   perProperty: PropertyPhysical[]
   summary: PortfolioSummary
+  /** Last year's window, or null in the portfolio's first year. */
+  priorSummary: PortfolioSummary | null
   metrics: Record<string, unknown>
 }
 
@@ -90,7 +93,7 @@ export default function PortfolioPhysicalPage() {
     )
   }
 
-  const { perProperty, summary } = data
+  const { perProperty, summary, priorSummary } = data
   const scope = propertyId && perProperty[0] ? perProperty[0].propertyName : 'All properties'
 
   return (
@@ -135,12 +138,27 @@ export default function PortfolioPhysicalPage() {
           </div>
 
           {/* Vitals */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 text-sm">
+          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm ${priorSummary ? 'mb-3' : 'mb-6'}`}>
             <Stat label="Collected (12 mo)" value={formatUsd(summary.totalCollected)} />
             <Stat label="Expenses (12 mo)" value={formatUsd(summary.totalExpenses)} />
             <Stat label="Expense ratio" value={summary.ratioPct != null ? `${summary.ratioPct}%` : '—'} />
             <Stat label="On-time rent" value={summary.onTimeRatePct != null ? `${summary.onTimeRatePct}%` : '—'} />
           </div>
+
+          {/* Year over year — appears from year two onward. */}
+          {priorSummary && (
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 mb-6 text-xs text-mute flex flex-wrap gap-x-5 gap-y-1 break-inside-avoid">
+              <span className="font-semibold text-ink uppercase tracking-wider text-[10px] pt-0.5">vs last year</span>
+              <YoY label="Collected" current={summary.totalCollected} prior={priorSummary.totalCollected} money upIsGood />
+              <YoY label="Expenses" current={summary.totalExpenses} prior={priorSummary.totalExpenses} money upIsGood={false} />
+              {summary.ratioPct != null && priorSummary.ratioPct != null && (
+                <span>Expense ratio <span className="font-medium text-ink">{summary.ratioPct}%</span> vs {priorSummary.ratioPct}%</span>
+              )}
+              {summary.onTimeRatePct != null && priorSummary.onTimeRatePct != null && (
+                <span>On-time rent <span className="font-medium text-ink">{summary.onTimeRatePct}%</span> vs {priorSummary.onTimeRatePct}%</span>
+              )}
+            </div>
+          )}
 
           {/* AI executive summary */}
           {narrative && (
@@ -442,23 +460,38 @@ async function buildPhysical(managerId: string, propertyId: string | undefined, 
       }
     : null
 
-  const perProperty = properties.map((property) => {
-    const inputs: PhysicalInputs = {
-      property,
-      units: (units ?? []) as PhysicalInputs['units'],
-      leases,
-      payments: (payments ?? []) as PhysicalPaymentLike[],
-      expenses: (expenses ?? []) as PhysicalInputs['expenses'],
-      rentReports: (reportRows ?? []) as PhysicalRentReportLike[],
-      depositDocs: (depositDocs ?? []) as PhysicalInputs['depositDocs'],
-      lateFeeConfig,
-      todayIso,
-    }
-    return propertyPhysical(inputs)
-  })
+  const perPropertyInputs: PhysicalInputs[] = properties.map((property) => ({
+    property,
+    units: (units ?? []) as PhysicalInputs['units'],
+    leases,
+    payments: (payments ?? []) as PhysicalPaymentLike[],
+    expenses: (expenses ?? []) as PhysicalInputs['expenses'],
+    rentReports: (reportRows ?? []) as PhysicalRentReportLike[],
+    depositDocs: (depositDocs ?? []) as PhysicalInputs['depositDocs'],
+    lateFeeConfig,
+    todayIso,
+  }))
+  const perProperty = perPropertyInputs.map(propertyPhysical)
 
   const summary = summarizePortfolio(perProperty)
-  return { perProperty, summary, metrics: physicalMetricsForAi(summary, perProperty, todayIso) }
+  // Year two and beyond: the same computation over the previous 12-month
+  // window. Skipped (null) when last year has no activity to compare against.
+  const prior = priorYearSummary(perPropertyInputs)
+  const priorSummary = hasPriorYearSignal(prior) ? prior : null
+  const metrics = {
+    ...physicalMetricsForAi(summary, perProperty, todayIso),
+    ...(priorSummary
+      ? {
+          prior_year: {
+            collected: priorSummary.totalCollected,
+            expenses: priorSummary.totalExpenses,
+            expense_ratio_pct: priorSummary.ratioPct,
+            on_time_rate_pct: priorSummary.onTimeRatePct,
+          },
+        }
+      : {}),
+  }
+  return { perProperty, summary, priorSummary, metrics }
 }
 
 // ── Small presentational pieces ──────────────────────────────────────────────
@@ -469,6 +502,27 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3 className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2">{title}</h3>
       {children}
     </section>
+  )
+}
+
+// One YoY comparison: current value, prior value, and a signed % change
+// colored by whether the direction is good for the owner.
+function YoY({ label, current, prior, money, upIsGood }: {
+  label: string; current: number; prior: number; money?: boolean; upIsGood: boolean
+}) {
+  const change = pctChange(current, prior)
+  const fmt = (n: number) => (money ? formatUsd(n) : String(n))
+  const up = change != null && change > 0
+  const changeCls =
+    change == null || change === 0 ? 'text-mute'
+      : (up === upIsGood ? 'text-emerald-700' : 'text-amber-700')
+  return (
+    <span>
+      {label} <span className="font-medium text-ink">{fmt(current)}</span> vs {fmt(prior)}
+      {change != null && change !== 0 && (
+        <span className={`font-medium ${changeCls}`}> ({change > 0 ? '+' : ''}{change}%)</span>
+      )}
+    </span>
   )
 }
 

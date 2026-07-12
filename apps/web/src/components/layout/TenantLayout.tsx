@@ -6,6 +6,7 @@ import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIc
 import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
 import PoweredByStoop from '../shared/PoweredByStoop'
+import InstallPrompt from '../shared/InstallPrompt'
 import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
 import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
@@ -223,6 +224,9 @@ export default function TenantLayout() {
           </div>
         )}
       </nav>
+
+      {/* Add-to-home-screen nudge — second visit, dismissible, phone-first. */}
+      <InstallPrompt />
     </div>
   )
 }

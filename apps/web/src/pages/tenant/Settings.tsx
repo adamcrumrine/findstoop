@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { Mail, Bell, Loader2, CheckCircle2, UserCircle, IdCard, Lock } from 'lucide-react'
+import { Mail, Bell, BellRing, Loader2, CheckCircle2, UserCircle, IdCard, Lock } from 'lucide-react'
+import { pushSupported, pushSubscribed, subscribePush, unsubscribePush } from '../../lib/push'
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
 import { formatPhone, formatUsdCents, formatAddress } from '@findstoop/shared/lib/format'
@@ -400,6 +401,8 @@ export default function TenantSettings() {
           onChange={save}
         />
 
+        <PushToggleRow profileId={profile?.id ?? null} />
+
         <p className="mt-5 text-xs text-mute leading-relaxed">
           Turning email off means you won't get rent reminders or late-fee notices.
           You'll still see everything in your tenant dashboard, and your landlord
@@ -487,6 +490,55 @@ interface ToggleRowProps {
   enabled: boolean
   disabled: boolean
   onChange: (next: boolean) => void
+}
+
+// Push notifications for THIS device. Hidden entirely when the browser can't
+// do web push (old Safari, some in-app webviews) — a dead toggle is worse
+// than no toggle. Denied permission shows how to fix it rather than failing
+// silently.
+function PushToggleRow({ profileId }: { profileId: string | null }) {
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const supported = pushSupported()
+
+  useEffect(() => {
+    if (!supported) return
+    void pushSubscribed().then(setEnabled)
+  }, [supported])
+
+  if (!supported) return null
+
+  const handleChange = async (next: boolean) => {
+    if (!profileId || busy) return
+    setBusy(true)
+    if (next) {
+      const result = await subscribePush(profileId)
+      if (result === 'subscribed') {
+        setEnabled(true)
+        toast.success('Push notifications on for this device')
+      } else if (result === 'denied') {
+        toast.error('Notifications are blocked for this site — allow them in your browser settings, then try again.')
+      } else {
+        toast.error('Could not enable push notifications on this device.')
+      }
+    } else {
+      await unsubscribePush()
+      setEnabled(false)
+      toast.success('Push notifications off for this device')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <ToggleRow
+      Icon={BellRing}
+      title="Push notifications"
+      subtitle="Payment receipts and failures, maintenance updates, and new documents — delivered to this device even when the app is closed."
+      enabled={enabled}
+      disabled={busy}
+      onChange={handleChange}
+    />
+  )
 }
 
 function ToggleRow({ Icon, title, subtitle, enabled, disabled, onChange }: ToggleRowProps) {

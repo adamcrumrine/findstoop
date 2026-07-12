@@ -189,6 +189,9 @@ export default defineConfig({
         ...pwaBrand,
       },
       workbox: {
+        // Web-push handlers (public/push-sw.js) ride along with the generated
+        // worker — keeps us on generateSW instead of a custom SW build.
+        importScripts: ['push-sw.js'],
         // Cache app shell + JS/CSS, but skip the marketing illustrations —
         // they're large PNGs that don't need to live in the offline cache.
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icons/*.png', 'favicon-*.png', 'apple-touch-icon.png', 'stoop_logo*.png', 'brands/**/*.{svg,png}'],

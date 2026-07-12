@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   getDepositRule, depositDeadline, deadlineUrgency, addDaysIso, daysBetween,
+  addBusinessDaysIso, deadlineDaysLabel, DEPOSIT_STATE_RULES,
   computeDepositMath, formatDeductionsForLetter,
   conditionWorsened, suggestDeductionsFromInspections,
   effectiveMoveOutDate, depositReturnCandidates,
@@ -26,7 +27,7 @@ describe('state rules + deadline', () => {
   })
 
   it('returns null for states not on file (conservative default)', () => {
-    expect(getDepositRule('TX')).toBeNull()
+    expect(getDepositRule('VT')).toBeNull()
     expect(getDepositRule('')).toBeNull()
     expect(getDepositRule(null)).toBeNull()
   })
@@ -38,7 +39,7 @@ describe('state rules + deadline', () => {
   })
 
   it('returns no deadline for unknown states or bad dates', () => {
-    expect(depositDeadline('2026-06-01', 'TX')).toBeNull()
+    expect(depositDeadline('2026-06-01', 'VT')).toBeNull()
     expect(depositDeadline('not-a-date', 'OH')).toBeNull()
     expect(depositDeadline(null, 'OH')).toBeNull()
   })
@@ -188,5 +189,56 @@ describe('deposit-return candidates (the Leases-page nudge)', () => {
     const oldest = mk({ id: 'edge-old', end_date: addDaysIso(today, -DEPOSIT_LOOKBACK_DAYS) })
     const newest = mk({ id: 'edge-new', status: 'active', end_date: addDaysIso(today, DEPOSIT_LOOKAHEAD_DAYS) })
     expect(depositReturnCandidates([oldest, newest], today)).toHaveLength(2)
+  })
+})
+
+// ── Multi-state rules (2026-07 expansion) ────────────────────────────────────
+
+describe('expanded state rules', () => {
+  it('every state entry carries a citation, penalty, wear note, and verified date', () => {
+    for (const rule of Object.values(DEPOSIT_STATE_RULES)) {
+      expect(rule.statuteCite.length).toBeGreaterThan(4)
+      expect(rule.penaltyNote.length).toBeGreaterThan(10)
+      expect(rule.wearAndTearNote.length).toBeGreaterThan(10)
+      expect(rule.verifiedAsOf).toMatch(/^\d{4}-\d{2}$/)
+      expect(rule.requiresItemization).toBe(true)
+    }
+  })
+
+  it('covers the nine launch states', () => {
+    for (const st of ['OH', 'TX', 'FL', 'GA', 'AZ', 'CO', 'NC', 'PA', 'MI']) {
+      expect(getDepositRule(st), st).not.toBeNull()
+    }
+  })
+
+  it('FL uses the 15-day full-return obligation as the countdown', () => {
+    expect(getDepositRule('FL')!.deadlineDays).toBe(15)
+    expect(depositDeadline('2026-01-01', 'FL')).toBe('2026-01-16')
+    expect(getDepositRule('FL')!.deadlineNote).toContain('30 days')
+  })
+
+  it('addBusinessDaysIso skips weekends', () => {
+    // 2026-01-05 is a Monday.
+    expect(addBusinessDaysIso('2026-01-05', 5)).toBe('2026-01-12')
+    // Friday + 1 business day lands on Monday.
+    expect(addBusinessDaysIso('2026-01-09', 1)).toBe('2026-01-12')
+  })
+
+  it('AZ deadline counts 14 BUSINESS days', () => {
+    const rule = getDepositRule('AZ')!
+    expect(rule.businessDays).toBe(true)
+    expect(depositDeadline('2026-01-05', 'AZ')).toBe('2026-01-23')
+    expect(deadlineDaysLabel(rule)).toBe('14 business days')
+  })
+
+  it('calendar-day states label plainly', () => {
+    expect(deadlineDaysLabel(getDepositRule('OH')!)).toBe('30 days')
+  })
+
+  it('interest facts exist only where the statute requires them', () => {
+    expect(getDepositRule('PA')!.interestNote).toContain('250.511b')
+    expect(getDepositRule('OH')!.interestNote).toContain('5%')
+    expect(getDepositRule('TX')!.interestNote).toBeUndefined()
+    expect(getDepositRule('GA')!.interestNote).toBeUndefined()
   })
 })

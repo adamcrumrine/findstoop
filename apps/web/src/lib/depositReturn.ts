@@ -13,6 +13,10 @@ export interface DepositStateRule {
   state: string
   /** Days after move-out to return the deposit with the itemized statement. */
   deadlineDays: number
+  /** TRUE when deadlineDays counts business days (Mon–Fri), not calendar days. */
+  businessDays?: boolean
+  /** Nuance the single number can't carry (tiered/interim deadlines). */
+  deadlineNote?: string
   statuteCite: string
   /** The statute requires an itemized list of deductions. */
   requiresItemization: boolean
@@ -22,8 +26,17 @@ export interface DepositStateRule {
   wearAndTearNote: string
   /** What missing the deadline / wrongful withholding exposes the landlord to. */
   penaltyNote: string
+  /** States that require interest on held deposits — a fact the wizard should surface. */
+  interestNote?: string
+  /** YYYY-MM the entry was last reviewed against the cited statute. */
+  verifiedAsOf: string
 }
 
+// Editorial rule (same as complianceRules.ts): omission over invention. A
+// state appears here only when the deadline and its citation are solid;
+// deadlines that a lease can shift or that tier by circumstance say so in
+// deadlineNote, and the SHORTER statutory obligation is the one the countdown
+// uses — the safe direction for the landlord.
 export const DEPOSIT_STATE_RULES: Record<string, DepositStateRule> = {
   OH: {
     state: 'OH',
@@ -35,6 +48,124 @@ export const DEPOSIT_STATE_RULES: Record<string, DepositStateRule> = {
       'Ohio law does not allow deductions for ordinary wear and tear — faded paint, worn carpet, and routine cleaning from normal use generally can’t be charged (ORC § 5321.16).',
     penaltyNote:
       'A deposit wrongfully withheld exposes a landlord to twice the amount wrongfully withheld plus reasonable attorney’s fees (ORC § 5321.16).',
+    interestNote:
+      'Any deposit portion above $50 or one month’s rent (whichever is greater) earns 5% annual interest, paid annually, when the tenant stays six months or more (ORC § 5321.16(A)).',
+    verifiedAsOf: '2026-07',
+  },
+  TX: {
+    state: 'TX',
+    deadlineDays: 30,
+    statuteCite: 'Tex. Prop. Code § 92.103',
+    requiresItemization: true,
+    forwardingAddressMatters: true,
+    deadlineNote:
+      'The 30-day clock runs from surrender; the landlord isn’t required to return the deposit until the tenant gives a forwarding address, but the tenant never forfeits it by not doing so (Tex. Prop. Code § 92.107).',
+    wearAndTearNote:
+      'Texas law does not allow deductions for normal wear and tear — deterioration from ordinary use, not negligence or abuse (Tex. Prop. Code §§ 92.001(4), 92.104(b)).',
+    penaltyNote:
+      'Bad-faith retention exposes a landlord to $100 plus three times the amount wrongfully withheld plus reasonable attorney’s fees (Tex. Prop. Code § 92.109).',
+    verifiedAsOf: '2026-07',
+  },
+  FL: {
+    state: 'FL',
+    deadlineDays: 15,
+    statuteCite: 'Fla. Stat. § 83.49(3)',
+    requiresItemization: true,
+    forwardingAddressMatters: false,
+    deadlineNote:
+      'Two paths: return the full deposit within 15 days, OR mail written notice of intent to impose a claim (with the reason) by certified mail within 30 days — the tenant then has 15 days to object. Missing the 30-day notice forfeits the right to claim against the deposit (Fla. Stat. § 83.49(3)(a)).',
+    wearAndTearNote:
+      'The claim notice must state the reason for imposing it; Florida’s statute does not authorize claims for ordinary wear from normal use (Fla. Stat. § 83.49(3)(a)).',
+    penaltyNote:
+      'Failing to give the required notice forfeits the landlord’s right to impose a claim on the deposit; in a deposit lawsuit the prevailing party recovers court costs and attorney’s fees (Fla. Stat. § 83.49(3)).',
+    interestNote:
+      'If the deposit is held in an interest-bearing account, the tenant is owed at least 75% of the annualized average interest or 5% simple interest, at the landlord’s election (Fla. Stat. § 83.49(1)).',
+    verifiedAsOf: '2026-07',
+  },
+  GA: {
+    state: 'GA',
+    deadlineDays: 30,
+    statuteCite: 'O.C.G.A. § 44-7-34',
+    requiresItemization: true,
+    forwardingAddressMatters: false,
+    wearAndTearNote:
+      'Georgia law does not allow retaining the deposit for ordinary wear and tear (O.C.G.A. § 44-7-34(a)); deductions must trace to the move-in/move-out condition lists the statute requires (O.C.G.A. § 44-7-33).',
+    penaltyNote:
+      'Bad-faith retention exposes a landlord to three times the amount wrongfully withheld plus reasonable attorney’s fees (O.C.G.A. § 44-7-35(c)).',
+    verifiedAsOf: '2026-07',
+  },
+  AZ: {
+    state: 'AZ',
+    deadlineDays: 14,
+    businessDays: true,
+    statuteCite: 'A.R.S. § 33-1321(D)',
+    requiresItemization: true,
+    forwardingAddressMatters: false,
+    deadlineNote:
+      'Fourteen BUSINESS days (excluding weekends and legal holidays) from termination and delivery of possession.',
+    wearAndTearNote:
+      'Deductions are limited to unpaid rent and damages beyond normal wear and tear, with an itemized list (A.R.S. § 33-1321(D)).',
+    penaltyNote:
+      'Wrongful retention exposes a landlord to the amount wrongfully withheld plus damages of twice that amount (A.R.S. § 33-1321(E)).',
+    verifiedAsOf: '2026-07',
+  },
+  CO: {
+    state: 'CO',
+    deadlineDays: 30,
+    statuteCite: 'C.R.S. § 38-12-103',
+    requiresItemization: true,
+    forwardingAddressMatters: false,
+    deadlineNote:
+      'One month by default; the lease may extend this up to a maximum of 60 days. The countdown here uses the one-month default — check your lease.',
+    wearAndTearNote:
+      'Colorado law does not allow retaining the deposit for normal wear and tear — deterioration from ordinary, intended use (C.R.S. §§ 38-12-102(1), 38-12-103(1)).',
+    penaltyNote:
+      'Failing to deliver the itemized statement in time forfeits ALL rights to withhold any portion; willful wrongful retention exposes a landlord to treble damages plus attorney’s fees and costs (C.R.S. § 38-12-103(2)–(3)).',
+    verifiedAsOf: '2026-07',
+  },
+  NC: {
+    state: 'NC',
+    deadlineDays: 30,
+    statuteCite: 'N.C. Gen. Stat. § 42-52',
+    requiresItemization: true,
+    forwardingAddressMatters: false,
+    deadlineNote:
+      'Thirty days; if the full damage assessment isn’t complete, an interim accounting is due at 30 days and the final accounting at 60 days.',
+    wearAndTearNote:
+      'Damage deductions exclude ordinary wear and tear; permitted uses of the deposit are listed in the statute (N.C. Gen. Stat. §§ 42-51, 42-52).',
+    penaltyNote:
+      'Willful failure to comply voids the landlord’s right to retain any portion of the deposit; the tenant may also recover attorney’s fees (N.C. Gen. Stat. § 42-55).',
+    verifiedAsOf: '2026-07',
+  },
+  PA: {
+    state: 'PA',
+    deadlineDays: 30,
+    statuteCite: '68 P.S. § 250.512',
+    requiresItemization: true,
+    forwardingAddressMatters: true,
+    deadlineNote:
+      'Thirty days from termination or surrender. The double-damages remedy depends on the tenant having provided a forwarding address in writing (68 P.S. § 250.512(e)).',
+    wearAndTearNote:
+      'Deductions must be for actual damages to the leasehold premises, itemized in the written list — not ordinary wear from normal use (68 P.S. § 250.512(a)).',
+    penaltyNote:
+      'Missing the 30-day list forfeits the right to withhold any portion (and to sue for damages to the premises); failing to return the difference within 30 days exposes the landlord to double the deposit (68 P.S. § 250.512(b)–(c)).',
+    interestNote:
+      'Deposits held longer than two years must be escrowed, and interest earned from the start of the third year belongs to the tenant, paid annually (68 P.S. §§ 250.511a–250.511b).',
+    verifiedAsOf: '2026-07',
+  },
+  MI: {
+    state: 'MI',
+    deadlineDays: 30,
+    statuteCite: 'MCL 554.609',
+    requiresItemization: true,
+    forwardingAddressMatters: true,
+    deadlineNote:
+      'Itemized list of damages within 30 days of termination. The tenant must give a written forwarding address within 4 days of moving out (MCL 554.611); if the tenant disputes the deductions, the landlord must sue within 45 days or return the disputed amount (MCL 554.613).',
+    wearAndTearNote:
+      'Deductions are limited to unpaid rent/utilities and damages beyond reasonable wear and tear from the tenant’s use (MCL 554.607).',
+    penaltyNote:
+      'Wrongful retention in violation of the act exposes a landlord to double the amount wrongfully withheld (MCL 554.613(2)).',
+    verifiedAsOf: '2026-07',
   },
 }
 
@@ -57,6 +188,27 @@ export function addDaysIso(iso: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * Add business days (Mon–Fri). Legal holidays are NOT skipped — the computed
+ * date can only be earlier than the true statutory deadline, which is the
+ * safe direction for a countdown.
+ */
+export function addBusinessDaysIso(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  let remaining = days
+  while (remaining > 0) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const dow = d.getUTCDay()
+    if (dow !== 0 && dow !== 6) remaining--
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+/** "30 days" / "14 business days" — for composing rule sentences. */
+export function deadlineDaysLabel(rule: DepositStateRule): string {
+  return `${rule.deadlineDays}${rule.businessDays ? ' business' : ''} days`
+}
+
 /** Whole days from `fromIso` to `toIso` (positive when `toIso` is later). */
 export function daysBetween(fromIso: string, toIso: string): number {
   const a = new Date(fromIso + 'T00:00:00Z').getTime()
@@ -71,7 +223,9 @@ export function daysBetween(fromIso: string, toIso: string): number {
 export function depositDeadline(moveOutIso: string | null | undefined, state: string | null | undefined): string | null {
   const rule = getDepositRule(state)
   if (!rule || !moveOutIso || !ISO_RE.test(moveOutIso)) return null
-  return addDaysIso(moveOutIso, rule.deadlineDays)
+  return rule.businessDays
+    ? addBusinessDaysIso(moveOutIso, rule.deadlineDays)
+    : addDaysIso(moveOutIso, rule.deadlineDays)
 }
 
 export type DeadlineUrgency = 'ok' | 'urgent' | 'overdue'

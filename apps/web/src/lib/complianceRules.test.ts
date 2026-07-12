@@ -109,11 +109,16 @@ describe('getDepositCompliance (composes with depositReturn)', () => {
     expect(capInfo?.statuteCite).toContain('5321.16')
   })
 
-  it('half-populates when only one table knows the state', () => {
-    // NC: cap on file here, no return deadline in depositReturn.
+  it('fully composes both tables for the expanded states', () => {
+    // NC: cap from this table, return deadline from depositReturn (2026-07
+    // expansion — previously half-populated).
     const nc = getDepositCompliance('NC')
-    expect(nc.returnRule).toBeNull()
+    expect(nc.returnRule?.deadlineDays).toBe(30)
     expect(nc.capInfo?.maxDepositMonths).toBe(2)
+    // CO: return rule from depositReturn + the 2023 statutory cap.
+    const co = getDepositCompliance('CO')
+    expect(co.returnRule?.statuteCite).toContain('38-12-103')
+    expect(co.capInfo?.maxDepositMonths).toBe(2)
   })
 
   it('is empty for unknown states', () => {

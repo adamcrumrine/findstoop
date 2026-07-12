@@ -10,6 +10,7 @@ import {
   depositDeadline,
   daysBetween,
   getDepositRule,
+  deadlineDaysLabel,
   UNKNOWN_STATE_DEADLINE_NOTE,
 } from './depositReturn'
 
@@ -96,7 +97,7 @@ export function depositMirror(
 
   const rule = getDepositRule(state)
   const ruleNote = rule
-    ? `Your landlord must return your deposit with an itemized statement within ${rule.deadlineDays} days of move-out (${rule.statuteCite}).`
+    ? `Your landlord must return your deposit with an itemized statement within ${deadlineDaysLabel(rule)} of move-out (${rule.statuteCite}, verified ${rule.verifiedAsOf}).`
     : UNKNOWN_STATE_DEADLINE_NOTE
 
   return { depositHeld, moveOutDate: lease.end_date, deadline, daysToDeadline, ruleNote }

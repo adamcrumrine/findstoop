@@ -21,7 +21,7 @@ import type { Property } from '@findstoop/shared/types/property'
 import { formatLocalDate } from '@findstoop/shared/lib/format'
 import { useTurnovers } from '../../hooks/useTurnovers'
 import { vacancyCostForUnit, type Turnover, type TurnoverStepKey, type TurnoverStepStatus } from '../../lib/turnover'
-import { getDepositRule, daysBetween } from '../../lib/depositReturn'
+import { getDepositRule, daysBetween, deadlineDaysLabel } from '../../lib/depositReturn'
 import VacancyCostTicker from './VacancyCostTicker'
 
 type PropertyTurnover = Turnover<LeaseWithTenant, Unit>
@@ -86,7 +86,7 @@ function stepView(t: PropertyTurnover, key: TurnoverStepKey, status: TurnoverSte
         )
       } else if (t.moveOut > today) {
         sub = rule
-          ? `The ${rule.deadlineDays}-day clock (${rule.statuteCite}) starts at move-out on ${formatLocalDate(t.moveOut)}.`
+          ? `The ${deadlineDaysLabel(rule)} clock (${rule.statuteCite}) starts at move-out on ${formatLocalDate(t.moveOut)}.`
           : 'The statutory clock starts at move-out — most states allow 14–30 days. Check your state’s statute.'
       } else {
         sub = 'No statutory deadline on file for this state — check your state’s statute before relying on a date.'

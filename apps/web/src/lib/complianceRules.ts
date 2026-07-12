@@ -276,6 +276,11 @@ export const COMPLIANCE_RULES: Record<string, StateComplianceRules> = {
     state: 'CO',
     stateName: 'Colorado',
     lastReviewed: '2026-07',
+    deposit: {
+      maxDepositMonths: 2,
+      capNote: 'Security deposit capped at two months’ rent (2023 law).',
+      statuteCite: 'C.R.S. § 38-12-102.5',
+    },
     lateFees: {
       graceDaysRequired: 7,
       cap: { flatMax: 50, percentMax: 5, basis: 'past_due_rent', kind: 'greater' },

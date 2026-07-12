@@ -94,13 +94,13 @@ describe('depositMirror', () => {
   })
 
   it('unknown state: no deadline, conservative note, grace window from move-out', () => {
-    const m = depositMirror(ended(), 'TX', TODAY)
+    const m = depositMirror(ended(), 'VT', TODAY)
     expect(m).not.toBeNull()
     expect(m!.deadline).toBeNull()
     expect(m!.daysToDeadline).toBeNull()
     expect(m!.ruleNote).toContain('check your state')
-    const pastGrace = depositMirror(ended(), 'TX', `2026-08-${15 + DEPOSIT_MIRROR_GRACE_DAYS - 45}`)
+    const pastGrace = depositMirror(ended(), 'VT', `2026-08-${15 + DEPOSIT_MIRROR_GRACE_DAYS - 45}`)
     expect(pastGrace).not.toBeNull() // still inside 45 days of move-out
-    expect(depositMirror(ended(), 'TX', '2026-08-16')).toBeNull() // 46 days after move-out
+    expect(depositMirror(ended(), 'VT', '2026-08-16')).toBeNull() // 46 days after move-out
   })
 })

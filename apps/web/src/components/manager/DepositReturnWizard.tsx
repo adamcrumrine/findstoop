@@ -20,7 +20,7 @@ import type { Property } from '@findstoop/shared/types/property'
 import { checkStateSupport } from '@findstoop/shared/lib/stateGate'
 import { inputClass, selectClass } from '../shared/FormField'
 import {
-  getDepositRule, depositDeadline, daysBetween, deadlineUrgency,
+  getDepositRule, depositDeadline, daysBetween, deadlineUrgency, deadlineDaysLabel,
   computeDepositMath, formatDeductionsForLetter, suggestDeductionsFromInspections,
   effectiveMoveOutDate, DEDUCTION_CATEGORIES, UNKNOWN_STATE_DEADLINE_NOTE,
   type DeductionLine, type DeductionCategory, type SuggestedDeduction,
@@ -174,10 +174,12 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
         <div className="text-sm">
           <p className="font-semibold">Return due by {longDate(deadline)} — {countdown}</p>
           <p className="mt-0.5">
-            {rule!.statuteCite} requires the itemized statement and any refund within {rule!.deadlineDays} days
-            of the end of the tenancy{rule!.forwardingAddressMatters ? ', once you have the tenant’s forwarding address' : ''}.
-            {' '}{rule!.penaltyNote}
+            {rule!.statuteCite} requires the itemized statement and any refund within {deadlineDaysLabel(rule!)}
+            {' '}of the end of the tenancy{rule!.forwardingAddressMatters ? ', once you have the tenant’s forwarding address' : ''}.
+            {' '}{rule!.deadlineNote ? `${rule!.deadlineNote} ` : ''}{rule!.penaltyNote}
           </p>
+          {rule!.interestNote && <p className="mt-1 text-xs opacity-90">{rule!.interestNote}</p>}
+          <p className="mt-1 text-[11px] opacity-70">Statutory facts verified {rule!.verifiedAsOf}.</p>
         </div>
       </div>
     )

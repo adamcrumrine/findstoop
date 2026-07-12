@@ -22,6 +22,7 @@ import {
   checkLateFeeCompliance, checkDepositCap, UNKNOWN_STATE_DEADLINE_NOTE,
   type ComplianceFlag, type LateFeeConfigLike,
 } from '../../lib/complianceRules'
+import { deadlineDaysLabel } from '../../lib/depositReturn'
 
 /** The slice of a lease the deposit-cap check needs. */
 export interface ComplianceLeaseLike {
@@ -144,13 +145,15 @@ export default function CompliancePanel({ property, leases }: {
           {returnRule ? (
             <>
               <p className="text-sm text-ink font-medium">
-                Return within {returnRule.deadlineDays} days of move-out
+                Return within {deadlineDaysLabel(returnRule)} of move-out
                 {returnRule.requiresItemization ? ', with an itemized statement of deductions' : ''}.
               </p>
+              {returnRule.deadlineNote && <FactNote>{returnRule.deadlineNote}</FactNote>}
               {returnRule.forwardingAddressMatters && (
                 <FactNote>The return clock is tied to the tenant providing a written forwarding address.</FactNote>
               )}
               <FactNote>{returnRule.penaltyNote}</FactNote>
+              {returnRule.interestNote && <FactNote>{returnRule.interestNote}</FactNote>}
               <CiteBadge cite={returnRule.statuteCite} />
             </>
           ) : (

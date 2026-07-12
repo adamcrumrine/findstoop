@@ -7,7 +7,11 @@
 
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { Resend } from 'https://esm.sh/resend@4.0.1'
 import { logApiCall } from '../_shared/logging.ts'
+import { emailFrom, emailHeaderHtml, emailFooterHtml, companyDisplayName } from '../_shared/emailBranding.ts'
+import { sendPushToProfile } from '../_shared/webPush.ts'
+import { sendSmsIfEnabled } from '../_shared/sms.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -18,6 +22,79 @@ const admin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
 )
+
+const APP_URL = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
+const resend = new Resend(Deno.env.get('RESEND_API_KEY') ?? '')
+const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop.com'
+
+// A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
+// bounced days later (insufficient funds, closed account). The cron's
+// autopay-failure alert only covers charge-time declines; this covers the
+// settlement-time path so the tenant isn't silently in arrears. Email + push
+// + SMS, all fail-soft; event-level idempotency (billing_events) already
+// prevents duplicate alerts on Stripe redelivery.
+async function notifyTenantPaymentFailed(paymentRowId: string | null, stripePaymentId: string) {
+  const query = admin
+    .from('payments')
+    .select(`
+      id, amount, type, tenant_id,
+      tenant:profiles!payments_tenant_id_fkey(email, full_name),
+      lease:leases!payments_lease_id_fkey(
+        unit:units(unit_number, property:properties(name, manager:profiles(company_name, company_logo_url, brand_color)))
+      )
+    `)
+  const { data } = paymentRowId
+    ? await query.eq('id', paymentRowId).maybeSingle()
+    : await query.eq('stripe_payment_id', stripePaymentId).maybeSingle()
+  if (!data) return
+  // deno-lint-ignore no-explicit-any
+  const row = data as any
+  const tenant = Array.isArray(row.tenant) ? row.tenant[0] : row.tenant
+  const lease = Array.isArray(row.lease) ? row.lease[0] : row.lease
+  const unit = lease && (Array.isArray(lease.unit) ? lease.unit[0] : lease.unit)
+  const property = unit && (Array.isArray(unit.property) ? unit.property[0] : unit.property)
+  const manager = property && (Array.isArray(property.manager) ? property.manager[0] : property.manager)
+  if (!tenant?.email || row.type === 'credit') return
+
+  const firstName = (tenant.full_name?.split(' ')[0]) ?? 'there'
+  const amountStr = `$${Number(row.amount).toLocaleString()}`
+  const propertyName = property?.name ?? 'your rental'
+  const company = companyDisplayName(manager?.company_name ?? null)
+
+  try {
+    await resend.emails.send({
+      from: emailFrom(manager?.company_name ?? null, RESEND_FROM),
+      to: tenant.email,
+      subject: `Action needed: your ${amountStr} payment at ${propertyName} didn't clear`,
+      html: `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
+          ${emailHeaderHtml(company, manager?.company_logo_url ?? null, manager?.brand_color ?? null)}
+          <p>Hi ${firstName},</p>
+          <p>Your ${amountStr} payment at <strong>${propertyName}</strong>${unit?.unit_number ? ` · Unit ${unit.unit_number}` : ''} started processing but <strong>didn't clear</strong> — this usually means the bank transfer bounced (insufficient funds or a closed account).</p>
+          <p>The payment is now marked unpaid. Please make a new payment so you don't fall behind, and consider updating your payment method.</p>
+          <p style="text-align:center;margin:28px 0">
+            <a href="${APP_URL}/tenant/pay-rent" style="display:inline-block;background:#00A896;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:600">Pay again now</a>
+          </p>
+          <p style="color:#8E8E93;font-size:13px">If you believe this is an error, contact your property manager.</p>
+          ${company ? emailFooterHtml(company) : ''}
+        </div>
+      `,
+    })
+  } catch { /* fail-soft — push/SMS below may still land */ }
+
+  try {
+    await sendPushToProfile(admin, row.tenant_id, {
+      title: 'Your payment didn’t clear',
+      body: `${amountStr} at ${propertyName} bounced during processing. Please pay again.`,
+      url: '/tenant/pay-rent',
+      tag: `payment-failed-${row.id}`,
+    })
+  } catch { /* fail-soft */ }
+
+  try {
+    await sendSmsIfEnabled(admin, row.tenant_id, `Action needed: your ${amountStr} payment at ${propertyName} didn't clear. Pay again: ${APP_URL}/tenant/pay-rent`)
+  } catch { /* fail-soft */ }
+}
 
 interface UpdateFields {
   stripe_subscription_id?: string | null
@@ -235,6 +312,9 @@ Deno.serve(async (req) => {
         } else {
           await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
         }
+        // Tell the tenant — an ACH that bounces days after "payment received"
+        // is otherwise invisible until the landlord chases them.
+        await notifyTenantPaymentFailed(pi.metadata?.findstoop_payment_id ?? null, pi.id)
         break
       }
       // ── Tenant saved-payment-method (SetupIntent) ───────────────────────

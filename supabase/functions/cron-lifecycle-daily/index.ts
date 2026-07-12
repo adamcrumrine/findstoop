@@ -9,6 +9,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName, DEFAULT_ACCENT } from '../_shared/emailBranding.ts'
+import { sendPushToProfile, type PushMessage } from '../_shared/webPush.ts'
+import { sendSmsIfEnabled } from '../_shared/sms.ts'
 
 const APP_URL          = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const CRON_SECRET      = Deno.env.get('CRON_SECRET') ?? ''
@@ -300,6 +302,12 @@ interface FireTriggerParams {
   // Landlord white-label branding for tenant-facing sends. Resolved per-lease
   // (cached) at the call site; omitted for manager-facing emails.
   brand?: LeaseBrand | null
+  // Best-effort companion channels, fired only when the email actually sent
+  // (so they inherit the email's dedup). Both fail-soft.
+  push?: PushMessage
+  // SMS body (short, plain text). Gated per-profile by
+  // notification_sms_enabled + phone inside sendSmsIfEnabled.
+  smsBody?: string
 }
 
 async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'duplicate' | 'no_template' | 'send_failed'> {
@@ -359,6 +367,18 @@ async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'd
     if ((insertErr as { code?: string }).code === '23505') return 'duplicate'
     return 'send_failed'
   }
+
+  // Companion channels ride the email's dedup: they only fire on a fresh,
+  // successful send. Both are best-effort — failures never affect the result.
+  if (status === 'sent') {
+    if (p.push) {
+      try { await sendPushToProfile(admin, p.userId, p.push) } catch { /* fail-soft */ }
+    }
+    if (p.smsBody) {
+      try { await sendSmsIfEnabled(admin, p.userId, p.smsBody) } catch { /* fail-soft */ }
+    }
+  }
+
   return status === 'sent' ? 'sent' : 'send_failed'
 }
 
@@ -432,6 +452,8 @@ Deno.serve(async (req) => {
         continue
       }
       const firstName = (row.tenant_name?.split(' ')[0]) ?? 'there'
+      const amountStr = `$${Number(row.amount).toLocaleString()}`
+      const dueLabel = daysBefore === 0 ? 'today' : daysBefore === 1 ? 'tomorrow' : `in ${daysBefore} days`
       const result = await fireTrigger({
         triggerKey,
         userId: row.tenant_id,
@@ -439,6 +461,16 @@ Deno.serve(async (req) => {
         bccEmail: await bccForLease(row.lease_id),
         brand: await brandForLease(row.lease_id),
         dedupToken: `payment:${row.payment_id}:${daysBefore}d`,
+        push: {
+          title: `Rent due ${dueLabel}`,
+          body: `${amountStr} at ${row.property_name ?? 'your rental'} — pay online in one tap.`,
+          url: '/tenant/pay-rent',
+          tag: `rent-due-${row.payment_id}`,
+        },
+        // SMS only on the day itself — reminders shouldn't burn SMS spend.
+        smsBody: daysBefore === 0
+          ? `Rent reminder: ${amountStr} is due today at ${row.property_name ?? 'your rental'}. Pay online: ${APP_URL}/tenant/pay-rent`
+          : undefined,
         templateVars: {
           first_name: firstName,
           amount: Number(row.amount),
@@ -479,6 +511,12 @@ Deno.serve(async (req) => {
             userId: row.manager_id,
             recipientEmail: row.manager_email,
             dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
+            push: {
+              title: `Lease ending in ${daysBefore} days`,
+              body: `${row.tenant_name ?? 'Your tenant'} at ${row.property_name ?? 'your property'} — review renewal options.`,
+              url: '/manager/leases',
+              tag: `renewal-${row.lease_id}`,
+            },
             templateVars: {
               first_name: (row.manager_name?.split(' ')[0]) ?? 'there',
               tenant_name: row.tenant_name ?? 'Your tenant',
@@ -497,6 +535,12 @@ Deno.serve(async (req) => {
             bccEmail: row.manager_email || undefined,
             brand: await brandForLease(row.lease_id),
             dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
+            push: {
+              title: `Your lease ends in ${daysBefore} days`,
+              body: `Thinking about staying at ${row.property_name ?? 'your home'}? Message your landlord about renewal.`,
+              url: '/tenant/messages',
+              tag: `renewal-${row.lease_id}`,
+            },
             templateVars: {
               first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
               tenant_name: row.tenant_name ?? '',
@@ -548,6 +592,13 @@ Deno.serve(async (req) => {
         bccEmail: await bccForLease(row.lease_id),
         brand: await brandForLease(row.lease_id),
         dedupToken: `late_fee:payment:${row.payment_id}`,
+        push: {
+          title: 'Late fee added',
+          body: `A $${feeAmount.toLocaleString()} late fee was added to your rent at ${row.property_name ?? 'your rental'}. Settle online to stop it growing.`,
+          url: '/tenant/pay-rent',
+          tag: `late-fee-${row.payment_id}`,
+        },
+        smsBody: `A $${feeAmount.toLocaleString()} late fee was added to your overdue rent at ${row.property_name ?? 'your rental'}. Pay online: ${APP_URL}/tenant/pay-rent`,
         templateVars: {
           first_name: (row.tenant_name?.split(' ')[0]) ?? 'there',
           fee_amount: feeAmount,
@@ -733,6 +784,13 @@ Deno.serve(async (req) => {
             brand: await brandForLease(row.lease_id),
             // Date-stamped so a retry on a later day can re-alert if it fails again.
             dedupToken: `autopay_failed:${row.id}:${new Date().toISOString().split('T')[0]}`,
+            push: {
+              title: 'Your rent auto-pay didn’t go through',
+              body: `$${Number(row.amount).toLocaleString()} couldn’t be charged. Update your payment method and retry.`,
+              url: '/tenant/pay-rent',
+              tag: `autopay-failed-${row.id}`,
+            },
+            smsBody: `Action needed: your $${Number(row.amount).toLocaleString()} rent auto-pay didn't go through. Update your payment method: ${APP_URL}/tenant/pay-rent`,
             templateVars: {
               first_name: (tenant.full_name?.split(' ')[0]) ?? 'there',
               amount: Number(row.amount),

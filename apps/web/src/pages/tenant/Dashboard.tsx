@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
+import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 import { renewalWindow, depositMirror, type DepositMirrorInfo } from '../../lib/tenantMilestones'
 import { deadlineUrgency } from '../../lib/depositReturn'
 
@@ -212,6 +213,7 @@ export default function TenantDashboard() {
   const { lease, nextPayment, upcomingPayments, recentPayments, recentMaintenance, unreadMessages, paymentMethodSetup, autopayEnabled, loading, error } =
     useTenantDashboard(profile?.id)
   const badges = useTenantBadges(profile?.id)
+  const landlordBrand = useLandlordBranding(profile?.id)
   const [autopayLocal, setAutopayLocal] = useState<boolean | null>(null)
   const [cancellingAutopay, setCancellingAutopay] = useState(false)
   const autopayOn = autopayLocal ?? autopayEnabled
@@ -364,7 +366,9 @@ export default function TenantDashboard() {
         <p className="text-gray-500 text-sm mt-0.5">
           {allSet
             ? 'You’re all set — nothing needs your attention right now.'
-            : 'Welcome to your home portal.'}
+            : landlordBrand?.companyName
+              ? `Your home portal from ${landlordBrand.companyName}.`
+              : 'Welcome to your home portal.'}
         </p>
       </div>
 

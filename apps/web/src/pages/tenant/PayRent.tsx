@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import toast from 'react-hot-toast'
@@ -13,6 +14,7 @@ import PaymentMethodCard from '../../components/tenant/PaymentMethodCard'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import { BRAND, brandColor } from '../../lib/brand'
+import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 
 type PayMethod = 'us_bank_account' | 'card'
 const CARD_SURCHARGE_PCT = 3.5
@@ -231,7 +233,9 @@ function PaymentHistoryRow({ payment }: { payment: Payment }) {
 
 // ── Pay Rent page ─────────────────────────────────────────────────────────────
 export default function TenantPayRent() {
+  const navigate = useNavigate()
   const { profile } = useAuth()
+  const landlordBrand = useLandlordBranding(profile?.id)
   const { lease, nextPayment, paymentMethodSetup, autopayEnabled, loading } = useTenantDashboard(profile?.id)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [paying, setPaying] = useState(false)
@@ -441,8 +445,21 @@ export default function TenantPayRent() {
           )}
           {nextPayment && (
             !stripeConfigured ? (
+              // Missing publishable key = a deployment problem, never the
+              // tenant's. Say what they can DO, not what an engineer should fix.
               <div className="mt-4 bg-white/20 rounded-xl px-4 py-3 text-sm">
-                Stripe not configured — add <code className="font-mono">VITE_STRIPE_PUBLISHABLE_KEY</code> to enable online payments. Your manager can record cash/check payments manually.
+                <p className="font-semibold">Online payments are temporarily unavailable.</p>
+                <p className="mt-1 opacity-90">
+                  You can still pay by cash or check — your landlord will record it here.{' '}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/tenant/messages')}
+                    className="underline font-medium"
+                  >
+                    Message your landlord
+                  </button>{' '}
+                  to arrange it, and check back soon.
+                </p>
               </div>
             ) : (
               <div className="mt-4 space-y-2.5">
@@ -566,13 +583,25 @@ export default function TenantPayRent() {
               >
                 <span className="text-lg leading-none">×</span>
               </button>
+              {/* Rent is a landlord↔tenant transaction — present as the
+                  landlord's company when branding is set, platform otherwise. */}
               <div className="flex items-center gap-2.5 mb-3">
-                <img
-                  src={BRAND.logo.square}
-                  alt={BRAND.name}
-                  className="w-10 h-10 object-contain brightness-0 invert"
-                />
-                <span className="text-sm font-medium tracking-wide opacity-90">{BRAND.name}</span>
+                {landlordBrand?.logoUrl ? (
+                  <img
+                    src={landlordBrand.logoUrl}
+                    alt={landlordBrand.companyName ?? 'Your landlord'}
+                    className="h-10 max-w-[160px] object-contain bg-white/90 rounded-lg px-1.5 py-1"
+                  />
+                ) : (
+                  <img
+                    src={BRAND.logo.square}
+                    alt={BRAND.name}
+                    className="w-10 h-10 object-contain brightness-0 invert"
+                  />
+                )}
+                <span className="text-sm font-medium tracking-wide opacity-90">
+                  {landlordBrand?.companyName ?? BRAND.name}
+                </span>
               </div>
               <h2 className="text-2xl font-bold tracking-tight">Pay rent</h2>
               <p className="text-sm text-white/90 mt-1.5 leading-relaxed">

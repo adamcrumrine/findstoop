@@ -12,13 +12,21 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
   const triggerRef = useRef<HTMLElement | null>(null)
   const dialogRef = useRef<HTMLDivElement | null>(null)
 
+  // Callers pass inline closures, so onClose has a new identity every render.
+  // Route it through a ref: the focus effect below must depend ONLY on `open`,
+  // or each parent re-render (e.g. every keystroke in a controlled form)
+  // re-runs it and yanks focus back to the dialog's first focusable — which
+  // is the × close button.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
+
   useEffect(() => {
     if (!open) return
     triggerRef.current = (document.activeElement as HTMLElement) ?? null
     document.body.style.overflow = 'hidden'
 
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
       if (e.key === 'Tab' && dialogRef.current) {
         const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -32,9 +40,11 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
     }
     document.addEventListener('keydown', handler)
 
-    const initial = dialogRef.current?.querySelector<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )
+    // Initial focus: prefer the first form field so "open modal, start
+    // typing" works; fall back to any focusable (which may be the × button).
+    const initial =
+      dialogRef.current?.querySelector<HTMLElement>('input, select, textarea') ??
+      dialogRef.current?.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])')
     initial?.focus()
 
     return () => {
@@ -42,7 +52,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
       document.body.style.overflow = ''
       triggerRef.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

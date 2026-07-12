@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { trackAction } from '../../lib/analytics'
 import { Lightbulb, AlertTriangle } from 'lucide-react'
+import AiFeedback from '../shared/AiFeedback'
 
 export interface SelfTriageResult {
   likely_cause: string
@@ -112,6 +113,8 @@ export default function SelfTriageCard({
           Even if these help, this may still need your landlord's attention — submitting is always OK.
         </p>
       )}
+
+      {hasFixes && <AiFeedback feature="self-triage" />}
 
       <div className="flex gap-3 pt-1">
         {hasFixes && (

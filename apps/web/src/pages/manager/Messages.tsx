@@ -12,6 +12,7 @@ import { MessageSquare, Users as UsersIcon, ImagePlus, Loader2, Plus, X, ArrowLe
 import toast from 'react-hot-toast'
 import Avatar from '../../components/shared/Avatar'
 import FairHousingFindings from '../../components/manager/FairHousingFindings'
+import AiFeedback from '../../components/shared/AiFeedback'
 import { runFairHousingLint, applyLintSuggestion } from '../../lib/fairHousingLint'
 import type { LintFinding, LintResult } from '../../lib/fairHousingLint'
 
@@ -388,7 +389,10 @@ function ChatThread({
         )}
 
         {aiDraftNote && draft.trim() && (
-          <p className="px-4 pt-2 text-[11px] text-gray-400">AI draft — review before sending.</p>
+          <p className="px-4 pt-2 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
+            AI draft — review before sending.
+            <AiFeedback feature="draft-reply" referenceId={conversation.conversationId} />
+          </p>
         )}
 
         <div className="px-3 py-3 flex items-end gap-2">

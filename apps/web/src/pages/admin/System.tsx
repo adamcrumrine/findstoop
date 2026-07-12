@@ -23,24 +23,59 @@ interface RecentError {
   error_message: string | null
 }
 
+// 30-day AI rollup — cost from api_call_log (vendor=anthropic), sentiment
+// from ai_feedback. Aggregated client-side: solo-operator scale.
+interface AiRow {
+  feature: string
+  calls: number
+  costCents: number
+  errors: number
+  up: number
+  down: number
+}
+
 const fmtUsd = (cents: number) =>
   `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
 
 export default function AdminSystem() {
   const [health, setHealth] = useState<ApiHealth[]>([])
   const [errors, setErrors] = useState<RecentError[]>([])
+  const [aiRows, setAiRows] = useState<AiRow[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [{ data: healthData }, { data: errData }] = await Promise.all([
+      const since30d = new Date(Date.now() - 30 * 86400000).toISOString()
+      const [{ data: healthData }, { data: errData }, { data: aiCalls }, { data: aiFb }] = await Promise.all([
         supabase.from('admin_api_health').select('*'),
         supabase.from('api_call_log').select('id, ts, function_name, status_code, error_message').gte('status_code', 400).order('ts', { ascending: false }).limit(50),
+        supabase.from('api_call_log').select('function_name, cost_cents, status_code').eq('vendor', 'anthropic').gte('ts', since30d).limit(5000),
+        supabase.from('ai_feedback').select('feature, verdict').gte('created_at', since30d).limit(5000),
       ])
       if (cancelled) return
       setHealth((healthData as ApiHealth[] | null) ?? [])
       setErrors((errData as RecentError[] | null) ?? [])
+
+      // Roll up per feature. Feedback features match edge function names.
+      const byFeature = new Map<string, AiRow>()
+      const row = (f: string) => {
+        let r = byFeature.get(f)
+        if (!r) { r = { feature: f, calls: 0, costCents: 0, errors: 0, up: 0, down: 0 }; byFeature.set(f, r) }
+        return r
+      }
+      for (const c of (aiCalls ?? []) as Array<{ function_name: string; cost_cents: number | null; status_code: number | null }>) {
+        const r = row(c.function_name)
+        r.calls++
+        r.costCents += Number(c.cost_cents ?? 0)
+        if ((c.status_code ?? 200) >= 400) r.errors++
+      }
+      for (const f of (aiFb ?? []) as Array<{ feature: string; verdict: 'up' | 'down' }>) {
+        const r = row(f.feature)
+        if (f.verdict === 'up') r.up++
+        else r.down++
+      }
+      setAiRows([...byFeature.values()].sort((a, b) => b.costCents - a.costCents))
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -114,6 +149,54 @@ export default function AdminSystem() {
           </tbody>
         </table>
        </div>
+      </div>
+
+      {/* AI features: where the LLM spend goes and whether users like the
+          output — the invest/kill signal per surface. */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
+        <div className="px-5 py-3 border-b border-slate-200">
+          <h2 className="text-xs uppercase tracking-wider text-slate-500 font-semibold">AI usage &amp; feedback (30 days)</h2>
+        </div>
+        {aiRows.length === 0 ? (
+          <div className="px-5 py-8 text-center text-slate-400 text-sm">No AI calls or feedback in the last 30 days.</div>
+        ) : (
+         <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <Th>Feature</Th>
+                <Th align="right">Calls</Th>
+                <Th align="right">Cost</Th>
+                <Th align="right">Errors</Th>
+                <Th align="right">👍</Th>
+                <Th align="right">👎</Th>
+                <Th align="right">Sentiment</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {aiRows.map((r) => {
+                const votes = r.up + r.down
+                const pct = votes > 0 ? Math.round((r.up / votes) * 100) : null
+                return (
+                  <tr key={r.feature} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                    <td className="px-4 py-2 font-medium text-slate-900">{r.feature}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{r.calls.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-slate-700">{fmtUsd(r.costCents)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{r.errors > 0 ? <span className="text-red-700 font-medium">{r.errors}</span> : '0'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-emerald-700">{r.up}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-red-700">{r.down}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {pct == null ? <span className="text-slate-400">—</span> : (
+                        <span className={pct >= 75 ? 'text-emerald-700 font-medium' : pct >= 50 ? 'text-amber-700' : 'text-red-700 font-medium'}>{pct}%</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+         </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

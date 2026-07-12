@@ -3,6 +3,7 @@
 // accuse, and the landlord always stays in control of what goes out.
 
 import { ShieldCheck, AlertTriangle, Info, ExternalLink } from 'lucide-react'
+import AiFeedback from '../shared/AiFeedback'
 import type { LintFinding } from '../../lib/fairHousingLint'
 import { FAIR_HOUSING_GUIDE_PATH } from '../../lib/fairHousingLint'
 
@@ -88,6 +89,7 @@ export default function FairHousingFindings({
         Flagged for your review — you decide what to send. This is automated guidance, not a legal review.{' '}
         <GuideLink />
       </p>
+      <AiFeedback feature="fair-housing-lint" />
     </div>
   )
 }

@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { MessageCircleQuestion, Loader2, Send } from 'lucide-react'
+import AiFeedback from '../shared/AiFeedback'
 
 interface AskLeaseResponse {
   ok: boolean
@@ -86,6 +87,7 @@ export default function AskLeaseCard({ leaseId }: { leaseId: string }) {
               <p className="text-sm font-medium text-gray-900">{qa.question}</p>
               <p className="text-sm text-gray-700 whitespace-pre-line">{qa.answer}</p>
               <p className="text-[11px] text-gray-400">{qa.disclaimer}</p>
+              <AiFeedback feature="ask-lease" />
             </div>
           ))}
         </div>

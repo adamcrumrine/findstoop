@@ -9,6 +9,7 @@ import SelfTriageCard, { fetchSelfTriage, type SelfTriageResult } from '../../co
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
 import { Wrench, Camera } from 'lucide-react'
+import MaintenanceTimeline, { timelineSteps } from '../../components/tenant/MaintenanceTimeline'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
   low: 'Low',
@@ -238,6 +239,18 @@ export default function TenantMaintenance() {
                   ))}
                 </div>
               )}
+              {/* Mini progress track — the card-level glance version of the
+                  timeline in the detail view. */}
+              <div className="flex gap-1 mt-3" aria-hidden="true">
+                {timelineSteps(req).map((step) => (
+                  <span
+                    key={step.key}
+                    className={`h-1 flex-1 rounded-full ${
+                      step.state === 'done' ? 'bg-brand-500' : step.state === 'current' ? 'bg-brand-300' : 'bg-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
             </button>
           ))}
         </div>
@@ -356,6 +369,11 @@ export default function TenantMaintenance() {
               <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE[selectedRequest.status]}`}>
                 {STATUS_LABEL[selectedRequest.status]}
               </span>
+            </div>
+
+            {/* Where things stand — package-tracking view of the request. */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <MaintenanceTimeline request={selectedRequest} />
             </div>
 
             {selectedRequest.description && (

@@ -12,6 +12,9 @@ export interface MaintenanceRequest {
   images: string[] | null
   manager_notes: string | null
   created_at: string
+  /** Stamped by DB trigger on the first transition into in_progress.
+   *  NULL on rows from before the timeline feature. */
+  in_progress_at: string | null
   resolved_at: string | null
   // Cost capture (set when the manager resolves the request).
   cost: number | null

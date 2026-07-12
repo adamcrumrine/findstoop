@@ -5,6 +5,7 @@ import {
   createMaintenanceRequest,
   updateMaintenanceStatus,
   uploadMaintenancePhoto,
+  recordMaintenancePhotoHashes,
   triageMaintenance,
 } from '../api/maintenance'
 import type { MaintenanceRequest, MaintenanceStatus, MaintenancePriority } from '../types/maintenance'
@@ -53,11 +54,11 @@ export function useTenantMaintenance(tenantId: string | undefined): UseTenantMai
   const submit = async (tid: string, payload: NewRequestPayload) => {
     setSubmitting(true)
     try {
-      // Upload photos first
-      const imageUrls: string[] = []
+      // Upload photos first (each hashed at upload; the tamper-evident
+      // fingerprints are linked to the request once it exists).
+      const uploaded = []
       for (const file of payload.photos) {
-        const url = await uploadMaintenancePhoto(tid, file)
-        imageUrls.push(url)
+        uploaded.push(await uploadMaintenancePhoto(tid, file))
       }
       const created = await createMaintenanceRequest({
         unit_id: payload.unit_id,
@@ -65,8 +66,9 @@ export function useTenantMaintenance(tenantId: string | undefined): UseTenantMai
         title: payload.title,
         description: payload.description || null,
         priority: payload.priority,
-        images: imageUrls.length > 0 ? imageUrls : null,
+        images: uploaded.length > 0 ? uploaded.map((u) => u.url) : null,
       })
+      void recordMaintenancePhotoHashes(created.id, uploaded)
       await load()
       // Fire AI triage in the background; refresh again when it lands so the
       // manager (and tenant) see the categorized result. Never blocks submit.

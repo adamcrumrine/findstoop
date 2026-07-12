@@ -79,11 +79,49 @@ export async function triageMaintenance(requestId: string): Promise<TriageResult
   return data.triage as TriageResult
 }
 
-export async function uploadMaintenancePhoto(tenantId: string, file: File): Promise<string> {
+export interface UploadedMaintenancePhoto {
+  url: string
+  /** Path within the 'maintenance-photos' bucket — the hash record's key. */
+  path: string
+  /** Lowercase hex SHA-256 of the uploaded bytes, or null when hashing failed. */
+  contentHash: string | null
+}
+
+/** SHA-256 as lowercase hex via Web Crypto. Null on any failure — hashing is
+ *  best-effort; the upload itself must never depend on it. */
+async function sha256HexSafe(file: Blob): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
+}
+
+export async function uploadMaintenancePhoto(tenantId: string, file: File): Promise<UploadedMaintenancePhoto> {
   const ext = file.name.split('.').pop()
   const path = `${tenantId}/${Date.now()}.${ext}`
   const { error } = await supabase.storage.from('maintenance-photos').upload(path, file)
   if (error) throw new Error(error.message)
   const { data } = supabase.storage.from('maintenance-photos').getPublicUrl(path)
-  return data.publicUrl
+  return { url: data.publicUrl, path, contentHash: await sha256HexSafe(file) }
+}
+
+/**
+ * Record tamper-evident fingerprints for a request's uploaded photos
+ * (maintenance_photo_hashes: server-stamped, immutable, RLS-scoped to the
+ * request's parties). Best-effort — a failure leaves photos "unverified",
+ * exactly like legacy ones; it must never break request creation.
+ */
+export async function recordMaintenancePhotoHashes(
+  requestId: string,
+  photos: UploadedMaintenancePhoto[],
+): Promise<void> {
+  const rows = photos
+    .filter((p) => p.contentHash)
+    .map((p) => ({ request_id: requestId, storage_path: p.path, content_hash: p.contentHash }))
+  if (rows.length === 0) return
+  try {
+    await supabase.from('maintenance_photo_hashes').insert(rows)
+  } catch { /* best-effort */ }
 }

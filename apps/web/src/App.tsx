@@ -82,6 +82,7 @@ const ManagerReviewLease  = lazy(() => import('./pages/manager/ReviewLease'))
 const ManagerLeasePdf     = lazy(() => import('./pages/manager/LeasePdf'))
 const ManagerInvoicePdf   = lazy(() => import('./pages/manager/InvoicePdf'))
 const TenantReceiptPdf    = lazy(() => import('./pages/tenant/ReceiptPdf'))
+const ManagerEvidencePacket = lazy(() => import('./pages/manager/EvidencePacket'))
 const ManagerTaxScheduleE = lazy(() => import('./pages/manager/TaxScheduleE'))
 const ManagerRentRoll     = lazy(() => import('./pages/manager/RentRoll'))
 const ManagerPortfolioPhysical = lazy(() => import('./pages/manager/PortfolioPhysical'))
@@ -207,6 +208,8 @@ export default function App() {
           <Route path="/manager/invoice/:id" element={<ManagerInvoicePdf />} />
           {/* Tenant payment receipt — standalone print page; RLS scopes access. */}
           <Route path="/tenant/receipt/:id" element={<TenantReceiptPdf />} />
+          {/* Photo evidence packet — standalone print page; RLS scopes access. */}
+          <Route path="/manager/evidence/:leaseId" element={<ManagerEvidencePacket />} />
           {/* Annual Schedule E tax worksheet — standalone print page (RLS scopes data). */}
           <Route path="/manager/tax/schedule-e/:year" element={<ManagerTaxScheduleE />} />
           {/* Rent roll — standalone print page; ?property=<id> scopes to one property. */}

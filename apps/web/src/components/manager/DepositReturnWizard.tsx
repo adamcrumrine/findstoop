@@ -180,6 +180,14 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
           </p>
           {rule!.interestNote && <p className="mt-1 text-xs opacity-90">{rule!.interestNote}</p>}
           <p className="mt-1 text-[11px] opacity-70">Statutory facts verified {rule!.verifiedAsOf}.</p>
+          <a
+            href={`/manager/evidence/${lease.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-block text-xs font-medium underline"
+          >
+            Print the photo evidence packet for this lease
+          </a>
         </div>
       </div>
     )

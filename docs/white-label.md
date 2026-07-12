@@ -17,6 +17,19 @@ No `VITE_BRAND` (or an unknown id) falls back to Stoop. A branded deployment
 is just a second Vercel project (or build target) pointed at the same repo
 with `VITE_BRAND=hawk` in its environment, served from the brand's domain.
 
+## Landlord portal subdomains ({company}.findstoop.com)
+
+Every manager can claim a portal slug in **Settings → Company** ("Branded
+portal address"): `profiles.portal_slug` (unique, format-checked, reserved
+names blocked by a DB trigger — migration `20260712000003`). Any first-level
+subdomain that isn't a platform hostname resolves at runtime as a slug: the
+`my` brand supplies the portal shell, and the anon `get_portal_brand(slug)`
+RPC supplies the landlord's name/logo/accent (`lib/portalBrand.ts` — module
+promise cache, applied at boot and in MarketingLayout). Unknown slugs render
+the generic portal. "Powered by Stoop" shows in the footer whenever a portal
+brand fronts the page. Served by the wildcard `*.findstoop.com` domain on the
+same Vercel project; OAuth redirects allow `https://*.findstoop.com/**`.
+
 ## Runtime hostname brands (how my.findstoop.com works)
 
 `HOSTNAME_BRANDS` in `brand.ts` maps hostnames to brand ids at runtime, so the

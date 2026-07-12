@@ -196,8 +196,31 @@ const HOSTNAME_BRANDS: Record<string, string> = {
   'my.findstoop.com': 'my',
 }
 
+// {company}.findstoop.com — landlord portal slugs. Any first-level subdomain
+// that isn't a platform hostname is treated as a slug: the `my` brand
+// provides the portal shell, and lib/portalBrand.ts resolves the landlord's
+// name/logo/accent at runtime via the anon get_portal_brand RPC. Unknown
+// slugs simply render the generic portal — nothing to enumerate.
+/** Platform base domain for landlord portal slugs ("{slug}.findstoop.com"). */
+export const PORTAL_BASE_DOMAIN = 'findstoop.com'
+const BASE_DOMAIN = `.${PORTAL_BASE_DOMAIN}`
+const PLATFORM_SUBDOMAINS = new Set(['www', 'preview'])
+
+function slugFromHostname(hostname: string): string | null {
+  if (!hostname.endsWith(BASE_DOMAIN)) return null
+  const label = hostname.slice(0, -BASE_DOMAIN.length)
+  if (!label || label.includes('.') || PLATFORM_SUBDOMAINS.has(label) || HOSTNAME_BRANDS[hostname]) return null
+  return label
+}
+
+/** The landlord portal slug this page is being served for, or null. */
+export const PORTAL_SLUG: string | null =
+  typeof window !== 'undefined' ? slugFromHostname(window.location.hostname) : null
+
 const runtimeBrandId =
-  typeof window !== 'undefined' ? HOSTNAME_BRANDS[window.location.hostname] : undefined
+  typeof window !== 'undefined'
+    ? (HOSTNAME_BRANDS[window.location.hostname] ?? (PORTAL_SLUG ? 'my' : undefined))
+    : undefined
 const brandId = runtimeBrandId || import.meta.env.VITE_BRAND || 'stoop'
 export const BRAND: Brand = BRANDS[brandId] ?? stoop
 

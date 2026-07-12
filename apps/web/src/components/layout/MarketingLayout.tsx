@@ -4,6 +4,7 @@ import { Menu, X, UserCircle2 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
+import { usePortalBrand } from '../../lib/portalBrand'
 
 const allNavLinks = [
   { to: '/tenability', label: 'Tenability™' },
@@ -24,6 +25,8 @@ export default function MarketingLayout() {
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
   const { user, profile, loading } = useAuth()
+  // {company}.findstoop.com — the landlord's public brand fronts the portal.
+  const portalBrand = usePortalBrand()
 
   // If a signed-in user lands on the marketing site (most commonly after the
   // Google OAuth callback drops them on "/" instead of "/login"), bounce them
@@ -53,8 +56,14 @@ export default function MarketingLayout() {
       {/* ── Header ────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 h-24 flex items-center justify-between">
-          <Link to="/" className="flex items-center" aria-label={`${BRAND.name} home`}>
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
+          <Link to="/" className="flex items-center" aria-label={`${portalBrand?.companyName ?? BRAND.name} home`}>
+            {portalBrand?.logoUrl ? (
+              <img src={portalBrand.logoUrl} alt={portalBrand.companyName ?? 'Resident portal'} className="h-14 max-w-[240px] w-auto object-contain" />
+            ) : portalBrand?.companyName ? (
+              <span className="text-xl font-bold text-ink truncate max-w-[260px]">{portalBrand.companyName}</span>
+            ) : (
+              <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
+            )}
           </Link>
 
           {/* Desktop nav */}
@@ -198,7 +207,7 @@ export default function MarketingLayout() {
           <div className="max-w-6xl mx-auto px-5 lg:px-8 py-5 text-xs text-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <p>© {new Date().getFullYear()} {BRAND.legalName}. All rights reserved.</p>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
-              {IS_WHITE_LABEL && <p className="text-white/40">Powered by Stoop</p>}
+              {(IS_WHITE_LABEL || portalBrand) && <p className="text-white/40">Powered by Stoop</p>}
               <p className="text-white/40">
                 <a
                   href="https://storyset.com/home"

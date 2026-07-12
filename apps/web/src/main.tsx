@@ -6,6 +6,7 @@ import { AuthProvider } from '@findstoop/shared/hooks/AuthProvider'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import { installGlobalErrorHandlers } from './lib/analytics'
 import { applyBrandTheme } from './lib/brand'
+import { applyPortalBrandTheme } from './lib/portalBrand'
 import App from './App.tsx'
 import './index.css'
 
@@ -15,6 +16,10 @@ installGlobalErrorHandlers()
 // Point the accent palette / title / favicon at the active brand (VITE_BRAND)
 // before first paint so white-label builds never flash Stoop styling.
 applyBrandTheme()
+
+// {company}.findstoop.com — layer the landlord's accent/title on top once
+// their public brand resolves (async; generic portal renders meanwhile).
+applyPortalBrandTheme()
 
 // Register service worker — auto-updates silently in background
 registerSW({ immediate: false })

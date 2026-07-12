@@ -71,6 +71,12 @@ export interface Brand {
     headline: string
     subline: string
   }
+  /**
+   * True when another company fronts the product (Hawk). Drives the
+   * "Powered by Stoop" attribution and the boot-time metadata rewrite.
+   * Stoop-identity brands (stoop, my) leave it unset.
+   */
+  whiteLabel?: boolean
 }
 
 const stoop: Brand = {
@@ -157,15 +163,46 @@ const hawk: Brand = {
     subline:
       'Pay rent, request maintenance, sign your lease, and apply for a home — all online, all in one place.',
   },
+  whiteLabel: true,
 }
 
-export const BRANDS: Record<string, Brand> = { stoop, hawk }
+// Stoop's resident-portal front door — my.findstoop.com. Same Stoop identity,
+// but the homepage is the portal experience (pay rent / request maintenance /
+// apply / sign in) for the tenants of ANY manager on the platform. Per-landlord
+// branding takes over where it already does: the tenant portal after sign-in
+// (useLandlordBranding) and the pre-auth apply flow (get_unit_public_brand).
+// Not a white-label — no attribution, no boot-time metadata rewrite.
+const my: Brand = {
+  ...stoop,
+  id: 'my',
+  origin: 'https://my.findstoop.com',
+  domain: 'my.findstoop.com',
+  experience: 'portal',
+  marketingNav: ['/tenants', '/education'],
+  portal: {
+    headline: 'Welcome home.',
+    subline:
+      'Pay rent, request maintenance, sign your lease, and apply for a home — all online, all in one place.',
+  },
+}
 
-const brandId = import.meta.env.VITE_BRAND || 'stoop'
+export const BRANDS: Record<string, Brand> = { stoop, hawk, my }
+
+// Hostname → brand. Lets ONE deployment (the findstoop.com Vercel project)
+// serve additional brands from their own hostnames — no separate build.
+// Static index.html metadata stays Stoop's on these hosts (crawlers read raw
+// HTML); applyBrandTheme() re-points what a real browser sees at boot.
+const HOSTNAME_BRANDS: Record<string, string> = {
+  'my.findstoop.com': 'my',
+}
+
+const runtimeBrandId =
+  typeof window !== 'undefined' ? HOSTNAME_BRANDS[window.location.hostname] : undefined
+const brandId = runtimeBrandId || import.meta.env.VITE_BRAND || 'stoop'
 export const BRAND: Brand = BRANDS[brandId] ?? stoop
 
-/** True when running a white-label build (anything other than Stoop). */
-export const IS_WHITE_LABEL = BRAND.id !== 'stoop'
+/** True when another company fronts the product (attribution + metadata rewrite). */
+export const IS_WHITE_LABEL = Boolean(BRAND.whiteLabel)
 
 /**
  * Brand accent as a CSS color string for places Tailwind classes can't

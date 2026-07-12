@@ -17,6 +17,21 @@ No `VITE_BRAND` (or an unknown id) falls back to Stoop. A branded deployment
 is just a second Vercel project (or build target) pointed at the same repo
 with `VITE_BRAND=hawk` in its environment, served from the brand's domain.
 
+## Runtime hostname brands (how my.findstoop.com works)
+
+`HOSTNAME_BRANDS` in `brand.ts` maps hostnames to brand ids at runtime, so the
+single findstoop.com Vercel project can serve additional brands from their own
+hostnames — no separate build. **my.findstoop.com** works this way: it's the
+`my` brand — Stoop identity, `portal` experience — the resident-portal front
+door for the tenants of ANY manager on the platform (pay rent / maintenance /
+apply / sign in), with per-landlord branding taking over after sign-in exactly
+as it does on findstoop.com. To add a hostname: add it to `HOSTNAME_BRANDS`
+and to the Vercel project (`vercel domains add <host>`; DNS is on Vercel, so
+it auto-configures). Caveat: static `index.html` metadata (OG/Twitter unfurls,
+PWA manifest) stays Stoop's on these hosts — `applyBrandTheme()` re-points
+what a real browser sees at boot, but crawlers reading raw HTML see Stoop.
+For fully-branded unfurls a brand needs a dedicated build (above).
+
 ## What a brand controls
 
 Everything lives in `apps/web/src/lib/brand.ts` (`BRANDS` registry):
@@ -136,6 +151,6 @@ re-color automatically.
   swap in real brand assets when available (keep the file names).
 - `hawkinvestments.com`, `support@` / `hello@hawkinvestments.com` are
   placeholders in `brand.ts` — update to the real domain and inboxes before
-  going live.
+  going live (build-time deployment, or add a `HOSTNAME_BRANDS` entry).
 - PWA icons live in `apps/web/public/brands/hawk/icons/` (rendered from the
   square SVG); regenerate them if the mark changes.

@@ -7,10 +7,13 @@ import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
-import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle, GraduationCap } from 'lucide-react'
+import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle, GraduationCap, CalendarClock, Landmark, FileSignature } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
+import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
+import { renewalWindow, depositMirror, type DepositMirrorInfo } from '../../lib/tenantMilestones'
+import { deadlineUrgency } from '../../lib/depositReturn'
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-lg ${className ?? ''}`} />
@@ -171,11 +174,44 @@ function SetupChecklist({ lease, paymentMethodSetup, autopayEnabled }: {
   )
 }
 
+// Deposit-return mirror data source: the tenant's most recently ENDED lease.
+// Only consulted when there's no active lease — if the tenant renewed, the
+// deposit rolls to the new tenancy and a "return" card would be wrong.
+function useDepositMirror(tenantId: string | undefined, hasActiveLease: boolean, dashboardLoading: boolean): DepositMirrorInfo | null {
+  const [mirror, setMirror] = useState<DepositMirrorInfo | null>(null)
+  useEffect(() => {
+    if (!tenantId || hasActiveLease || dashboardLoading) { setMirror(null); return }
+    let cancelled = false
+    const todayIso = new Date().toISOString().slice(0, 10)
+    supabase
+      .from('leases')
+      .select('end_date, security_deposit, pet_deposit, unit:units(properties(state))')
+      .eq('tenant_id', tenantId)
+      .lte('end_date', todayIso)
+      .order('end_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        const row = data as unknown as {
+          end_date: string | null
+          security_deposit: number | null
+          pet_deposit: number | null
+          unit: { properties: { state: string | null } | null } | null
+        }
+        setMirror(depositMirror(row, row.unit?.properties?.state, todayIso))
+      })
+    return () => { cancelled = true }
+  }, [tenantId, hasActiveLease, dashboardLoading])
+  return mirror
+}
+
 export default function TenantDashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const { lease, nextPayment, upcomingPayments, recentPayments, recentMaintenance, unreadMessages, paymentMethodSetup, autopayEnabled, loading, error } =
     useTenantDashboard(profile?.id)
+  const badges = useTenantBadges(profile?.id)
   const [autopayLocal, setAutopayLocal] = useState<boolean | null>(null)
   const [cancellingAutopay, setCancellingAutopay] = useState(false)
   const autopayOn = autopayLocal ?? autopayEnabled
@@ -298,6 +334,19 @@ export default function TenantDashboard() {
   const s = urgencyStyles[rentUrgency]
   const onGhost = rentUrgency === 'ghost'
 
+  // Lease milestones — renewal window on the active lease; deposit-return
+  // mirror on the most recent ended lease (only when nothing is active).
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const renewal = !loading && lease ? renewalWindow(lease, todayIso) : null
+  const deposit = useDepositMirror(profile?.id, !!lease, loading)
+
+  // "All set" — nothing on the home screen needs the tenant's attention.
+  // Mirrors the individual cards' own visibility rules.
+  const setupDone = !!lease?.signed_at && paymentMethodSetup
+  const allSet =
+    !loading && !!lease && !failedPayment && setupDone &&
+    unreadMessages === 0 && !badges.documents && daysOverdue === 0
+
   if (error) {
     return (
       <div className="rounded-2xl bg-red-50 border border-red-200 p-6 text-center">
@@ -312,7 +361,11 @@ export default function TenantDashboard() {
       {/* Greeting */}
       <div className="pt-1">
         <h1 className="text-2xl font-bold text-gray-900">Hi, {firstName}!</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Welcome to your home portal.</p>
+        <p className="text-gray-500 text-sm mt-0.5">
+          {allSet
+            ? 'You’re all set — nothing needs your attention right now.'
+            : 'Welcome to your home portal.'}
+        </p>
       </div>
 
       {/* Failed-payment recovery banner — highest priority after greeting. */}
@@ -332,6 +385,58 @@ export default function TenantDashboard() {
           </div>
           <ChevronRight className="w-4 h-4 text-red-600 shrink-0" strokeWidth={2} />
         </button>
+      )}
+
+      {/* New document waiting — signature requests and disclosures shouldn't
+          hide behind a nav dot. Clears via documents_seen_at when visited. */}
+      {!loading && badges.documents && (
+        <button
+          onClick={() => navigate('/tenant/documents')}
+          className="w-full bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-brand-100 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <FileSignature className="w-5 h-5 text-brand-700 shrink-0" strokeWidth={1.75} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-brand-900">A new document is ready</p>
+              <p className="text-xs text-brand-700">Your landlord added something to Documents — it may need your signature.</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-brand-600 shrink-0" strokeWidth={2} />
+        </button>
+      )}
+
+      {/* Deposit-return mirror — after move-out, where the deposit stands and
+          when the itemized statement is legally due. Facts with citations. */}
+      {deposit && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 inline-flex items-center justify-center shrink-0">
+              <Landmark className="w-5 h-5 text-brand-600" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">
+                Your {formatUsd(deposit.depositHeld)} deposit
+              </p>
+              {deposit.deadline ? (
+                deposit.daysToDeadline !== null && deadlineUrgency(deposit.daysToDeadline) === 'overdue' ? (
+                  <p className="text-xs text-red-700 mt-0.5 font-medium">
+                    The itemized statement was due {formatLocalDate(deposit.deadline)} — it hasn’t arrived in Documents.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Itemized statement due by <span className="font-medium">{formatLocalDate(deposit.deadline)}</span>
+                    {deposit.daysToDeadline !== null && ` — ${deposit.daysToDeadline} day${deposit.daysToDeadline === 1 ? '' : 's'} away`}.
+                  </p>
+                )
+              ) : (
+                <p className="text-xs text-gray-600 mt-0.5">
+                  Moved out {formatLocalDate(deposit.moveOutDate)} — your deposit statement will arrive in Documents.
+                </p>
+              )}
+              <p className="text-[11px] text-gray-400 mt-1.5">{deposit.ruleNote} This is general information, not legal advice.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Onboarding checklist — sign lease, disclosures, payment, insurance, autopay.
@@ -450,6 +555,37 @@ export default function TenantDashboard() {
               (nextPayment ? 'Pay Now' : 'View Payments')}
           </button>
         </div>
+      )}
+
+      {/* Renewal window — the tenant-side mirror of the manager's renewal
+          advisor: same 90-day window, so both parties see the milestone at
+          the same time. Urgency steps up in the final month. */}
+      {renewal && (
+        <button
+          onClick={() => navigate('/tenant/messages')}
+          className={`w-full rounded-2xl px-4 py-3 flex items-center justify-between transition-colors text-left border ${
+            renewal.phase === 'imminent'
+              ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+              : 'bg-brand-50 border-brand-200 hover:bg-brand-100'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <CalendarClock
+              className={`w-5 h-5 shrink-0 ${renewal.phase === 'imminent' ? 'text-amber-700' : 'text-brand-700'}`}
+              strokeWidth={1.75}
+            />
+            <div className="min-w-0">
+              <p className={`text-sm font-semibold ${renewal.phase === 'imminent' ? 'text-amber-900' : 'text-brand-900'}`}>
+                Your lease ends {formatLocalDate(renewal.endDate)}
+                {renewal.daysLeft > 0 && ` — ${renewal.daysLeft} day${renewal.daysLeft === 1 ? '' : 's'} left`}
+              </p>
+              <p className={`text-xs ${renewal.phase === 'imminent' ? 'text-amber-700' : 'text-brand-700'}`}>
+                Thinking about staying? Message your landlord to talk renewal options.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className={`w-4 h-4 shrink-0 ${renewal.phase === 'imminent' ? 'text-amber-600' : 'text-brand-600'}`} strokeWidth={2} />
+        </button>
       )}
 
       {/* Lease + property summary */}

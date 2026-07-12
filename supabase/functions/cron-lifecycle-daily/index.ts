@@ -11,6 +11,7 @@ import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName, DEFAULT_ACCENT } from '../_shared/emailBranding.ts'
 import { sendPushToProfile, type PushMessage } from '../_shared/webPush.ts'
 import { sendSmsIfEnabled } from '../_shared/sms.ts'
+import { tasksDueThisMonth, occurrenceKey } from '../_shared/seasonalTasks.ts'
 
 const APP_URL          = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const CRON_SECRET      = Deno.env.get('CRON_SECRET') ?? ''
@@ -75,7 +76,15 @@ interface LeaseRenewalVars {
   url: string
 }
 
-type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars | LeaseRenewalVars
+interface SeasonalDigestVars {
+  first_name: string
+  month_label: string
+  total_tasks: number
+  properties: Array<{ name: string; tasks: Array<{ title: string; who: string }> }>
+  url: string
+}
+
+type TemplateVars = RentReminderVars | LateFeeVars | OnboardingVars | PaymentFailedVars | LeaseRenewalVars | SeasonalDigestVars
 
 // Landlord branding for tenant-facing sends (see _shared/emailBranding.ts).
 // null / undefined ⇒ stock FindStoop presentation, exactly as before.
@@ -157,8 +166,8 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
         <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
         <li style="margin:4px 0"><strong>Lease ends:</strong> ${v.end_date}</li>
       </ul>
-      <p style="margin-top:16px">Now's a good time to offer a renewal, adjust the rent, or send a notice to vacate — so you're not scrambling at the last minute.</p>
-      ${payButton(v.url, 'Review the lease')}
+      <p style="margin-top:16px">The renewal advisor on your Leases page has a market-aware suggested offer for this lease (from your saved rental analysis), a flight-risk read on the tenant, and a one-click renewal offer letter — so you're not scrambling at the last minute.</p>
+      ${payButton(v.url, 'Open the renewal advisor')}
     `, brandFooterManager()),
   },
   // Lease-renewal heads-up to the TENANT.
@@ -229,6 +238,26 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
       ${payButton(v.pay_url, 'Settle balance now')}
       <p style="color:#8E8E93;font-size:13px">Paying online resolves both the rent and the late fee in one transaction. If you've already paid by check that hasn't cleared yet, reply to this email and we'll help reconcile it.</p>
     `, brandFooter(), brand),
+  },
+  // Monthly seasonal-maintenance digest to the MANAGER — the "autopilot" half
+  // of the seasonal schedule that previously only showed in the UI.
+  seasonal_maintenance_digest: {
+    subject: (v: SeasonalDigestVars) =>
+      `${v.total_tasks} seasonal maintenance task${v.total_tasks === 1 ? '' : 's'} due in ${v.month_label}`,
+    html: (v: SeasonalDigestVars) => wrapHtml(`
+      <p>Hi ${v.first_name},</p>
+      <p>Here's what protects your ${v.properties.length === 1 ? 'property' : 'properties'} this month — each takes minutes now and prevents the expensive version later:</p>
+      ${v.properties.map((prop) => `
+        <div style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:14px 18px;margin:10px 0">
+          <p style="margin:0 0 6px;font-weight:600">${prop.name}</p>
+          <ul style="margin:0;padding-left:18px;line-height:1.7">
+            ${prop.tasks.map((t) => `<li>${t.title}${t.who === 'tenant' ? ' <span style="color:#00A896;font-size:12px">(tenant-doable — one-tap ask in the app)</span>' : t.who === 'pro' ? ' <span style="color:#8E8E93;font-size:12px">(book a pro)</span>' : ''}</li>`).join('')}
+          </ul>
+        </div>
+      `).join('')}
+      ${payButton(v.url, 'Open seasonal maintenance')}
+      <p style="color:#8E8E93;font-size:13px">Tasks you've already marked done, dismissed, or delegated this season aren't listed. Manage the schedule from each property's Overview tab.</p>
+    `, brandFooterManager()),
   },
   onboarding_welcome: {
     subject: (v: OnboardingVars) => `Welcome to FindStoop, ${v.first_name}`,
@@ -321,6 +350,19 @@ async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'd
 
   const template = TEMPLATES[p.triggerKey]
   if (!template) return 'no_template'
+
+  // Dedup BEFORE sending. The unique-constraint insert below stays as the
+  // authoritative race guard, but it fires after the email has gone out —
+  // any trigger whose candidates re-qualify on later runs (day-window
+  // onboarding, the monthly digests) would re-send without this check.
+  const { data: already } = await admin
+    .from('lifecycle_events')
+    .select('id')
+    .eq('trigger_key', p.triggerKey)
+    .eq('dedup_token', p.dedupToken)
+    .limit(1)
+    .maybeSingle()
+  if (already) return 'duplicate'
 
   const subject = template.subject(p.templateVars)
   let html      = template.html(p.templateVars, p.brand)
@@ -498,7 +540,10 @@ Deno.serve(async (req) => {
     else if (r === 'paused') o.paused++
     else o.failed++
   }
-  for (const daysBefore of [60, 30] as const) {
+  // 90d opens the window for the MANAGER only (matches the renewal advisor's
+  // outermost window — time to think, run the numbers, draft the offer);
+  // tenants join at 60/30 so the heads-up doesn't arrive absurdly early.
+  for (const daysBefore of [90, 60, 30] as const) {
     const { data: rows, error } = await admin.rpc('leases_expiring_for_renewal', { days_before: daysBefore })
     const mgr: Outcome = { triggerKey: `lease_renewal_manager_${daysBefore}d`, sent: 0, duplicate: 0, paused: 0, failed: 0, skipped: 0 }
     const ten: Outcome = { triggerKey: `lease_renewal_tenant_${daysBefore}d`, sent: 0, duplicate: 0, paused: 0, failed: 0, skipped: 0 }
@@ -527,7 +572,7 @@ Deno.serve(async (req) => {
             },
           }))
         } else mgr.skipped++
-        if (row.tenant_email && row.tenant_email_enabled !== false) {
+        if (daysBefore <= 60 && row.tenant_email && row.tenant_email_enabled !== false) {
           tally(ten, await fireTrigger({
             triggerKey: 'lease_renewal_tenant',
             userId: row.tenant_id,
@@ -803,6 +848,90 @@ Deno.serve(async (req) => {
       }
     }
   } catch { /* tolerate single-day failures */ }
+
+  // ── Seasonal maintenance digest: one email per manager per month ────────
+  // Daily-safe: the fireTrigger dedup pre-check keys on manager+month, so
+  // only the first run of each month actually sends. Tasks the manager
+  // already handled (done/dismissed/delegated in seasonal_task_events)
+  // drop out; managers with nothing due get no email at all.
+  {
+    const outcome: Outcome = { triggerKey: 'seasonal_maintenance_digest', sent: 0, duplicate: 0, paused: 0, failed: 0, skipped: 0 }
+    try {
+      const now = new Date()
+      const month = now.getUTCMonth() + 1
+      const year = now.getUTCFullYear()
+      const occ = occurrenceKey(year, month)
+      const monthLabel = now.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })
+
+      const { data: props } = await admin
+        .from('properties')
+        .select('id, name, state, manager_id, manager:profiles(email, full_name, notification_email_enabled)')
+        .limit(2000)
+
+      // Everything already handled this occurrence, one set lookup per task.
+      const propertyIds = (props ?? []).map((p) => p.id)
+      const handled = new Set<string>()
+      if (propertyIds.length > 0) {
+        const { data: events } = await admin
+          .from('seasonal_task_events')
+          .select('property_id, task_id')
+          .eq('occurrence', occ)
+          .in('property_id', propertyIds)
+        for (const e of events ?? []) handled.add(`${e.property_id}:${e.task_id}`)
+      }
+
+      // Group per manager.
+      interface MgrDigest { email: string; firstName: string; emailEnabled: boolean; properties: SeasonalDigestVars['properties'] }
+      const byManager = new Map<string, MgrDigest>()
+      for (const p of props ?? []) {
+        // deno-lint-ignore no-explicit-any
+        const manager = Array.isArray((p as any).manager) ? (p as any).manager[0] : (p as any).manager
+        if (!manager?.email) continue
+        const due = tasksDueThisMonth(p.state, month).filter((t) => !handled.has(`${p.id}:${t.id}`))
+        if (due.length === 0) continue
+        let entry = byManager.get(p.manager_id)
+        if (!entry) {
+          entry = {
+            email: manager.email,
+            firstName: (manager.full_name?.split(' ')[0]) ?? 'there',
+            emailEnabled: manager.notification_email_enabled !== false,
+            properties: [],
+          }
+          byManager.set(p.manager_id, entry)
+        }
+        entry.properties.push({ name: p.name ?? 'Property', tasks: due.map((t) => ({ title: t.title, who: t.who })) })
+      }
+
+      for (const [managerId, digest] of byManager) {
+        if (!digest.emailEnabled) { outcome.skipped++; continue }
+        const totalTasks = digest.properties.reduce((n, prop) => n + prop.tasks.length, 0)
+        const result = await fireTrigger({
+          triggerKey: 'seasonal_maintenance_digest',
+          userId: managerId,
+          recipientEmail: digest.email,
+          dedupToken: `manager:${managerId}:${occ}`,
+          push: {
+            title: `${totalTasks} seasonal task${totalTasks === 1 ? '' : 's'} due in ${monthLabel}`,
+            body: 'Small preventive jobs now beat expensive repairs later — see what protects your properties this month.',
+            url: '/manager/properties',
+            tag: `seasonal-${occ}`,
+          },
+          templateVars: {
+            first_name: digest.firstName,
+            month_label: monthLabel,
+            total_tasks: totalTasks,
+            properties: digest.properties,
+            url: `${APP_URL}/manager/properties`,
+          },
+        })
+        if (result === 'sent') outcome.sent++
+        else if (result === 'duplicate') outcome.duplicate++
+        else if (result === 'paused') outcome.paused++
+        else outcome.failed++
+      }
+    } catch { /* tolerate — next month's run will try again */ }
+    totals.push(outcome)
+  }
 
   // ── Chat image purge: drop attachments older than 12 months ─────────────
   // Messages themselves stay; we just NULL out image_url/image_path and stamp

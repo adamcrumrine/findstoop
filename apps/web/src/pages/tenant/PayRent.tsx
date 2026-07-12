@@ -188,13 +188,14 @@ function ReschedulePicker({
 }
 
 // ── Payment history row ───────────────────────────────────────────────────────
+// Completed payments link to their printable receipt (/tenant/receipt/:id).
 function PaymentHistoryRow({ payment }: { payment: Payment }) {
   const statusColor =
     payment.status === 'completed' ? 'text-green-600' :
     payment.status === 'failed'    ? 'text-red-600' : 'text-yellow-600'
 
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+  const body = (
+    <>
       <div>
         <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
         <p className="text-xs text-gray-500">
@@ -205,10 +206,27 @@ function PaymentHistoryRow({ payment }: { payment: Payment }) {
       </div>
       <div className="text-right">
         <p className="text-sm font-semibold text-gray-800">{formatUsdCents(Number(payment.amount))}</p>
-        <p className={`text-xs font-medium capitalize ${statusColor}`}>{payment.status}</p>
+        <p className={`text-xs font-medium capitalize ${statusColor}`}>
+          {payment.status}
+          {payment.status === 'completed' && <span className="text-brand-600 font-semibold"> · Receipt</span>}
+        </p>
       </div>
-    </div>
+    </>
   )
+
+  if (payment.status === 'completed') {
+    return (
+      <a
+        href={`/tenant/receipt/${payment.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 -mx-4 px-4 transition-colors"
+      >
+        {body}
+      </a>
+    )
+  }
+  return <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">{body}</div>
 }
 
 // ── Pay Rent page ─────────────────────────────────────────────────────────────
@@ -452,12 +470,17 @@ export default function TenantPayRent() {
                     }`}
                   >
                     <CardIcon className="w-4 h-4" strokeWidth={1.75} />
-                    Card · +3.5%
+                    {/* Concrete dollars beat percentages — the fee on THIS payment. */}
+                    Card · +{formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)}
                   </button>
                 </div>
-                {method === 'card' && (
+                {method === 'card' ? (
                   <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
-                    Card payments include a {formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)} processing fee. Total: {formatUsdCents(totalToCharge)}.
+                    Card payments include a {formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)} processing fee ({CARD_SURCHARGE_PCT}%). Total: {formatUsdCents(totalToCharge)}. Bank transfer is free.
+                  </p>
+                ) : (
+                  <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
+                    Bank transfer is free — you’re saving {formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)} vs. paying by card.
                   </p>
                 )}
                 <button

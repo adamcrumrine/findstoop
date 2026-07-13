@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
-import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle, GraduationCap, CalendarClock, Landmark, FileSignature } from 'lucide-react'
+import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, CheckCircle2, Circle, GraduationCap, CalendarClock, Landmark, FileSignature, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
@@ -207,7 +207,15 @@ function useDepositMirror(tenantId: string | undefined, hasActiveLease: boolean,
   return mirror
 }
 
+// Retry remounts the whole subtree below, re-running useTenantDashboard's
+// initial fetch — it doesn't expose a reload(), so a full remount is the
+// simplest reliable "try again."
 export default function TenantDashboard() {
+  const [retryCount, setRetryCount] = useState(0)
+  return <TenantDashboardInner key={retryCount} onRetry={() => setRetryCount((c) => c + 1)} />
+}
+
+function TenantDashboardInner({ onRetry }: { onRetry: () => void }) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const { lease, nextPayment, upcomingPayments, recentPayments, recentMaintenance, unreadMessages, paymentMethodSetup, autopayEnabled, loading, error } =
@@ -357,6 +365,14 @@ export default function TenantDashboard() {
       <div className="rounded-2xl bg-red-50 border border-red-200 p-6 text-center">
         <p className="text-red-700 font-medium">Failed to load dashboard</p>
         <p className="text-red-500 text-sm mt-1">{error}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 hover:bg-red-50 px-4 py-2 rounded-lg"
+        >
+          <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+          Check again
+        </button>
       </div>
     )
   }
@@ -472,6 +488,13 @@ export default function TenantDashboard() {
       {/* Rent CTA card */}
       {loading ? (
         <Skeleton className="h-44" />
+      ) : !lease ? (
+        // No lease at all — distinct from "paid up." A brand-new tenant with
+        // nothing set up yet must not be told their rent is all clear.
+        <div className="rounded-2xl p-5 bg-white border-2 border-gray-200">
+          <p className="text-sm font-medium text-mute">No active lease</p>
+          <p className="text-sm mt-1 text-ink">No active lease yet — your landlord will set this up.</p>
+        </div>
       ) : (
         <div className={`relative rounded-2xl p-5 ${s.card}`}>
           {/* Auto-pay toggle in the top-right of the card (only when a
@@ -650,7 +673,7 @@ export default function TenantDashboard() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-gray-500 py-3 text-center">No active lease found</p>
+            <p className="text-sm text-gray-500 py-3 text-center">No active lease yet — your landlord will set this up.</p>
           )}
         </div>
       </Card>

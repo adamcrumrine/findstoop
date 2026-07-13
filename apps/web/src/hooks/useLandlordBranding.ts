@@ -32,53 +32,85 @@ interface LeaseRow {
   unit: { properties: { manager_id: string | null } | null } | null
 }
 
-export function useLandlordBranding(tenantId: string | undefined): LandlordBranding | null {
+export interface LandlordBrandingState {
+  branding: LandlordBranding | null
+  /** True until resolution finishes (found branding, found none, or off a
+   *  portal subdomain). Lets a caller like TenantLayout hold a neutral
+   *  placeholder instead of flashing the default Stoop header before a
+   *  branded subdomain's real header appears. */
+  loading: boolean
+}
+
+/**
+ * Same resolution as useLandlordBranding, but also reports `loading` so a
+ * caller can gate rendering until branding is known one way or the other.
+ * useLandlordBranding (below) is a thin wrapper around this — its return
+ * shape stays exactly as before for existing callers (Dashboard, PayRent,
+ * SignDocument, ViewDocument).
+ */
+export function useLandlordBrandingState(tenantId: string | undefined): LandlordBrandingState {
   const [branding, setBranding] = useState<LandlordBranding | null>(null)
+  // Only portal subdomains have anything to resolve — starting true off-portal
+  // would flash a one-frame header skeleton (effects run after first paint).
+  const [loading, setLoading] = useState(Boolean(PORTAL_SLUG))
 
   useEffect(() => {
-    // Off a portal subdomain → no landlord branding; the portal renders as Stoop.
-    if (!tenantId || !PORTAL_SLUG) { setBranding(null); return }
+    // Off a portal subdomain → no landlord branding; the portal renders as
+    // Stoop immediately — nothing to wait on.
+    if (!PORTAL_SLUG) { setBranding(null); setLoading(false); return }
+    // Portal subdomain, but we don't know the tenant yet — stay in the
+    // loading state rather than reporting "no branding" prematurely.
+    if (!tenantId) { setBranding(null); setLoading(true); return }
     let cancelled = false
+    setLoading(true)
 
     ;(async () => {
-      // Same "current lease" priority as getTenantActiveLease: active →
-      // upcoming → pending-and-sent, most recent first within a status.
-      const { data } = await supabase
-        .from('leases')
-        .select('status, sent_for_signature_at, unit:units(properties(manager_id))')
-        .eq('tenant_id', tenantId)
-        .in('status', ['active', 'upcoming', 'pending'])
-        .order('created_at', { ascending: false })
-      if (cancelled) return
+      try {
+        // Same "current lease" priority as getTenantActiveLease: active →
+        // upcoming → pending-and-sent, most recent first within a status.
+        const { data } = await supabase
+          .from('leases')
+          .select('status, sent_for_signature_at, unit:units(properties(manager_id))')
+          .eq('tenant_id', tenantId)
+          .in('status', ['active', 'upcoming', 'pending'])
+          .order('created_at', { ascending: false })
+        if (cancelled) return
 
-      const leases = (data ?? []) as unknown as LeaseRow[]
-      const current =
-        leases.find((l) => l.status === 'active') ??
-        leases.find((l) => l.status === 'upcoming') ??
-        leases.find((l) => l.status === 'pending' && l.sent_for_signature_at) ??
-        null
-      const managerId = current?.unit?.properties?.manager_id ?? null
-      if (!managerId) { setBranding(null); return }
+        const leases = (data ?? []) as unknown as LeaseRow[]
+        const current =
+          leases.find((l) => l.status === 'active') ??
+          leases.find((l) => l.status === 'upcoming') ??
+          leases.find((l) => l.status === 'pending' && l.sent_for_signature_at) ??
+          null
+        const managerId = current?.unit?.properties?.manager_id ?? null
+        if (!managerId) { setBranding(null); return }
 
-      const { data: manager } = await supabase
-        .from('profiles')
-        .select('company_name, company_logo_url, brand_color, brand_primary_color')
-        .eq('id', managerId)
-        .maybeSingle()
-      if (cancelled) return
+        const { data: manager } = await supabase
+          .from('profiles')
+          .select('company_name, company_logo_url, brand_color, brand_primary_color')
+          .eq('id', managerId)
+          .maybeSingle()
+        if (cancelled) return
 
-      const companyName = (manager?.company_name ?? '').trim() || null
-      const logoUrl = manager?.company_logo_url ?? null
-      const brandColor = manager?.brand_color ?? null
-      const primaryColor = manager?.brand_primary_color ?? null
-      // Nothing customized → report "no landlord branding" so the portal
-      // renders the build brand untouched.
-      if (!companyName && !logoUrl && !brandColor && !primaryColor) { setBranding(null); return }
-      setBranding({ companyName, logoUrl, brandColor, primaryColor })
+        const companyName = (manager?.company_name ?? '').trim() || null
+        const logoUrl = manager?.company_logo_url ?? null
+        const brandColor = manager?.brand_color ?? null
+        const primaryColor = manager?.brand_primary_color ?? null
+        // Nothing customized → report "no landlord branding" so the portal
+        // renders the build brand untouched.
+        if (!companyName && !logoUrl && !brandColor && !primaryColor) { setBranding(null); return }
+        setBranding({ companyName, logoUrl, brandColor, primaryColor })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     })()
 
     return () => { cancelled = true }
   }, [tenantId])
 
-  return branding
+  return { branding, loading }
+}
+
+export function useLandlordBranding(tenantId: string | undefined): LandlordBranding | null {
+  return useLandlordBrandingState(tenantId).branding
 }

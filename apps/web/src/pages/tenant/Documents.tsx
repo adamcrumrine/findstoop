@@ -10,7 +10,7 @@ import ComplianceWidget from '../../components/tenant/ComplianceWidget'
 import AskLeaseCard from '../../components/tenant/AskLeaseCard'
 import { Link } from 'react-router-dom'
 import {
-  ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder, ExternalLink,
+  ClipboardList, FilePlus2, Search, Megaphone, FileText, Folder, ExternalLink, RefreshCw,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -97,6 +97,7 @@ function DocCard({ doc, onDownload }: { doc: Document; onDownload: (doc: Documen
         disabled={loading}
         className="p-2 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-40"
         title="Download"
+        aria-label={`Download ${doc.name}`}
       >
         {loading ? (
           <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -113,13 +114,22 @@ function DocCard({ doc, onDownload }: { doc: Document; onDownload: (doc: Documen
   )
 }
 
+// Retry remounts the whole subtree below, re-running both hooks' initial
+// fetches — useTenantDocuments doesn't expose a reload(), so a full remount
+// is the simplest reliable "try again."
 export default function TenantDocuments() {
+  const [retryCount, setRetryCount] = useState(0)
+  return <TenantDocumentsInner key={retryCount} onRetry={() => setRetryCount((c) => c + 1)} />
+}
+
+function TenantDocumentsInner({ onRetry }: { onRetry: () => void }) {
   const { user } = useAuth()
   const tenantId = user?.id
-  const { lease, loading: leaseLoading } = useTenantDashboard(tenantId)
-  const { documents, loading: docsLoading, getDownloadUrl } = useTenantDocuments(lease?.id ?? null)
+  const { lease, loading: leaseLoading, error: leaseError } = useTenantDashboard(tenantId)
+  const { documents, loading: docsLoading, getDownloadUrl, error: docsError } = useTenantDocuments(lease?.id ?? null)
 
   const loading = leaseLoading || docsLoading
+  const error = leaseError || docsError
   const [filterType, setFilterType] = useState<DocumentType | 'all'>('all')
 
   // Stamp the "seen" marker on mount so the green cherry dot on the bottom
@@ -191,7 +201,7 @@ export default function TenantDocuments() {
         <p className="text-sm text-gray-500 mt-0.5">Documents shared by your property manager</p>
       </div>
 
-      {!lease && !loading && (
+      {!lease && !loading && !error && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
           No lease on file yet. Documents will appear here once your landlord sets one up.
         </div>
@@ -242,6 +252,19 @@ export default function TenantDocuments() {
       {/* List */}
       {loading ? (
         <Skeleton />
+      ) : error ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
+          <p className="text-sm font-medium text-ink">Couldn't load your documents.</p>
+          <p className="text-xs text-mute mt-1">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg"
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+            Check again
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyIllustration
           name="leases"

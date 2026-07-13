@@ -9,7 +9,7 @@ import PoweredByStoop from '../shared/PoweredByStoop'
 import InstallPrompt from '../shared/InstallPrompt'
 import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
 import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
-import { useLandlordBranding } from '../../hooks/useLandlordBranding'
+import { useLandlordBrandingState } from '../../hooks/useLandlordBranding'
 
 interface NavItem {
   to: string
@@ -49,7 +49,7 @@ export default function TenantLayout() {
   const { signOut, profile } = useAuth()
   const location = useLocation()
   const badges = useTenantBadges(profile?.id)
-  const landlord = useLandlordBranding(profile?.id)
+  const { branding: landlord, loading: brandingLoading } = useLandlordBrandingState(profile?.id)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const pageBg = PAGE_BG[location.pathname] ?? null
@@ -57,9 +57,18 @@ export default function TenantLayout() {
   // Landlord accent color — layered over the build brand's --brand-* palette
   // while the tenant portal is mounted; cleanup restores the build palette so
   // it never leaks onto other layouts after sign-out / route changes.
+  //
+  // A landlord may set only ONE of brandColor (accent) / primaryColor (header
+  // shading) — e.g. picking just a header color and leaving buttons/links
+  // Stoop teal. applyLandlordBrand's first arg is required (it no-ops on an
+  // invalid/missing accent, which would otherwise also skip applying
+  // `primary`), so when only primaryColor is set we pass it as the accent
+  // too — same "one color brands both roles" fallback the landlord already
+  // gets when only brandColor is set.
   useEffect(() => {
-    if (!landlord?.brandColor) return
-    applyLandlordBrand(landlord.brandColor, landlord.primaryColor)
+    const accent = landlord?.brandColor ?? landlord?.primaryColor ?? null
+    if (!accent) return
+    applyLandlordBrand(accent, landlord?.primaryColor ?? null)
     return () => clearLandlordBrand()
   }, [landlord?.brandColor, landlord?.primaryColor])
 
@@ -105,12 +114,20 @@ export default function TenantLayout() {
           text), circle-cropped logo, "{Company} Rental Portal" lockup. */}
       <header
         className={`px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0 ${
-          landlord ? 'bg-primary-600 shadow-sm' : 'bg-white border-b border-gray-200'
+          // Neutral surface while branding is still resolving — otherwise a
+          // branded subdomain flashes the default Stoop header first, then
+          // pops to the landlord's colors once the fetch lands.
+          brandingLoading ? 'bg-white border-b border-gray-200' : landlord ? 'bg-primary-600 shadow-sm' : 'bg-white border-b border-gray-200'
         }`}
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        <Link to="/" aria-label={`${landlord?.companyName ?? BRAND.name} home`} className="min-w-0 mr-3">
-          {landlord ? (
+        <Link to="/" aria-label={brandingLoading ? 'Home' : `${landlord?.companyName ?? BRAND.name} home`} className="min-w-0 mr-3">
+          {brandingLoading ? (
+            <span className="flex items-center gap-2.5 min-w-0" aria-hidden="true">
+              <span className="w-10 h-10 rounded-full bg-gray-100 animate-pulse shrink-0" />
+              <span className="hidden sm:block w-24 h-4 rounded bg-gray-100 animate-pulse" />
+            </span>
+          ) : landlord ? (
             <span className="flex items-center gap-2.5 min-w-0">
               {landlord.logoUrl ? (
                 <img
@@ -146,6 +163,7 @@ export default function TenantLayout() {
             onClick={() => setMenuOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
+            aria-label="Account menu"
             className="block rounded-full focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <Avatar url={profile?.avatar_url} name={profile?.full_name} email={profile?.email} size={36} />

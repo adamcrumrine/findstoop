@@ -403,8 +403,9 @@ export default function TenantSettings() {
         </div>
 
         <div className="mt-4">
-          <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">About me</label>
+          <label htmlFor="bio-about-me" className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">About me</label>
           <textarea
+            id="bio-about-me"
             value={bio.about_me}
             onChange={setBioField('about_me')}
             rows={3}
@@ -624,13 +625,17 @@ function BioField({
   disabled?: boolean
   helper?: string
 }) {
+  // Stable id derived from the label — associates the <label> with its
+  // <input> for screen readers (e.g. "Emergency contact phone" → "emergency-contact-phone").
+  const id = `bio-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`
   return (
     <div>
-      <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5 inline-flex items-center gap-1">
+      <label htmlFor={id} className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5 inline-flex items-center gap-1">
         {label}
         {disabled && <Lock className="w-3 h-3 text-mute" strokeWidth={2} />}
       </label>
       <input
+        id={id}
         type={type}
         value={value}
         onChange={onChange}

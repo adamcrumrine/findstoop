@@ -8,7 +8,7 @@ import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import SelfTriageCard, { fetchSelfTriage, type SelfTriageResult } from '../../components/tenant/SelfTriageCard'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
-import { Wrench, Camera } from 'lucide-react'
+import { Wrench, Camera, RefreshCw } from 'lucide-react'
 import MaintenanceTimeline, { timelineSteps } from '../../components/tenant/MaintenanceTimeline'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
@@ -52,11 +52,21 @@ function Skeleton() {
   )
 }
 
+// Retry remounts the whole subtree below, which re-runs every hook's
+// initial fetch (useTenantDashboard's lease lookup + useTenantMaintenance's
+// request list) — the simplest reliable "try again" since neither hook
+// exposes every failure mode a caller could otherwise retry piecemeal.
 export default function TenantMaintenance() {
+  const [retryCount, setRetryCount] = useState(0)
+  return <TenantMaintenanceInner key={retryCount} onRetry={() => setRetryCount((c) => c + 1)} />
+}
+
+function TenantMaintenanceInner({ onRetry }: { onRetry: () => void }) {
   const { user } = useAuth()
   const tenantId = user?.id
-  const { lease } = useTenantDashboard(tenantId)
-  const { requests, loading, submitting, submit } = useTenantMaintenance(tenantId)
+  const { lease, error: leaseError } = useTenantDashboard(tenantId)
+  const { requests, loading, submitting, submit, error: requestsError } = useTenantMaintenance(tenantId)
+  const error = leaseError || requestsError
 
   const [showNew, setShowNew] = useState(false)
   const [filterStatus, setFilterStatus] = useState<MaintenanceStatus | 'all'>('all')
@@ -170,7 +180,7 @@ export default function TenantMaintenance() {
         </button>
       </div>
 
-      {!lease && !loading && (
+      {!lease && !loading && !error && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
           You don't have an active lease. Contact your property manager to submit maintenance requests.
         </div>
@@ -196,6 +206,19 @@ export default function TenantMaintenance() {
       {/* List */}
       {loading ? (
         <Skeleton />
+      ) : error ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
+          <p className="text-sm font-medium text-ink">Couldn't load your maintenance requests.</p>
+          <p className="text-xs text-mute mt-1">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg"
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+            Check again
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyIllustration
           name="maintenance"

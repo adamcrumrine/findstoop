@@ -5,7 +5,7 @@ import { useMessages } from '@findstoop/shared/hooks/useMessages'
 import { findOrCreateDirectConversation, uploadChatImage } from '@findstoop/shared/api/messages'
 import { supabase } from '../../lib/supabase'
 import type { Profile } from '@findstoop/shared/types/profile'
-import { MessageSquare, ImagePlus, Loader2 } from 'lucide-react'
+import { MessageSquare, ImagePlus, Loader2, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Avatar from '../../components/shared/Avatar'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
@@ -52,22 +52,35 @@ function MessageBubble({ msg, isOwn }: {
   )
 }
 
+// Retry remounts the whole subtree below, which re-runs every fetch in the
+// chain (lease → manager profile → conversation → thread). Neither
+// useTenantDashboard nor useMessages exposes a reload(), so a full remount
+// is the simplest reliable "try again."
 export default function TenantMessages() {
+  const [retryCount, setRetryCount] = useState(0)
+  return <TenantMessagesInner key={retryCount} onRetry={() => setRetryCount((c) => c + 1)} />
+}
+
+function TenantMessagesInner({ onRetry }: { onRetry: () => void }) {
   const { user } = useAuth()
   const tenantId = user?.id
-  const { lease } = useTenantDashboard(tenantId)
+  const { lease, error: leaseError } = useTenantDashboard(tenantId)
   const [manager, setManager] = useState<Profile | null>(null)
+  const [managerError, setManagerError] = useState<string | null>(null)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [conversationError, setConversationError] = useState<string | null>(null)
 
   // Fetch manager profile once we have the lease's unit
   useEffect(() => {
     if (!lease) return
+    setManagerError(null)
     supabase
       .from('units')
       .select('property_id, properties:property_id(manager_id, profiles:manager_id(*))')
       .eq('id', lease.unit_id)
       .single()
-      .then(({ data }: any) => {
+      .then(({ data, error }: any) => {
+        if (error) { setManagerError(error.message ?? 'Could not load your property manager'); return }
         const p = data?.properties?.profiles
         if (p) setManager(Array.isArray(p) ? p[0] : p)
       })
@@ -77,11 +90,19 @@ export default function TenantMessages() {
   useEffect(() => {
     if (!manager?.id) return
     let cancelled = false
+    setConversationError(null)
     findOrCreateDirectConversation(manager.id)
       .then((c) => { if (!cancelled) setConversationId(c.id) })
-      .catch((e) => { if (!cancelled) toast.error(e instanceof Error ? e.message : 'Could not open conversation') })
+      .catch((e) => {
+        if (cancelled) return
+        const msg = e instanceof Error ? e.message : 'Could not open conversation'
+        toast.error(msg)
+        setConversationError(msg)
+      })
     return () => { cancelled = true }
   }, [manager?.id])
+
+  const error = leaseError || managerError || conversationError
 
   // markConversationRead fires from useMessages when the thread loads, which
   // clears unread for the participant row, which the badge hook re-checks
@@ -159,8 +180,28 @@ export default function TenantMessages() {
         </div>
       </div>
 
+      {/* Couldn't load — lease, manager profile, or conversation creation
+          failed. Distinct from "no lease" / "no messages yet" so a fetch
+          failure doesn't masquerade as an empty state. */}
+      {error && !loading && (
+        <div className="flex-1 flex items-center justify-center text-center px-6">
+          <div>
+            <p className="text-sm font-medium text-ink">Couldn't load your messages.</p>
+            <p className="text-xs text-mute mt-1">Check your connection and try again.</p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg"
+            >
+              <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Check again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* No lease state */}
-      {!lease && !loading && (
+      {!lease && !loading && !error && (
         <div className="flex-1 flex items-center justify-center text-center px-6">
           <div>
             <MessageSquare className="w-10 h-10 mx-auto mb-2 text-mute-400" strokeWidth={1.5} />
@@ -170,7 +211,7 @@ export default function TenantMessages() {
       )}
 
       {/* Thread */}
-      {lease && (
+      {lease && !error && (
         <>
           {loading ? (
             <Skeleton />
@@ -232,6 +273,7 @@ export default function TenantMessages() {
             <button
               onClick={handleSend}
               disabled={!draft.trim() || sending}
+              aria-label="Send message"
               className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 transition-opacity"
             >
               <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 20 20">

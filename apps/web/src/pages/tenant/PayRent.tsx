@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
@@ -12,6 +12,7 @@ import type { Payment } from '@findstoop/shared/types/payment'
 import { CheckCircle2, Landmark, CreditCard as CardIcon, ShieldCheck } from 'lucide-react'
 import PaymentMethodCard from '../../components/tenant/PaymentMethodCard'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
+import Dialog from '../../components/shared/Dialog'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import { BRAND, brandColor } from '../../lib/brand'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
@@ -32,11 +33,12 @@ interface CheckoutFormProps {
   surcharge: number    // surcharge component (0 for ACH)
   method: PayMethod
   tenantId: string
-  onSuccess: () => void
+  paymentId: string
+  onSuccess: (paymentId: string, isAchPending: boolean) => void
   onCancel: () => void
 }
 
-function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, tenantId, onSuccess, onCancel }: CheckoutFormProps) {
+function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, tenantId, paymentId, onSuccess, onCancel }: CheckoutFormProps) {
   const stripe = useStripe()
   const elements = useElements()
   const [processing, setProcessing] = useState(false)
@@ -75,7 +77,7 @@ function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, tenantId, o
       toast.success(isAch
         ? 'Payment received — clearing in 3–5 business days.'
         : 'Payment successful!')
-      onSuccess()
+      onSuccess(paymentId, isAch)
     }
     setProcessing(false)
   }
@@ -126,6 +128,7 @@ function ReschedulePicker({
   const [date, setDate] = useState(scheduled ?? '')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const inputId = useId()
 
   if (!anchor) return null
 
@@ -160,10 +163,11 @@ function ReschedulePicker({
   return (
     <div className="mt-3 bg-white/15 rounded-xl px-3 py-2.5 text-sm">
       <div className="flex items-center gap-2 flex-wrap">
-        <label className="text-xs font-medium opacity-90 shrink-0">
+        <label htmlFor={inputId} className="text-xs font-medium opacity-90 shrink-0">
           {autopayEnabled ? 'Auto-pay on:' : 'Pay on:'}
         </label>
         <input
+          id={inputId}
           type="date"
           value={date}
           min={min}
@@ -240,6 +244,10 @@ export default function TenantPayRent() {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [paying, setPaying] = useState(false)
   const [paid, setPaid] = useState(false)
+  // Captured at the moment a payment succeeds so the success screen can link
+  // to its receipt — ACH lands as 'processing' (no receipt yet), so we track
+  // that too rather than assuming every success is immediately 'completed'.
+  const [paidInfo, setPaidInfo] = useState<{ id: string; achPending: boolean } | null>(null)
   const [history, setHistory] = useState<Payment[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
   const [method, setMethod] = useState<PayMethod>('us_bank_account')
@@ -301,6 +309,7 @@ export default function TenantPayRent() {
           .is('payment_method_setup_at', null)
         toast.success('Payment successful!')
         setPaying(false)
+        setPaidInfo({ id: nextPayment.id, achPending: false })
         setPaid(true)
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not record payment')
@@ -326,9 +335,10 @@ export default function TenantPayRent() {
     }
   }
 
-  const handleSuccess = () => {
+  const handleSuccess = (paymentId: string, isAchPending: boolean) => {
     setClientSecret(null)
     setPaying(false)
+    setPaidInfo({ id: paymentId, achPending: isAchPending })
     setPaid(true)
   }
 
@@ -370,9 +380,21 @@ export default function TenantPayRent() {
           <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-green-600" strokeWidth={1.5} />
           <p className="text-lg font-bold text-green-700">Payment Successful!</p>
           <p className="text-sm text-green-600 mt-1">Your payment has been recorded.</p>
-          <button onClick={() => setPaid(false)} className="mt-4 text-sm text-green-700 underline">
-            Make another payment
-          </button>
+          <div className="mt-4 flex items-center justify-center gap-4">
+            {paidInfo && !paidInfo.achPending && (
+              <a
+                href={`/tenant/receipt/${paidInfo.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-green-700 underline"
+              >
+                View receipt
+              </a>
+            )}
+            <button onClick={() => { setPaid(false); setPaidInfo(null) }} className="text-sm text-green-700 underline">
+              Make another payment
+            </button>
+          </div>
         </div>
       ) : (
         <div className={`relative rounded-2xl p-5 ${heroCls}`}>
@@ -519,7 +541,9 @@ export default function TenantPayRent() {
             )
           )}
           {!nextPayment && (
-            <p className="mt-3 text-sm opacity-70">All payments are up to date</p>
+            <p className="mt-3 text-sm opacity-70">
+              {lease ? 'All payments are up to date' : 'No active lease yet — your landlord will set this up.'}
+            </p>
           )}
         </div>
       )}
@@ -528,6 +552,7 @@ export default function TenantPayRent() {
       {profile?.id && (
         <PaymentMethodCard
           tenantId={profile.id}
+          landlordBrand={landlordBrand}
           onAutopayChange={(next) => {
             setAutopayLocal(next)
             if (next && nextPayment) {
@@ -567,16 +592,15 @@ export default function TenantPayRent() {
       </div>
 
       {/* Branded payment modal — opens once we have a Stripe client_secret. */}
-      {clientSecret && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[8vh] overflow-y-auto"
-          onClick={() => { setClientSecret(null); setPaying(false) }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
-            style={{ maxHeight: '85vh' }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      <Dialog
+        open={!!clientSecret}
+        onClose={() => { setClientSecret(null); setPaying(false) }}
+        overlayClassName="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[8vh] overflow-y-auto"
+        panelClassName="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+        panelStyle={{ maxHeight: '85vh' }}
+      >
+        {(titleId) => !clientSecret ? null : (
+          <>
             {/* Branded header */}
             <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-t-2xl p-6 relative">
               <button
@@ -607,7 +631,7 @@ export default function TenantPayRent() {
                   {landlordBrand?.companyName ?? BRAND.name}
                 </span>
               </div>
-              <h2 className="text-2xl font-bold tracking-tight">Pay rent</h2>
+              <h2 id={titleId} className="text-2xl font-bold tracking-tight">Pay rent</h2>
               <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
                 {method === 'card' ? 'Paying by card' : 'Paying by US bank account (ACH)'}
               </p>
@@ -646,6 +670,7 @@ export default function TenantPayRent() {
                   surcharge={surcharge}
                   method={method}
                   tenantId={profile?.id ?? ''}
+                  paymentId={nextPayment?.id ?? ''}
                   onSuccess={handleSuccess}
                   onCancel={() => { setClientSecret(null); setPaying(false) }}
                 />
@@ -657,9 +682,9 @@ export default function TenantPayRent() {
               <ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.75} />
               <span>Secured by Stripe · 256-bit encryption</span>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Dialog>
     </div>
   )
 }

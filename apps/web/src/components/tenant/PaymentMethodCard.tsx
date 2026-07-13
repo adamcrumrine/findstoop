@@ -5,6 +5,8 @@ import { Loader2, CreditCard, Landmark, X, Lock, CheckCircle2, Zap, Trash2 } fro
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { BRAND, brandColor } from '../../lib/brand'
+import Dialog from '../shared/Dialog'
+import type { LandlordBranding } from '../../hooks/useLandlordBranding'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe(): ReturnType<typeof loadStripe> {
@@ -22,6 +24,10 @@ interface Props {
   // Same for save / replace / remove — the hero may want to switch out of
   // the "no method" red state without waiting for a hook refetch.
   onMethodChange?: (hasMethod: boolean) => void
+  // Optional landlord branding (logo/company name) for the setup modal
+  // header — mirrors PayRent's Pay Rent modal. Callers that don't have it
+  // yet get the safe BRAND fallback.
+  landlordBrand?: LandlordBranding | null
 }
 
 interface State {
@@ -46,7 +52,7 @@ const INITIAL: State = {
   pm_bank_name: null,
 }
 
-export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodChange }: Props) {
+export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodChange, landlordBrand }: Props) {
   const [state, setState] = useState<State>(INITIAL)
   const [loading, setLoading] = useState(true)
   const [savingAutopay, setSavingAutopay] = useState(false)
@@ -247,17 +253,19 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
         </div>
       </section>
 
-      {/* Setup modal */}
-      {removeConfirmOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-          onClick={() => !removing && setRemoveConfirmOpen(false)}
-        >
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+      {/* Remove-confirm modal */}
+      <Dialog
+        open={removeConfirmOpen}
+        onClose={() => { if (!removing) setRemoveConfirmOpen(false) }}
+        overlayClassName="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+        panelClassName="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+      >
+        {(titleId) => (
+          <>
             <div className="w-12 h-12 rounded-full bg-red-50 border border-red-200 inline-flex items-center justify-center mb-3">
               <Trash2 className="w-5 h-5 text-red-700" strokeWidth={1.75} />
             </div>
-            <h3 className="text-lg font-bold text-ink">Remove saved payment method?</h3>
+            <h3 id={titleId} className="text-lg font-bold text-ink">Remove saved payment method?</h3>
             <p className="text-sm text-mute mt-1.5 leading-relaxed">
               We'll detach your card / bank from Stripe and turn off auto-pay. You'll need
               to add a method again before your next rent payment — late fees still kick
@@ -282,20 +290,20 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
                 Remove method
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Dialog>
 
-      {setupOpen && clientSecret && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[8vh] overflow-y-auto"
-          onClick={() => { setSetupOpen(false); setClientSecret(null) }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
-            style={{ maxHeight: '85vh' }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* Setup modal */}
+      <Dialog
+        open={setupOpen && !!clientSecret}
+        onClose={() => { setSetupOpen(false); setClientSecret(null) }}
+        overlayClassName="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[8vh] overflow-y-auto"
+        panelClassName="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+        panelStyle={{ maxHeight: '85vh' }}
+      >
+        {(titleId) => !clientSecret ? null : (
+          <>
             <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-t-2xl p-6 relative">
               <button
                 type="button"
@@ -305,11 +313,23 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
               >
                 <X className="w-4 h-4" strokeWidth={2} />
               </button>
+              {/* Mirrors PayRent's Pay Rent modal: landlord company when
+                  branding is set, platform brand otherwise. */}
               <div className="flex items-center gap-2.5 mb-3">
-                <img src={BRAND.logo.square} alt={BRAND.name} className="w-10 h-10 object-contain brightness-0 invert" />
-                <span className="text-sm font-medium tracking-wide opacity-90">{BRAND.name}</span>
+                {landlordBrand?.logoUrl ? (
+                  <img
+                    src={landlordBrand.logoUrl}
+                    alt={landlordBrand.companyName ?? 'Your landlord'}
+                    className="h-10 max-w-[160px] object-contain bg-white/90 rounded-lg px-1.5 py-1"
+                  />
+                ) : (
+                  <img src={BRAND.logo.square} alt={BRAND.name} className="w-10 h-10 object-contain brightness-0 invert" />
+                )}
+                <span className="text-sm font-medium tracking-wide opacity-90">
+                  {landlordBrand?.companyName ?? BRAND.name}
+                </span>
               </div>
-              <h2 className="text-2xl font-bold tracking-tight">Save a payment method</h2>
+              <h2 id={titleId} className="text-2xl font-bold tracking-tight">Save a payment method</h2>
               <p className="text-sm text-white/90 mt-1.5 leading-relaxed">
                 We won't charge anything today — this just stores your card or bank for rent payments.
               </p>
@@ -339,9 +359,9 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
               <Lock className="w-3 h-3" strokeWidth={2} />
               <span>Secured by Stripe</span>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Dialog>
     </>
   )
 }

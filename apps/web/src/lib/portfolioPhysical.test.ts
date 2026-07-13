@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   computeRentDrift, computeExpenseSection, computeLeaseClusters,
   computeDepositSection, computeComplianceSection, computeCollectionSection,
@@ -39,7 +39,7 @@ const report = (over: Partial<PhysicalRentReportLike> = {}): PhysicalRentReportL
   estimate: 1400, low: 1250, high: 1550, created_at: '2026-05-01T00:00:00Z', ...over,
 })
 
-// â”€â”€ Address matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Address matching ─────────────────────────────────────────────────────────
 
 describe('matchRentReport', () => {
   it('matches on normalized street line and prefers unit + bedroom agreement', () => {
@@ -69,14 +69,14 @@ describe('matchRentReport', () => {
   })
 })
 
-// â”€â”€ Rent drift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Rent drift ───────────────────────────────────────────────────────────────
 
 describe('computeRentDrift', () => {
   it('reports drift for units with an estimate and flags below-market ones', () => {
     const s = computeRentDrift(property(), [unit()], [lease()], [report()], TODAY)
     expect(s.rows).toHaveLength(1)
     expect(s.rows[0].estimate).toBe(1400)
-    // 1200 vs 1400 = âˆ’14.3%
+    // 1200 vs 1400 = −14.3%
     expect(s.rows[0].driftPct).toBeCloseTo(-14.3, 1)
     expect(s.belowMarketUnits).toBe(1)
     expect(s.monthlyGapDollars).toBe(200)
@@ -96,13 +96,13 @@ describe('computeRentDrift', () => {
     expect(s.rows[0].stale).toBe(true)
   })
 
-  it('skips vacant units â€” occupied active leases only', () => {
+  it('skips vacant units — occupied active leases only', () => {
     const s = computeRentDrift(property(), [unit({ id: 'u9', status: 'vacant' })], [], [report()], TODAY)
     expect(s.rows).toHaveLength(0)
   })
 })
 
-// â”€â”€ Expense ratio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Expense ratio ────────────────────────────────────────────────────────────
 
 describe('computeExpenseSection', () => {
   it('computes 12-month expenses over collected rent with a category breakdown', () => {
@@ -135,7 +135,7 @@ describe('computeExpenseSection', () => {
   })
 })
 
-// â”€â”€ Lease-end clustering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Lease-end clustering ─────────────────────────────────────────────────────
 
 describe('computeLeaseClusters', () => {
   it('flags months where two or more fixed-term leases end together', () => {
@@ -162,7 +162,7 @@ describe('computeLeaseClusters', () => {
   })
 })
 
-// â”€â”€ Deposit exposure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Deposit exposure ─────────────────────────────────────────────────────────
 
 describe('computeDepositSection', () => {
   it('totals deposits held and surfaces a recent move-out with the OH deadline', () => {
@@ -202,12 +202,12 @@ describe('computeDepositSection', () => {
   })
 })
 
-// â”€â”€ Compliance gaps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Compliance gaps ──────────────────────────────────────────────────────────
 
 describe('computeComplianceSection', () => {
   it('counts deposit-cap warnings via the compliance rules table', () => {
     // NC caps deposits; if NC has a cap on file this trips it. Use OH grace-days
-    // rule instead: OH has no grace requirement, so use a state-agnostic check â€”
+    // rule instead: OH has no grace requirement, so use a state-agnostic check —
     // an oversized deposit in a cap state. Verify with whatever is on file:
     const s = computeComplianceSection(property(), [lease()], {
       late_fee_enabled: false, late_fee_amount: 0, late_fee_grace_days: 0,
@@ -215,7 +215,7 @@ describe('computeComplianceSection', () => {
     })
     expect(s.rulesOnFile).toBe(true)
     expect(s.stateName).toBe('Ohio')
-    // Late fees off + reasonable deposit â‡’ no warnings.
+    // Late fees off + reasonable deposit ⇒ no warnings.
     expect(s.gapCount).toBe(0)
   })
 
@@ -226,7 +226,7 @@ describe('computeComplianceSection', () => {
   })
 })
 
-// â”€â”€ Collection health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Collection health ────────────────────────────────────────────────────────
 
 describe('computeCollectionSection', () => {
   it('computes the on-time rate from due rents in the window', () => {
@@ -234,8 +234,8 @@ describe('computeCollectionSection', () => {
       payment({ due_date: '2026-05-01', paid_at: '2026-05-01' }),               // on time
       payment({ due_date: '2026-04-01', paid_at: '2026-04-09' }),               // late
       payment({ due_date: '2026-06-01', paid_at: null, status: 'pending' }),    // open + overdue
-      payment({ due_date: '2026-08-01', paid_at: null, status: 'pending' }),    // future â€” excluded
-      payment({ due_date: '2026-05-01', type: 'late_fee' }),                    // not rent â€” excluded
+      payment({ due_date: '2026-08-01', paid_at: null, status: 'pending' }),    // future — excluded
+      payment({ due_date: '2026-05-01', type: 'late_fee' }),                    // not rent — excluded
     ], new Set(['l1']), TODAY)
     expect(s.dueCount).toBe(3)
     expect(s.paidLateCount).toBe(1)
@@ -251,7 +251,7 @@ describe('computeCollectionSection', () => {
   })
 })
 
-// â”€â”€ Whole exam + portfolio rollup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Whole exam + portfolio rollup ────────────────────────────────────────────
 
 describe('propertyPhysical / summarizePortfolio', () => {
   const inputs: PhysicalInputs = {
@@ -277,7 +277,7 @@ describe('propertyPhysical / summarizePortfolio', () => {
     expect(p.deposits.totalHeld).toBe(1200)
   })
 
-  it('ignores other propertiesâ€™ units and expenses', () => {
+  it('ignores other properties’ units and expenses', () => {
     const p = propertyPhysical({
       ...inputs,
       units: [unit(), unit({ id: 'ux', property_id: 'p2' })],
@@ -310,7 +310,7 @@ describe('propertyPhysical / summarizePortfolio', () => {
   })
 })
 
-// â”€â”€ Year over year â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Year over year ───────────────────────────────────────────────────────────
 
 describe('year over year', () => {
   const inputsWithHistory: PhysicalInputs = {

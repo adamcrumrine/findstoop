@@ -99,22 +99,40 @@ export default function TenantLayout() {
       </a>
 
       {/* Header — logo left, avatar right. env(safe-area-inset-top)
-          padding clears the iOS notch / Android status bar. */}
+          padding clears the iOS notch / Android status bar.
+          With landlord branding the header becomes THEIR surface: accent
+          background (the derived 600 step is contrast-guaranteed for white
+          text), circle-cropped logo, "{Company} Rental Portal" lockup. */}
       <header
-        className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0"
+        className={`px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0 ${
+          landlord ? 'bg-brand-600 shadow-sm' : 'bg-white border-b border-gray-200'
+        }`}
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        {/* Landlord branding wins when set: logo → company name → build brand. */}
-        <Link to="/" aria-label={`${landlord?.companyName ?? BRAND.name} home`}>
-          {landlord?.logoUrl ? (
-            <img
-              src={landlord.logoUrl}
-              alt={landlord.companyName ?? 'Your landlord'}
-              className="h-10 max-w-[200px] w-auto object-contain"
-            />
-          ) : landlord?.companyName ? (
-            <span className="block max-w-[220px] truncate text-lg font-semibold text-ink">
-              {landlord.companyName}
+        <Link to="/" aria-label={`${landlord?.companyName ?? BRAND.name} home`} className="min-w-0">
+          {landlord ? (
+            <span className="flex items-center gap-2.5 min-w-0">
+              {landlord.logoUrl ? (
+                <img
+                  src={landlord.logoUrl}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover bg-white ring-2 ring-white/30 shrink-0"
+                />
+              ) : (
+                <span className="w-10 h-10 rounded-full bg-white/15 ring-2 ring-white/30 text-white font-bold text-lg inline-flex items-center justify-center shrink-0">
+                  {(landlord.companyName ?? 'R').charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span className="min-w-0">
+                {landlord.companyName && (
+                  <span className="block text-white font-semibold leading-tight truncate max-w-[200px]">
+                    {landlord.companyName}
+                  </span>
+                )}
+                <span className={`block text-white/70 leading-tight ${landlord.companyName ? 'text-[11px]' : 'text-base font-semibold text-white'}`}>
+                  Rental Portal
+                </span>
+              </span>
             </span>
           ) : (
             <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
@@ -179,8 +197,14 @@ export default function TenantLayout() {
         </div>
       </main>
 
-      {/* Bottom nav — safe-area inset clears the iOS home indicator. */}
-      <nav aria-label="Tenant primary navigation" className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Bottom nav — safe-area inset clears the iOS home indicator. Branded
+          portals get the accent surface here too (700 step: darker than the
+          header, so white text clears contrast with room to spare). */}
+      <nav
+        aria-label="Tenant primary navigation"
+        className={`fixed bottom-0 left-0 right-0 z-20 ${landlord ? 'bg-brand-700' : 'bg-white border-t border-gray-200'}`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <div className="flex max-w-2xl mx-auto">
           {navItems.map(({ to, label, Icon }) => (
             <NavLink
@@ -188,7 +212,9 @@ export default function TenantLayout() {
               to={to}
               className={({ isActive }) =>
                 `relative flex flex-col items-center justify-center flex-1 pt-3 pb-3 text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-brand-600' : 'text-mute'
+                  landlord
+                    ? isActive ? 'text-white' : 'text-white/60 hover:text-white/85'
+                    : isActive ? 'text-brand-600' : 'text-mute'
                 }`
               }
             >
@@ -201,14 +227,16 @@ export default function TenantLayout() {
                     />
                     {badgeFor(to) && (
                       <span
-                        className="absolute -top-0.5 -right-1.5 w-2.5 h-2.5 bg-brand-500 rounded-full ring-2 ring-white"
+                        className={`absolute -top-0.5 -right-1.5 w-2.5 h-2.5 rounded-full ring-2 ${
+                          landlord ? 'bg-white ring-brand-700' : 'bg-brand-500 ring-white'
+                        }`}
                         aria-label="New activity"
                       />
                     )}
                   </div>
                   <span>{label}</span>
                   {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-500 rounded-full" />
+                    <span className={`absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${landlord ? 'bg-white' : 'bg-brand-500'}`} />
                   )}
                 </>
               )}
@@ -219,7 +247,7 @@ export default function TenantLayout() {
             (landlord branding or a white-label build). Lives inside the fixed
             nav so it stays visible without its own layout band. */}
         {(landlord || IS_WHITE_LABEL) && (
-          <div className="flex justify-center border-t border-gray-100 py-1">
+          <div className={`flex justify-center py-1 ${landlord ? 'bg-white/95 border-t border-white/20' : 'border-t border-gray-100'}`}>
             <PoweredByStoop />
           </div>
         )}

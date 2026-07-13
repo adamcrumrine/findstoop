@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FileSignature, ChevronRight, CreditCard, CheckCircle2,
-  Plus, Link2, CalendarClock, AlertTriangle, DoorOpen, RefreshCw, type LucideIcon,
+  Plus, Link2, CalendarClock, AlertTriangle, DoorOpen, RefreshCw, Globe, type LucideIcon,
 } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
@@ -15,7 +16,7 @@ import { assessRenewalRisk, RISK_TIER_LABEL } from '../../lib/renewalRisk'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
-import { BRAND } from '../../lib/brand'
+import { BRAND, PORTAL_BASE_DOMAIN } from '../../lib/brand'
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton({ className }: { className?: string }) {
@@ -278,6 +279,25 @@ export default function ManagerDashboard() {
     [units, leases],
   )
 
+  // Branded-portal promo: a company identity with no claimed slug means the
+  // manager doesn't know {company}.findstoop.com exists. Lowest-priority
+  // insight — it only surfaces when nothing urgent fills the three slots.
+  const [portalSuggestion, setPortalSuggestion] = useState<string | null>(null)
+  useEffect(() => {
+    if (!profile?.id) return
+    let cancelled = false
+    supabase.from('profiles').select('company_name, portal_slug').eq('id', profile.id).maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        const row = data as { company_name?: string | null; portal_slug?: string | null } | null
+        if (!row?.company_name || row.portal_slug) { setPortalSuggestion(null); return }
+        const slug = row.company_name.toLowerCase().trim()
+          .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/, '')
+        setPortalSuggestion(slug.length >= 3 ? slug : null)
+      })
+    return () => { cancelled = true }
+  }, [profile?.id])
+
   // Up to three "do this next" suggestions, ordered by urgency: money that's
   // late, units earning nothing, turnovers mid-flight, then the renewal with
   // the shortest runway.
@@ -365,8 +385,16 @@ export default function ManagerDashboard() {
         to: '/manager/leases', cta: 'Open renewal advisor',
       })
     }
+    if (portalSuggestion) {
+      out.push({
+        key: 'portal-slug', Icon: Globe, tone: 'brand',
+        title: 'Your branded portal address is ready to claim',
+        body: `Give tenants ${portalSuggestion}.${PORTAL_BASE_DOMAIN} — your name, logo, and colors on their portal, included with your plan. Put it on listings, mailers, and yard signs.`,
+        to: '/manager/settings', cta: 'Claim your subdomain',
+      })
+    }
     return out.slice(0, 3)
-  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById, vacancy, openTurnovers, leases, allPayments, allMaintenance])
+  }, [pastDueThisMonth, stats.totalUnits, stats.occupiedUnits, upcomingRenewals, unitLabelById, vacancy, openTurnovers, leases, allPayments, allMaintenance, portalSuggestion])
 
   if (error) {
     return (

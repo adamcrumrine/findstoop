@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
@@ -60,7 +60,7 @@ export default function ManagerSettings() {
   })
   const [connecting, setConnecting] = useState(false)
 
-  // Accent-color preview â€” same derivation the tenant portal runs, so the
+  // Accent-color preview — same derivation the tenant portal runs, so the
   // fake button/link below show exactly what tenants will get (including the
   // automatic darkening of low-contrast picks).
   const defaultAccentHex = tripletToHex(BRAND.colors['500'])
@@ -108,10 +108,10 @@ export default function ManagerSettings() {
   useEffect(() => {
     const flag = searchParams.get('connect')
     if (flag === 'done') {
-      toast.success("You're back from Stripe â€” we'll confirm setup as soon as Stripe verifies you.")
+      toast.success("You're back from Stripe — we'll confirm setup as soon as Stripe verifies you.")
       setSearchParams({}, { replace: true })
     } else if (flag === 'refresh') {
-      toast('Onboarding link expired â€” click "Continue setup" to get a fresh one.', { icon: 'â„¹ï¸' })
+      toast('Onboarding link expired — click "Continue setup" to get a fresh one.', { icon: 'ℹ️' })
       setSearchParams({}, { replace: true })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -319,8 +319,8 @@ export default function ManagerSettings() {
             </p>
           </div>
 
-          {/* Branded portal subdomain â€” {slug}.findstoop.com */}
-          <PortalSlugField profileId={profile?.id ?? null} />
+          {/* Branded portal subdomain — {slug}.findstoop.com */}
+          <PortalSlugField profileId={profile?.id ?? null} companyName={settings.company_name} />
 
           <div className="flex justify-end pt-2">
             <button
@@ -381,7 +381,7 @@ export default function ManagerSettings() {
         </div>
       </section>
 
-      {/* Stripe Connect â€” direct rent deposits */}
+      {/* Stripe Connect — direct rent deposits */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Landmark className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
@@ -389,7 +389,7 @@ export default function ManagerSettings() {
         </div>
         <p className="text-sm text-mute mb-5">
           Connect your bank through Stripe to receive rent payments directly to your account.
-          Until you do, rent flows through {BRAND.name} and we issue a payout â€” Connect is faster,
+          Until you do, rent flows through {BRAND.name} and we issue a payout — Connect is faster,
           shorter to settle, and lets you see deposits in your Stripe dashboard.
         </p>
 
@@ -397,7 +397,7 @@ export default function ManagerSettings() {
           <div className="rounded-xl bg-green-50 border border-green-200 p-4 flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-700 mt-0.5 shrink-0" strokeWidth={1.75} />
             <div className="flex-1 text-sm">
-              <p className="font-semibold text-green-900">Bank connected Â· rent is deposited directly</p>
+              <p className="font-semibold text-green-900">Bank connected · rent is deposited directly</p>
               <p className="text-green-800 mt-0.5 text-xs">
                 Connected {connect.onboardedAt ? new Date(connect.onboardedAt).toLocaleDateString() : 'recently'}. New rent payments flow straight to your bank.
               </p>
@@ -440,7 +440,7 @@ export default function ManagerSettings() {
         )}
 
         <p className="mt-3 text-xs text-mute leading-relaxed">
-          Stripe handles the KYC (driver's license + bank routing) â€” usually 2-3 minutes. Your information stays with Stripe; {BRAND.name} only sees whether the account is active.
+          Stripe handles the KYC (driver's license + bank routing) — usually 2-3 minutes. Your information stays with Stripe; {BRAND.name} only sees whether the account is active.
         </p>
       </section>
 
@@ -562,7 +562,7 @@ export default function ManagerSettings() {
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={1.75} />
             <span>
               Make sure your lease agreements allow this exact fee structure and
-              grace period. State law also caps late fees in many places â€” check
+              grace period. State law also caps late fees in many places — check
               your state's rules before turning this on.
             </span>
           </div>
@@ -587,15 +587,15 @@ export default function ManagerSettings() {
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
           <div>
             <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Email</dt>
-            <dd className="text-ink mt-0.5">{profile?.email ?? 'â€”'}</dd>
+            <dd className="text-ink mt-0.5">{profile?.email ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Name</dt>
-            <dd className="text-ink mt-0.5">{profile?.full_name ?? 'â€”'}</dd>
+            <dd className="text-ink mt-0.5">{profile?.full_name ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Role</dt>
-            <dd className="text-ink mt-0.5 capitalize">{profile?.role ?? 'â€”'}</dd>
+            <dd className="text-ink mt-0.5 capitalize">{profile?.role ?? '—'}</dd>
           </div>
         </dl>
       </section>
@@ -603,15 +603,25 @@ export default function ManagerSettings() {
   )
 }
 
-// â”€â”€ Branded portal subdomain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Claim {slug}.findstoop.com â€” the company's own front door for residents:
+// ── Branded portal subdomain ─────────────────────────────────────────────────
+// Claim {slug}.findstoop.com — the company's own front door for residents:
 // pay rent / maintenance / apply / sign in, dressed in the branding above.
 // Uniqueness and reserved names are enforced by the database (unique index +
 // trigger), so this field just relays those errors in plain language.
-function PortalSlugField({ profileId }: { profileId: string | null }) {
+function PortalSlugField({ profileId, companyName }: { profileId: string | null; companyName: string }) {
   const [slug, setSlug] = useState('')
   const [savedSlug, setSavedSlug] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Suggested slug from the company name — "Hawk Investments LLC" →
+  // "hawk-investments-llc". Long names still yield a valid ≤30-char DNS
+  // label; the manager can always shorten it.
+  const suggestion = companyName
+    .toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+    .replace(/-+$/, '')
 
   useEffect(() => {
     if (!profileId) return
@@ -632,7 +642,7 @@ function PortalSlugField({ profileId }: { profileId: string | null }) {
   const save = async () => {
     if (!profileId || saving) return
     if (slug !== '' && !valid) {
-      toast.error('Use 3â€“30 lowercase letters, numbers, and hyphens (no leading/trailing hyphen).')
+      toast.error('Use 3–30 lowercase letters, numbers, and hyphens (no leading/trailing hyphen).')
       return
     }
     setSaving(true)
@@ -642,8 +652,8 @@ function PortalSlugField({ profileId }: { profileId: string | null }) {
       .eq('id', profileId)
     setSaving(false)
     if (error) {
-      if ((error as { code?: string }).code === '23505') toast.error('That subdomain is already taken â€” try another.')
-      else if (error.message.includes('reserved')) toast.error('That subdomain name is reserved â€” please choose another.')
+      if ((error as { code?: string }).code === '23505') toast.error('That subdomain is already taken — try another.')
+      else if (error.message.includes('reserved')) toast.error('That subdomain name is reserved — please choose another.')
       else toast.error(error.message)
       return
     }
@@ -662,7 +672,7 @@ function PortalSlugField({ profileId }: { profileId: string | null }) {
             type="text"
             value={slug}
             onChange={(e) => setSlug(normalize(e.target.value))}
-            placeholder="your-company"
+            placeholder={suggestion || 'your-company'}
             className="px-3 py-2.5 text-sm font-mono w-44 focus:outline-none"
             aria-label="Portal subdomain"
           />
@@ -675,7 +685,7 @@ function PortalSlugField({ profileId }: { profileId: string | null }) {
             disabled={saving || (slug !== '' && !valid)}
             className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50"
           >
-            {saving ? 'Savingâ€¦' : slug === '' ? 'Remove' : 'Claim subdomain'}
+            {saving ? 'Saving…' : slug === '' ? 'Remove' : 'Claim subdomain'}
           </button>
         )}
         {!dirty && savedSlug && (
@@ -688,9 +698,18 @@ function PortalSlugField({ profileId }: { profileId: string | null }) {
             Visit your portal
           </a>
         )}
+        {slug === '' && !savedSlug && suggestion.length >= 3 && (
+          <button
+            type="button"
+            onClick={() => setSlug(suggestion)}
+            className="text-xs font-medium text-brand-600 hover:text-brand-700 underline"
+          >
+            Use “{suggestion}”
+          </button>
+        )}
       </div>
       <p className="text-xs text-mute mt-1.5">
-        Your own web address for residents â€” the page shows your name, logo, and color with
+        Your own web address for residents — the page shows your name, logo, and color with
         pay-rent, maintenance, and application actions. Share it on listings, mailers, and signs.
       </p>
     </div>

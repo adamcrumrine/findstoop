@@ -12,7 +12,13 @@
 /** Default accent — the FindStoop teal used across all email templates. */
 export const DEFAULT_ACCENT = '#00A896'
 
-function escapeHtml(s: string): string {
+/**
+ * HTML-escape a string for safe interpolation into email HTML bodies. Applied
+ * to every user-controlled field (company name, logo URL, and — in the
+ * templates — tenant/property names) so attacker-set values can't inject
+ * markup (e.g. phishing <a> links) into a platform-authored, cross-user email.
+ */
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

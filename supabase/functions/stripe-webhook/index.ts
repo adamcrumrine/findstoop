@@ -9,7 +9,7 @@ import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import { logApiCall } from '../_shared/logging.ts'
-import { emailFrom, emailHeaderHtml, emailFooterHtml, companyDisplayName } from '../_shared/emailBranding.ts'
+import { emailFrom, emailHeaderHtml, emailFooterHtml, companyDisplayName, escapeHtml } from '../_shared/emailBranding.ts'
 import { sendPushToProfile } from '../_shared/webPush.ts'
 import { sendSmsIfEnabled } from '../_shared/sms.ts'
 
@@ -69,8 +69,8 @@ async function notifyTenantPaymentFailed(paymentRowId: string | null, stripePaym
       html: `
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
           ${emailHeaderHtml(company, manager?.company_logo_url ?? null, manager?.brand_color ?? null)}
-          <p>Hi ${firstName},</p>
-          <p>Your ${amountStr} payment at <strong>${propertyName}</strong>${unit?.unit_number ? ` · Unit ${unit.unit_number}` : ''} started processing but <strong>didn't clear</strong> — this usually means the bank transfer bounced (insufficient funds or a closed account).</p>
+          <p>Hi ${escapeHtml(firstName)},</p>
+          <p>Your ${amountStr} payment at <strong>${escapeHtml(propertyName)}</strong>${unit?.unit_number ? ` · Unit ${escapeHtml(String(unit.unit_number))}` : ''} started processing but <strong>didn't clear</strong> — this usually means the bank transfer bounced (insufficient funds or a closed account).</p>
           <p>The payment is now marked unpaid. Please make a new payment so you don't fall behind, and consider updating your payment method.</p>
           <p style="text-align:center;margin:28px 0">
             <a href="${APP_URL}/tenant/pay-rent" style="display:inline-block;background:#00A896;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:600">Pay again now</a>

@@ -8,7 +8,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
-import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName, DEFAULT_ACCENT } from '../_shared/emailBranding.ts'
+import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName, escapeHtml, DEFAULT_ACCENT } from '../_shared/emailBranding.ts'
 import { sendPushToProfile, type PushMessage } from '../_shared/webPush.ts'
 import { sendSmsIfEnabled } from '../_shared/sms.ts'
 import { tasksDueThisMonth, occurrenceKey } from '../_shared/seasonalTasks.ts'
@@ -151,11 +151,11 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   autopay_failed: {
     subject: (v: PaymentFailedVars) => `Action needed: your auto-pay didn't go through at ${v.property_name}`,
     html: (v: PaymentFailedVars, brand?: LeaseBrand | null) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>We tried to process your scheduled rent payment, but it <strong>didn't go through</strong>:</p>
       <ul style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
         <li style="margin:4px 0"><strong>Amount:</strong> $${Number(v.amount).toLocaleString()}</li>
-        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Unit:</strong> ${escapeHtml(v.property_name)} · Unit ${escapeHtml(v.unit_number)}</li>
       </ul>
       <p style="margin-top:16px">This usually means your card was declined, expired, or needs verification. Please update your payment method and make a one-time payment so you don't fall behind.</p>
       ${payButton(v.pay_url, 'Update payment & pay')}
@@ -166,10 +166,10 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   lease_renewal_manager: {
     subject: (v: LeaseRenewalVars) => `Lease ending in ${v.days_left} days — ${v.tenant_name} at ${v.property_name}`,
     html: (v: LeaseRenewalVars) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
-      <p><strong>${v.tenant_name}</strong>'s lease ends in <strong>${v.days_left} days</strong>:</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
+      <p><strong>${escapeHtml(v.tenant_name)}</strong>'s lease ends in <strong>${v.days_left} days</strong>:</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
-        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Unit:</strong> ${escapeHtml(v.property_name)} · Unit ${escapeHtml(v.unit_number)}</li>
         <li style="margin:4px 0"><strong>Lease ends:</strong> ${v.end_date}</li>
       </ul>
       <p style="margin-top:16px">The renewal advisor on your Leases page has a market-aware suggested offer for this lease (from your saved rental analysis), a flight-risk read on the tenant, and a one-click renewal offer letter — so you're not scrambling at the last minute.</p>
@@ -180,10 +180,10 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   lease_renewal_tenant: {
     subject: (v: LeaseRenewalVars) => `Your lease at ${v.property_name} ends ${v.end_date}`,
     html: (v: LeaseRenewalVars, brand?: LeaseBrand | null) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>A friendly heads-up that your lease ends in <strong>${v.days_left} days</strong> (${v.end_date}):</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
-        <li style="margin:4px 0"><strong>Home:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Home:</strong> ${escapeHtml(v.property_name)} · Unit ${escapeHtml(v.unit_number)}</li>
       </ul>
       <p style="margin-top:16px">If you'd like to renew, reach out to your property manager — they may be in touch soon with options.</p>
       ${payButton(v.url, 'Open your dashboard')}
@@ -192,12 +192,12 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   rent_reminder_3d: {
     subject: (v: RentReminderVars) => `Reminder: rent is due in 3 days at ${v.property_name}`,
     html: (v: RentReminderVars, brand?: LeaseBrand | null) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>A friendly heads-up that your rent is due in <strong>3 days</strong>:</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
         <li style="margin:4px 0"><strong>Amount:</strong> $${Number(v.amount).toLocaleString()}</li>
         <li style="margin:4px 0"><strong>Due:</strong> ${v.due_date}</li>
-        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Unit:</strong> ${escapeHtml(v.property_name)} · Unit ${escapeHtml(v.unit_number)}</li>
       </ul>
       ${payButton(v.pay_url, 'Pay rent online')}
       <p style="color:#8E8E93;font-size:13px">ACH is free. Card payments incur a small processing fee. Paying online creates an instant receipt for your records.</p>
@@ -206,12 +206,12 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   rent_reminder_1d: {
     subject: (v: RentReminderVars) => `Heads up: rent is due tomorrow at ${v.property_name}`,
     html: (v: RentReminderVars, brand?: LeaseBrand | null) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>Your rent is due <strong>tomorrow</strong>:</p>
       <ul style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
         <li style="margin:4px 0"><strong>Amount:</strong> $${Number(v.amount).toLocaleString()}</li>
         <li style="margin:4px 0"><strong>Due:</strong> ${v.due_date}</li>
-        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Unit:</strong> ${escapeHtml(v.property_name)} · Unit ${escapeHtml(v.unit_number)}</li>
       </ul>
       ${payButton(v.pay_url, 'Pay rent now')}
       <p style="color:#8E8E93;font-size:13px">If you've already paid by check, you can ignore this email.</p>
@@ -220,12 +220,12 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   rent_reminder_0d: {
     subject: (v: RentReminderVars) => `Rent is due today at ${v.property_name}`,
     html: (v: RentReminderVars, brand?: LeaseBrand | null) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>Today's the day — your rent payment is due:</p>
       <ul style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
         <li style="margin:4px 0"><strong>Amount:</strong> $${Number(v.amount).toLocaleString()}</li>
         <li style="margin:4px 0"><strong>Due:</strong> ${v.due_date} (today)</li>
-        <li style="margin:4px 0"><strong>Unit:</strong> ${v.property_name} · Unit ${v.unit_number}</li>
+        <li style="margin:4px 0"><strong>Unit:</strong> ${escapeHtml(v.property_name)} · Unit ${escapeHtml(v.unit_number)}</li>
       </ul>
       ${payButton(v.pay_url, 'Pay rent now')}
       <p style="color:#8E8E93;font-size:13px">Paying today avoids any late fees per your lease agreement.</p>
@@ -234,8 +234,8 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   late_fee_assessed: {
     subject: (v: LateFeeVars) => `Late fee added: $${v.fee_amount} on your ${v.property_name} rent`,
     html: (v: LateFeeVars, brand?: LeaseBrand | null) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
-      <p>Your rent for ${v.property_name} (Unit ${v.unit_number}) is now <strong>${v.days_overdue} days overdue</strong>. As outlined in your lease, a late fee has been added to your balance:</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
+      <p>Your rent for ${escapeHtml(v.property_name)} (Unit ${escapeHtml(v.unit_number)}) is now <strong>${v.days_overdue} days overdue</strong>. As outlined in your lease, a late fee has been added to your balance:</p>
       <ul style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;list-style:none;margin:0">
         <li style="margin:4px 0"><strong>Rent still owed:</strong> $${Number(v.rent_amount).toLocaleString()}</li>
         <li style="margin:4px 0"><strong>Late fee added:</strong> $${Number(v.fee_amount).toLocaleString()}</li>
@@ -251,7 +251,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
     subject: (v: { first_name: string; year_label: string; url: string }) =>
       `Your ${v.year_label} portfolio physical is ready`,
     html: (v: { first_name: string; year_label: string; url: string }) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>A full year of your portfolio's numbers is in the books. Your <strong>annual portfolio physical</strong> pulls it together: rent vs market, expense ratio with category breakdown, lease-end clustering, deposit exposure, compliance gaps, and collection health — with year-over-year comparisons once you have two years of history.</p>
       <p>It's computed entirely from data already in your account — nothing to prepare. Print it, save it as a PDF for your records, or hand it to your accountant.</p>
       ${payButton(v.url, 'Open your annual report')}
@@ -264,11 +264,11 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
     subject: (v: SeasonalDigestVars) =>
       `${v.total_tasks} seasonal maintenance task${v.total_tasks === 1 ? '' : 's'} due in ${v.month_label}`,
     html: (v: SeasonalDigestVars) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>Here's what protects your ${v.properties.length === 1 ? 'property' : 'properties'} this month — each takes minutes now and prevents the expensive version later:</p>
       ${v.properties.map((prop) => `
         <div style="background:#f6fafa;border:1px solid #e6f0ee;border-radius:10px;padding:14px 18px;margin:10px 0">
-          <p style="margin:0 0 6px;font-weight:600">${prop.name}</p>
+          <p style="margin:0 0 6px;font-weight:600">${escapeHtml(prop.name)}</p>
           <ul style="margin:0;padding-left:18px;line-height:1.7">
             ${prop.tasks.map((t) => `<li>${t.title}${t.who === 'tenant' ? ' <span style="color:#00A896;font-size:12px">(tenant-doable — one-tap ask in the app)</span>' : t.who === 'pro' ? ' <span style="color:#8E8E93;font-size:12px">(book a pro)</span>' : ''}</li>`).join('')}
           </ul>
@@ -281,7 +281,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   onboarding_welcome: {
     subject: (v: OnboardingVars) => `Welcome to FindStoop, ${v.first_name}`,
     html: (v: OnboardingVars) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>Welcome — and thanks for trying FindStoop. We built this for landlords who are tired of stitching together a spreadsheet, a shared drive, and a Venmo group chat.</p>
       <p>Three things that take about 5 minutes total and unlock most of the value:</p>
       <ol style="padding-left:20px;line-height:1.8">
@@ -296,7 +296,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   onboarding_getting_started: {
     subject: () => `Quick tour of FindStoop`,
     html: (v: OnboardingVars) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>A quick map of what's where, in case you haven't explored yet:</p>
       <ul style="padding-left:20px;line-height:1.8">
         <li><strong>Properties</strong> — your buildings and units.</li>
@@ -313,7 +313,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   onboarding_first_property: {
     subject: () => `Step one: add your first property`,
     html: (v: OnboardingVars) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>I noticed you haven't added a property yet. It's the fastest way to see what the rest of FindStoop actually does for you.</p>
       <p>You'll need: an address, a unit number, a monthly rent amount. Takes about 90 seconds.</p>
       ${payButton(`${v.login_url.replace('/login','')}/manager/properties`, 'Add a property')}
@@ -323,7 +323,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
   onboarding_tips: {
     subject: () => `Three small wins from week one`,
     html: (v: OnboardingVars) => wrapHtml(`
-      <p>Hi ${v.first_name},</p>
+      <p>Hi ${escapeHtml(v.first_name)},</p>
       <p>You've been on FindStoop for about a week. Three small wins most landlords don't discover on their own:</p>
       <ol style="padding-left:20px;line-height:1.8">
         <li><strong>Enable late-fee automation</strong> in Settings → Billing rules. We assess it on your timeline so you don't have to chase anyone.</li>

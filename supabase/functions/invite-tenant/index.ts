@@ -151,16 +151,16 @@ Deno.serve(async (req) => {
     // moved platforms" reads very differently from a cold invite.
     const subject = isMigration
       ? `Your lease moved to FindStoop — set up your renter account`
-      : `${inviterName} invited you to FindStoop`
+      : `${inviterName} invited you to your renter portal`
 
     const headline = isMigration
       ? `Your landlord just moved from <strong>${escapeHtml(migrationFrom!)}</strong> to FindStoop`
-      : `<strong>${escapeHtml(inviterName)}</strong> added you to FindStoop`
+      : `<strong>${escapeHtml(inviterName)}</strong> added you to your renter portal`
 
     const body = isMigration
       ? `<p><strong>${escapeHtml(inviterName)}</strong> recently moved their property management from ${escapeHtml(migrationFrom!)} to FindStoop — and brought your lease with them. Your lease terms, rent amount, and dates carry over unchanged.</p>
-         <p>Click below to claim your FindStoop renter account. From here you'll pay rent (ACH is free), submit maintenance requests with photos, sign documents, and access everything in one place. Nothing changes about your lease itself.</p>`
-      : `<p><strong>${escapeHtml(inviterName)}</strong> added you to FindStoop — the all-in-one platform you'll use to pay rent, submit maintenance requests, sign leases, and access your lease documents.</p>
+         <p>Click below to claim your renter account. From here you'll pay rent (ACH is free), submit maintenance requests with photos, sign documents, and access everything in one place. Nothing changes about your lease itself.</p>`
+      : `<p><strong>${escapeHtml(inviterName)}</strong> added you to your renter portal${company ? '' : ' on FindStoop'} — the place you'll pay rent, submit maintenance requests, sign leases, and access your lease documents.</p>
          <p>Click below to set up your account. The link signs you in directly — no password to remember on the first try.</p>`
 
     const html = `
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
         ` : ''}
         <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link into your browser:<br><a href="${actionLink}" style="color:#00A896;word-break:break-all">${actionLink}</a></p>
         <div style="margin-top:32px;padding-top:24px;border-top:1px solid #eee;color:#8E8E93;font-size:12px;line-height:1.5">
-          <p>You're receiving this because ${escapeHtml(inviterName)} ${isMigration ? 'moved your lease to FindStoop' : 'added you as a renter on FindStoop'}.</p>
+          <p>You're receiving this because ${escapeHtml(inviterName)} ${isMigration ? 'moved your lease to FindStoop' : `added you as a renter${company ? '' : ' on FindStoop'}`}.</p>
           <p>If you weren't expecting this, you can safely ignore this email.</p>
         </div>
         ${company ? emailFooterHtml(company) : ''}

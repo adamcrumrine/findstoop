@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { Mail, Bell, BellRing, Loader2, CheckCircle2, UserCircle, IdCard, Lock } from 'lucide-react'
+import { Mail, Bell, BellRing, Loader2, CheckCircle2, UserCircle, IdCard, Lock, RefreshCw } from 'lucide-react'
 import { pushSupported, pushSubscribed, subscribePush, unsubscribePush } from '../../lib/push'
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
@@ -36,6 +36,8 @@ export default function TenantSettings() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [bio, setBio] = useState<BioForm>(EMPTY_BIO)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const [saving, setSaving] = useState(false)
   const [, setSavingProfile] = useState(false)
   const [, setSavingBio] = useState(false)
@@ -58,47 +60,56 @@ export default function TenantSettings() {
     if (!profile?.id) return
     let cancelled = false
     ;(async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('notification_email_enabled, notification_sms_enabled, full_name, phone, avatar_url, date_of_birth, employer, employer_phone, monthly_income, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, previous_address, about_me')
-        .eq('id', profile.id)
-        .single()
-      if (cancelled) return
-      setEmailEnabled(data?.notification_email_enabled ?? true)
-      const loadedSms      = data?.notification_sms_enabled ?? false
-      const loadedFullName = data?.full_name ?? ''
-      const loadedPhone    = formatPhone(data?.phone ?? '') || ''
-      setSmsEnabled(loadedSms)
-      setFullName(loadedFullName)
-      setPhone(loadedPhone)
-      lastSavedProfile.current = { fullName: loadedFullName, phone: loadedPhone, smsEnabled: loadedSms }
-      // Has a submitted application? If so, app-sourced fields lock.
-      const { data: appRow } = await supabase
-        .from('applications')
-        .select('id')
-        .eq('applicant_profile_id', profile.id)
-        .not('submitted_at', 'is', null)
-        .limit(1)
-        .maybeSingle()
-      if (!cancelled) setFromApplication(!!appRow)
-      setAvatarUrl(data?.avatar_url ?? null)
-      const loadedBio: BioForm = {
-        date_of_birth: data?.date_of_birth ?? '',
-        employer: data?.employer ?? '',
-        employer_phone: formatPhone(data?.employer_phone ?? '') || data?.employer_phone || '',
-        monthly_income: data?.monthly_income != null ? String(data.monthly_income) : '',
-        emergency_contact_name: data?.emergency_contact_name ?? '',
-        emergency_contact_phone: formatPhone(data?.emergency_contact_phone ?? '') || data?.emergency_contact_phone || '',
-        emergency_contact_relationship: data?.emergency_contact_relationship ?? '',
-        previous_address: formatAddress(data?.previous_address ?? ''),
-        about_me: data?.about_me ?? '',
+      setLoading(true)
+      setError(false)
+      try {
+        const { data, error: profileErr } = await supabase
+          .from('profiles')
+          .select('notification_email_enabled, notification_sms_enabled, full_name, phone, avatar_url, date_of_birth, employer, employer_phone, monthly_income, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, previous_address, about_me')
+          .eq('id', profile.id)
+          .single()
+        if (profileErr) throw profileErr
+        if (cancelled) return
+        setEmailEnabled(data?.notification_email_enabled ?? true)
+        const loadedSms      = data?.notification_sms_enabled ?? false
+        const loadedFullName = data?.full_name ?? ''
+        const loadedPhone    = formatPhone(data?.phone ?? '') || ''
+        setSmsEnabled(loadedSms)
+        setFullName(loadedFullName)
+        setPhone(loadedPhone)
+        lastSavedProfile.current = { fullName: loadedFullName, phone: loadedPhone, smsEnabled: loadedSms }
+        // Has a submitted application? If so, app-sourced fields lock.
+        const { data: appRow, error: appErr } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('applicant_profile_id', profile.id)
+          .not('submitted_at', 'is', null)
+          .limit(1)
+          .maybeSingle()
+        if (appErr) throw appErr
+        if (!cancelled) setFromApplication(!!appRow)
+        setAvatarUrl(data?.avatar_url ?? null)
+        const loadedBio: BioForm = {
+          date_of_birth: data?.date_of_birth ?? '',
+          employer: data?.employer ?? '',
+          employer_phone: formatPhone(data?.employer_phone ?? '') || data?.employer_phone || '',
+          monthly_income: data?.monthly_income != null ? String(data.monthly_income) : '',
+          emergency_contact_name: data?.emergency_contact_name ?? '',
+          emergency_contact_phone: formatPhone(data?.emergency_contact_phone ?? '') || data?.emergency_contact_phone || '',
+          emergency_contact_relationship: data?.emergency_contact_relationship ?? '',
+          previous_address: formatAddress(data?.previous_address ?? ''),
+          about_me: data?.about_me ?? '',
+        }
+        setBio(loadedBio)
+        lastSavedBio.current = loadedBio
+      } catch {
+        if (!cancelled) setError(true)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      setBio(loadedBio)
-      lastSavedBio.current = loadedBio
-      setLoading(false)
     })()
     return () => { cancelled = true }
-  }, [profile?.id])
+  }, [profile?.id, retryCount])
 
   const saveBio = async () => {
     if (!profile?.id) return
@@ -221,6 +232,25 @@ export default function TenantSettings() {
     return (
       <div className="flex items-center justify-center py-20 text-mute">
         <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
+          <p className="text-sm font-medium text-ink">Couldn't load your settings.</p>
+          <p className="text-xs text-mute mt-1">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={() => setRetryCount((c) => c + 1)}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg"
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+            Check again
+          </button>
+        </div>
       </div>
     )
   }

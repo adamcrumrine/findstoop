@@ -11,6 +11,8 @@ import { getDocumentForView, logEvent, type DocViewBundle } from '@findstoop/sha
 import Letterhead from '../../components/documents/Letterhead'
 import DocPageShell from '../../components/documents/DocPageShell'
 import { Loader2, Download } from 'lucide-react'
+import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
+import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 
 export default function ViewDocument() {
   const { id } = useParams<{ id: string }>()
@@ -18,6 +20,19 @@ export default function ViewDocument() {
   const [bundle, setBundle] = useState<DocViewBundle | null>(null)
   const [loading, setLoading] = useState(true)
   const opened = useRef(false)
+
+  // The viewer is an authed tenant, so their landlord's branding resolves the
+  // same way as in TenantLayout (no public RPC needed). Managers previewing
+  // their own document keep the build brand.
+  const landlord = useLandlordBranding(profile?.role === 'tenant' ? profile.id : undefined)
+
+  // Landlord accent color — layered over the build brand while this page is
+  // mounted; cleanup restores the build palette so it never leaks elsewhere.
+  useEffect(() => {
+    if (!landlord?.brandColor) return
+    applyLandlordBrand(landlord.brandColor)
+    return () => clearLandlordBrand()
+  }, [landlord?.brandColor])
 
   useEffect(() => {
     if (!id || authLoading) return
@@ -46,7 +61,7 @@ export default function ViewDocument() {
 
   if (!user) {
     return (
-      <DocPageShell senderName="your landlord">
+      <DocPageShell senderName="your landlord" landlord={landlord}>
         <div className="text-center py-16">
           <p className="text-ink">Please sign in to view this document.</p>
           <Link to="/login/renter" className="mt-4 inline-block bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Sign in</Link>
@@ -57,7 +72,7 @@ export default function ViewDocument() {
 
   if (!bundle || !bundle.doc.generated_body) {
     return (
-      <DocPageShell senderName="your landlord">
+      <DocPageShell senderName="your landlord" landlord={landlord}>
         <div className="text-center py-16 text-mute">This document isn't available.</div>
       </DocPageShell>
     )
@@ -66,7 +81,7 @@ export default function ViewDocument() {
   const { doc, propertyName, propertyAddress, managerName, managerEmail } = bundle
 
   return (
-    <DocPageShell senderName={managerName} propertyAddress={propertyName} contactEmail={managerEmail}>
+    <DocPageShell senderName={managerName} propertyAddress={propertyName} contactEmail={managerEmail} landlord={landlord}>
       <div className="flex justify-end mb-3">
         <a
           href={`/document-print/${doc.id}`}

@@ -16,6 +16,7 @@ interface BrandRow {
   company_name: string | null
   company_logo_url: string | null
   brand_color: string | null
+  brand_primary_color: string | null
 }
 
 export function useUnitLandlordBrand(unitId: string | undefined): LandlordBranding | null {
@@ -33,10 +34,11 @@ export function useUnitLandlordBrand(unitId: string | undefined): LandlordBrandi
       const companyName = (row?.company_name ?? '').trim() || null
       const logoUrl = row?.company_logo_url ?? null
       const brandColor = row?.brand_color ?? null
+      const primaryColor = row?.brand_primary_color ?? null
       // Nothing customized (or unit/brand not found) → report "no landlord
       // branding" so the page renders the build brand untouched.
-      if (!companyName && !logoUrl && !brandColor) { setBranding(null); return }
-      setBranding({ companyName, logoUrl, brandColor })
+      if (!companyName && !logoUrl && !brandColor && !primaryColor) { setBranding(null); return }
+      setBranding({ companyName, logoUrl, brandColor, primaryColor })
     })()
 
     return () => { cancelled = true }

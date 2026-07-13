@@ -101,28 +101,39 @@ describe('deriveBrandRamp', () => {
 })
 
 describe('applyLandlordBrand / clearLandlordBrand', () => {
-  it('writes the derived ramp plus gradient endpoints', () => {
+  it('writes the derived accent + primary ramps plus gradient endpoints', () => {
     const root = fakeRoot()
-    applyLandlordBrand('#2E5984', root)
+    applyLandlordBrand('#2E5984', null, root)
     for (const step of STEPS) {
       expect(root.vars[`--brand-${step}`]).toMatch(/^\d{1,3} \d{1,3} \d{1,3}$/)
+      // Primary defaults to the accent ramp when no distinct primary is given.
+      expect(root.vars[`--primary-${step}`]).toBe(root.vars[`--brand-${step}`])
     }
     expect(root.vars['--brand-grad-from']).toBe(root.vars['--brand-500'])
     expect(root.vars['--brand-grad-to']).toBe(root.vars['--brand-400'])
   })
 
+  it('writes a distinct primary ramp when a primary color is provided', () => {
+    const root = fakeRoot()
+    applyLandlordBrand('#2E5984', '#B8442D', root)
+    // Accent and primary derive from different hues → at least one step differs.
+    const differs = STEPS.some((step) => root.vars[`--primary-${step}`] !== root.vars[`--brand-${step}`])
+    expect(differs).toBe(true)
+  })
+
   it('ignores invalid colors instead of blanking the palette', () => {
     const root = fakeRoot()
-    applyLandlordBrand('not-a-color', root)
+    applyLandlordBrand('not-a-color', null, root)
     expect(Object.keys(root.vars)).toHaveLength(0)
   })
 
   it('clear restores the build brand exactly (apply → clear roundtrip)', () => {
     const root = fakeRoot()
-    applyLandlordBrand('#FFEE00', root)
+    applyLandlordBrand('#FFEE00', null, root)
     clearLandlordBrand(root)
     for (const step of STEPS) {
       expect(root.vars[`--brand-${step}`]).toBe(BRAND.colors[step])
+      expect(root.vars[`--primary-${step}`]).toBe(BRAND.colors[step])
     }
     expect(root.vars['--brand-grad-from']).toBe(BRAND.gradient[0])
     expect(root.vars['--brand-grad-to']).toBe(BRAND.gradient[1])

@@ -324,17 +324,20 @@ export default function TenantDashboard() {
       label:  'text-orange-50/80',
       pillBg: 'bg-white/15',
     },
+    // Light card with a red glowing outline — urgent without the heavy
+    // full-red fill. Same light-surface shape as `ghost`.
     red:    {
-      card:   'bg-red-600',
-      text:   'text-red-100',
-      amount: 'text-white',
-      btn:    'bg-white text-red-700 hover:bg-red-50',
-      label:  'text-red-100/80',
-      pillBg: 'bg-white/15',
+      card:   'bg-gray-50 border-2 border-red-300 shadow-[0_0_0_4px_rgba(220,38,38,0.15)]',
+      text:   'text-red-600',
+      amount: 'text-ink',
+      btn:    'bg-red-600 text-white hover:bg-red-700',
+      label:  'text-red-600',
+      pillBg: 'bg-red-50',
     },
   } as const
   const s = urgencyStyles[rentUrgency]
-  const onGhost = rentUrgency === 'ghost'
+  // Both ghost and red are light-surfaced cards → dark-on-light child styling.
+  const onGhost = rentUrgency === 'ghost' || rentUrgency === 'red'
 
   // Lease milestones — renewal window on the active lease; deposit-return
   // mirror on the most recent ended lease (only when nothing is active).

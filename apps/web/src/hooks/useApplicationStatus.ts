@@ -82,7 +82,9 @@ export function useApplicationStatus(token: string | undefined): {
         submittedAt: row.submitted_at,
         status: row.status as PublicApplicationStatus,
         branding: (companyName || logoUrl || brandColor)
-          ? { companyName, logoUrl, brandColor }
+          // The public status stepper doesn't carry a separate primary color;
+          // null makes primary fall back to the accent.
+          ? { companyName, logoUrl, brandColor, primaryColor: null }
           : null,
       })
       setLoading(false)

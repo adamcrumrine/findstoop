@@ -151,25 +151,41 @@ interface StylableRoot {
 }
 
 /**
- * Push a landlord's derived palette into the document, overriding the build
- * brand's --brand-* variables. Invalid colors are ignored (the build brand
- * stays in place) so a bad row can never blank the tenant portal.
+ * Push a landlord's derived palettes into the document, overriding the build
+ * brand's variables:
+ *   • `accent` → --brand-* (buttons, links, the surfaces that were Stoop teal)
+ *   • `primary` → --primary-* (portal header, footer, bottom nav — broad shading)
+ *
+ * `primary` is optional: when absent or invalid it falls back to `accent`, so a
+ * landlord who picks a single color still fully brands both roles (unchanged
+ * from the one-color behavior). Invalid accent is ignored entirely (the build
+ * brand stays in place) so a bad row can never blank the tenant portal.
  */
-export function applyLandlordBrand(color: string, root: StylableRoot = document.documentElement) {
-  if (!isValidBrandHex(color)) return
-  const ramp = deriveBrandRamp(color)
-  for (const [step, triplet] of Object.entries(ramp)) {
+export function applyLandlordBrand(
+  accent: string,
+  primary?: string | null,
+  root: StylableRoot = document.documentElement,
+) {
+  if (!isValidBrandHex(accent)) return
+  const accentRamp = deriveBrandRamp(accent)
+  for (const [step, triplet] of Object.entries(accentRamp)) {
     root.style.setProperty(`--brand-${step}`, triplet)
   }
   // Decorative hero gradient — 500 → 400, mirroring the build brands' shape.
-  root.style.setProperty('--brand-grad-from', ramp['500'])
-  root.style.setProperty('--brand-grad-to', ramp['400'])
+  root.style.setProperty('--brand-grad-from', accentRamp['500'])
+  root.style.setProperty('--brand-grad-to', accentRamp['400'])
+
+  const primaryRamp = primary && isValidBrandHex(primary) ? deriveBrandRamp(primary) : accentRamp
+  for (const [step, triplet] of Object.entries(primaryRamp)) {
+    root.style.setProperty(`--primary-${step}`, triplet)
+  }
 }
 
 /** Restore the active build brand's own palette (same values applyBrandTheme sets at boot). */
 export function clearLandlordBrand(root: StylableRoot = document.documentElement) {
   for (const [step, triplet] of Object.entries(BRAND.colors)) {
     root.style.setProperty(`--brand-${step}`, triplet)
+    root.style.setProperty(`--primary-${step}`, triplet)
   }
   root.style.setProperty('--brand-grad-from', BRAND.gradient[0])
   root.style.setProperty('--brand-grad-to', BRAND.gradient[1])

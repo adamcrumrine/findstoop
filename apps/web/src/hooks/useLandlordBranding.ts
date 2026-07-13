@@ -14,8 +14,10 @@ import { supabase } from '../lib/supabase'
 export interface LandlordBranding {
   companyName: string | null
   logoUrl: string | null
-  /** 6-digit hex ("#2E5984") or null when the landlord kept the default palette. */
+  /** Accent hex ("#2E5984") — buttons/links. Null when the landlord kept the default palette. */
   brandColor: string | null
+  /** Primary hex — header/footer/nav broad shading. Null → falls back to the accent. */
+  primaryColor: string | null
 }
 
 interface LeaseRow {
@@ -53,7 +55,7 @@ export function useLandlordBranding(tenantId: string | undefined): LandlordBrand
 
       const { data: manager } = await supabase
         .from('profiles')
-        .select('company_name, company_logo_url, brand_color')
+        .select('company_name, company_logo_url, brand_color, brand_primary_color')
         .eq('id', managerId)
         .maybeSingle()
       if (cancelled) return
@@ -61,10 +63,11 @@ export function useLandlordBranding(tenantId: string | undefined): LandlordBrand
       const companyName = (manager?.company_name ?? '').trim() || null
       const logoUrl = manager?.company_logo_url ?? null
       const brandColor = manager?.brand_color ?? null
+      const primaryColor = manager?.brand_primary_color ?? null
       // Nothing customized → report "no landlord branding" so the portal
       // renders the build brand untouched.
-      if (!companyName && !logoUrl && !brandColor) { setBranding(null); return }
-      setBranding({ companyName, logoUrl, brandColor })
+      if (!companyName && !logoUrl && !brandColor && !primaryColor) { setBranding(null); return }
+      setBranding({ companyName, logoUrl, brandColor, primaryColor })
     })()
 
     return () => { cancelled = true }

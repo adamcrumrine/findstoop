@@ -59,9 +59,9 @@ export default function TenantLayout() {
   // it never leaks onto other layouts after sign-out / route changes.
   useEffect(() => {
     if (!landlord?.brandColor) return
-    applyLandlordBrand(landlord.brandColor)
+    applyLandlordBrand(landlord.brandColor, landlord.primaryColor)
     return () => clearLandlordBrand()
-  }, [landlord?.brandColor])
+  }, [landlord?.brandColor, landlord?.primaryColor])
 
   // Map of route → badge flag for the green cherry dot.
   const badgeFor = (to: string): boolean => {
@@ -105,11 +105,11 @@ export default function TenantLayout() {
           text), circle-cropped logo, "{Company} Rental Portal" lockup. */}
       <header
         className={`px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0 ${
-          landlord ? 'bg-brand-600 shadow-sm' : 'bg-white border-b border-gray-200'
+          landlord ? 'bg-primary-600 shadow-sm' : 'bg-white border-b border-gray-200'
         }`}
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        <Link to="/" aria-label={`${landlord?.companyName ?? BRAND.name} home`} className="min-w-0">
+        <Link to="/" aria-label={`${landlord?.companyName ?? BRAND.name} home`} className="min-w-0 mr-3">
           {landlord ? (
             <span className="flex items-center gap-2.5 min-w-0">
               {landlord.logoUrl ? (
@@ -125,7 +125,9 @@ export default function TenantLayout() {
               )}
               <span className="min-w-0">
                 {landlord.companyName && (
-                  <span className="block text-white font-semibold leading-tight truncate max-w-[200px]">
+                  // Show the full company name — wrap to two lines rather than
+                  // truncate; only very long names (past ~2 lines) get clamped.
+                  <span className="block text-white font-semibold leading-tight line-clamp-2">
                     {landlord.companyName}
                   </span>
                 )}
@@ -202,7 +204,7 @@ export default function TenantLayout() {
           header, so white text clears contrast with room to spare). */}
       <nav
         aria-label="Tenant primary navigation"
-        className={`fixed bottom-0 left-0 right-0 z-20 ${landlord ? 'bg-brand-700' : 'bg-white border-t border-gray-200'}`}
+        className={`fixed bottom-0 left-0 right-0 z-20 ${landlord ? 'bg-primary-700' : 'bg-white border-t border-gray-200'}`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="flex max-w-2xl mx-auto">
@@ -228,7 +230,7 @@ export default function TenantLayout() {
                     {badgeFor(to) && (
                       <span
                         className={`absolute -top-0.5 -right-1.5 w-2.5 h-2.5 rounded-full ring-2 ${
-                          landlord ? 'bg-white ring-brand-700' : 'bg-brand-500 ring-white'
+                          landlord ? 'bg-white ring-primary-700' : 'bg-brand-500 ring-white'
                         }`}
                         aria-label="New activity"
                       />

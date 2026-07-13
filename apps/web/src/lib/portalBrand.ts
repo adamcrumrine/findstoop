@@ -11,7 +11,10 @@ import { PORTAL_SLUG } from './brand'
 export interface PortalBrand {
   companyName: string | null
   logoUrl: string | null
+  /** Accent hex — buttons/links. */
   brandColor: string | null
+  /** Primary hex — header/footer/nav; null falls back to the accent. */
+  primaryColor: string | null
 }
 
 let cache: Promise<PortalBrand | null> | null = null
@@ -22,10 +25,15 @@ export function fetchPortalBrand(): Promise<PortalBrand | null> {
     try {
       const { data } = await supabase.rpc('get_portal_brand', { p_slug: PORTAL_SLUG })
       const row = (Array.isArray(data) ? data[0] : data) as
-        | { company_name: string | null; company_logo_url: string | null; brand_color: string | null }
+        | { company_name: string | null; company_logo_url: string | null; brand_color: string | null; brand_primary_color: string | null }
         | null
-      if (!row || (!row.company_name && !row.company_logo_url && !row.brand_color)) return null
-      return { companyName: row.company_name, logoUrl: row.company_logo_url, brandColor: row.brand_color }
+      if (!row || (!row.company_name && !row.company_logo_url && !row.brand_color && !row.brand_primary_color)) return null
+      return {
+        companyName: row.company_name,
+        logoUrl: row.company_logo_url,
+        brandColor: row.brand_color,
+        primaryColor: row.brand_primary_color,
+      }
     } catch {
       return null
     }
@@ -53,7 +61,7 @@ export function applyPortalBrandTheme(): void {
   if (!PORTAL_SLUG) return
   void fetchPortalBrand().then((b) => {
     if (!b) return
-    if (b.brandColor) applyLandlordBrand(b.brandColor)
+    if (b.brandColor) applyLandlordBrand(b.brandColor, b.primaryColor)
     if (b.companyName) document.title = `${b.companyName} — Resident portal`
   })
 }

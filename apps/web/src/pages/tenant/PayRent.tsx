@@ -352,8 +352,11 @@ export default function TenantPayRent() {
     heroTone === 'brand'  ? 'bg-brand-600 text-white' :
     heroTone === 'ghost'  ? 'bg-white border-2 border-brand-300 shadow-[0_0_0_4px_rgba(0,168,150,0.12)] text-ink' :
     heroTone === 'orange' ? 'bg-orange-500 text-white' :
-                            'bg-red-600 text-white'
-  const isGhost = heroTone === 'ghost'
+                            // Light card + red glowing outline (not a full red fill).
+                            'bg-gray-50 border-2 border-red-300 shadow-[0_0_0_4px_rgba(220,38,38,0.15)] text-ink'
+  const isRed = heroTone === 'red'
+  // Both ghost and red are light-surfaced → dark-on-light child styling.
+  const isGhost = heroTone === 'ghost' || isRed
 
   return (
     <div className="space-y-4 max-w-xl mx-auto">
@@ -504,6 +507,7 @@ export default function TenantPayRent() {
                   onClick={handleStartPayment}
                   disabled={paying}
                   className={`w-full py-3 rounded-xl font-semibold text-sm disabled:opacity-50 transition-colors ${
+                    isRed ? 'bg-red-600 text-white hover:bg-red-700' :
                     isGhost ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-white text-gray-800 hover:bg-gray-50'
                   }`}
                 >

@@ -15,6 +15,11 @@ ALTER TABLE profiles
 -- Anon brand-resolution RPCs must expose the new column too, for pre-auth
 -- surfaces (the apply flow and {company}.findstoop.com portal front door).
 -- Same exposure surface as before — three→four public branding columns only.
+-- Adding an OUT column changes the return type, so the existing functions
+-- must be dropped before recreation (CREATE OR REPLACE can't widen it).
+
+DROP FUNCTION IF EXISTS get_unit_public_brand(uuid);
+DROP FUNCTION IF EXISTS get_portal_brand(text);
 
 CREATE OR REPLACE FUNCTION get_unit_public_brand(p_unit_id uuid)
 RETURNS TABLE (company_name text, company_logo_url text, brand_color text, brand_primary_color text)

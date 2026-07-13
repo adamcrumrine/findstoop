@@ -279,6 +279,7 @@ export default function ManagerSettings() {
             variant="square"
             size={72}
             label="Company logo"
+            allowInvert
           />
 
           <div>
@@ -363,7 +364,11 @@ export default function ManagerSettings() {
                   className="px-4 py-2.5 flex items-center gap-2 text-white text-sm font-semibold"
                   style={{ backgroundColor: primaryPreview ? `rgb(${primaryPreview['600']})` : '#e5e7eb' }}
                 >
-                  <span className="w-6 h-6 rounded-full bg-white/25 ring-1 ring-white/40 inline-block shrink-0" />
+                  {settings.company_logo_url ? (
+                    <img src={settings.company_logo_url} alt="" className="w-6 h-6 rounded-full object-cover bg-white ring-1 ring-white/40 shrink-0" />
+                  ) : (
+                    <span className="w-6 h-6 rounded-full bg-white/25 ring-1 ring-white/40 inline-block shrink-0" />
+                  )}
                   {settings.company_name.trim() || 'Your company'}
                   <span className="text-white/70 text-[11px] font-normal ml-auto">Rental Portal</span>
                 </div>

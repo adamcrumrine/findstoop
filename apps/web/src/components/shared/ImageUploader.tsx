@@ -3,7 +3,7 @@
 
 import { useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Camera, Loader2, Trash2, ImageIcon } from 'lucide-react'
+import { Camera, Loader2, Trash2, ImageIcon, Contrast } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { verifyImageMagicBytes } from '../../lib/fileValidation'
 
@@ -25,6 +25,47 @@ interface ImageUploaderProps {
    * up to ~256px on screen. Set to 0 to skip resizing entirely.
    */
   maxOutputDimension?: number
+  /**
+   * Show an "Invert" button that flips the image's colors (dark↔light) and
+   * re-uploads it. For logos: a dark logo is invisible on the dark portal
+   * header, and inverting fixes it everywhere the asset renders (portal,
+   * emails, PDFs) — CSS filters can't reach emails/PDFs.
+   */
+  allowInvert?: boolean
+}
+
+/**
+ * Fetch an image and return a PNG blob with its RGB channels inverted
+ * (255 − value) and alpha preserved — so transparent logo backgrounds stay
+ * transparent. Uses a Blob→ImageBitmap path so the canvas is never
+ * cross-origin-tainted.
+ */
+async function invertImageToPng(url: string): Promise<Blob> {
+  const res = await fetch(url, { cache: 'no-store' })
+  if (!res.ok) throw new Error('Could not load the current image')
+  const bitmap = await createImageBitmap(await res.blob())
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas not available')
+    ctx.drawImage(bitmap, 0, 0)
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const d = img.data
+    for (let i = 0; i < d.length; i += 4) {
+      d[i] = 255 - d[i]         // R
+      d[i + 1] = 255 - d[i + 1] // G
+      d[i + 2] = 255 - d[i + 2] // B
+      // d[i + 3] (alpha) left untouched
+    }
+    ctx.putImageData(img, 0, 0)
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Canvas conversion failed'))), 'image/png')
+    })
+  } finally {
+    bitmap.close()
+  }
 }
 
 const BUCKET = 'user-uploads'
@@ -82,6 +123,7 @@ export default function ImageUploader({
   label,
   className = '',
   maxOutputDimension = 512,
+  allowInvert = false,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -132,6 +174,27 @@ export default function ImageUploader({
     await onChange(null)
   }
 
+  const handleInvert = async () => {
+    if (!currentUrl || uploading) return
+    setUploading(true)
+    try {
+      const inverted = await invertImageToPng(currentUrl)
+      const path = `${pathPrefix}-${Date.now()}.png`
+      const { error } = await supabase.storage.from(BUCKET).upload(path, inverted, {
+        upsert: true,
+        contentType: 'image/png',
+      })
+      if (error) throw error
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
+      await onChange(data.publicUrl)
+      toast.success('Colors inverted — invert again to undo.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not invert the image')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <div className={`flex items-center gap-4 ${className}`}>
       <div
@@ -162,6 +225,17 @@ export default function ImageUploader({
             <Camera className="w-3.5 h-3.5" strokeWidth={1.75} />
             {currentUrl ? 'Change' : 'Upload'}
           </button>
+          {currentUrl && allowInvert && (
+            <button
+              type="button"
+              onClick={handleInvert}
+              disabled={uploading}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-ink bg-white border border-gray-300 hover:border-brand-400 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              <Contrast className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Invert
+            </button>
+          )}
           {currentUrl && (
             <button
               type="button"
@@ -174,7 +248,10 @@ export default function ImageUploader({
             </button>
           )}
         </div>
-        <p className="text-[11px] text-mute mt-1.5">PNG or JPG, up to 10 MB. We resize automatically.</p>
+        <p className="text-[11px] text-mute mt-1.5">
+          PNG or JPG, up to 10 MB. We resize automatically.
+          {allowInvert && ' Use Invert if your logo is dark — the portal header is colored.'}
+        </p>
       </div>
 
       <input

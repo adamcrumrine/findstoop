@@ -21,7 +21,7 @@ LANGUAGE sql IMMUTABLE AS $$
     'www', 'my', 'app', 'api', 'mail', 'email', 'smtp', 'imap', 'ftp',
     'admin', 'administrator', 'root', 'support', 'help', 'billing',
     'preview', 'staging', 'dev', 'test', 'demo', 'status', 'docs', 'blog',
-    'stoop', 'findstoop', 'hawk', 'security', 'login', 'signin', 'signup',
+    'stoop', 'findstoop', 'security', 'login', 'signin', 'signup',
     'auth', 'account', 'accounts', 'pay', 'payments', 'secure', 'verify',
     'cdn', 'assets', 'static', 'img', 'images'
   ])

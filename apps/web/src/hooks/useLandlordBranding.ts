@@ -7,9 +7,15 @@
 // "profiles_tenant_select_their_manager". Returns null while loading, when
 // the tenant has no lease, or when the landlord set no branding at all — the
 // caller then falls back to the build-time BRAND.
+//
+// Landlord branding is the SUBDOMAIN experience: it applies only when the
+// tenant is on a {company}.findstoop.com portal host (PORTAL_SLUG set). On the
+// bare findstoop.com the tenant portal stays pure Stoop, matching how the
+// marketing/portal front door already resolves branding by hostname.
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { PORTAL_SLUG } from '../lib/brand'
 
 export interface LandlordBranding {
   companyName: string | null
@@ -30,7 +36,8 @@ export function useLandlordBranding(tenantId: string | undefined): LandlordBrand
   const [branding, setBranding] = useState<LandlordBranding | null>(null)
 
   useEffect(() => {
-    if (!tenantId) { setBranding(null); return }
+    // Off a portal subdomain → no landlord branding; the portal renders as Stoop.
+    if (!tenantId || !PORTAL_SLUG) { setBranding(null); return }
     let cancelled = false
 
     ;(async () => {

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
-import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, LogOut, type LucideIcon } from 'lucide-react'
+import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, LogOut, GraduationCap, type LucideIcon } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
 import PoweredByStoop from '../shared/PoweredByStoop'
@@ -25,6 +26,39 @@ const navItems: NavItem[] = [
   { to: '/tenant/messages',    label: 'Messages',    Icon: MessageSquare },
   { to: '/tenant/settings',    label: 'Settings',    Icon: SettingsIcon },
 ]
+
+// Student-housing communities get a Resources tab (guides, campus info —
+// /tenant/resources renders a "not enabled" state for everyone else, but
+// without this the page was reachable only via a Dashboard card). One cheap
+// flag query — current lease → unit → property — kept out of
+// useTenantDashboard so the layout doesn't adopt its full
+// lease/payments/maintenance fetch just for a nav item.
+function useStudentHousing(tenantId: string | undefined): boolean {
+  const [enabled, setEnabled] = useState(false)
+  useEffect(() => {
+    if (!tenantId) { setEnabled(false); return }
+    let cancelled = false
+    ;(async () => {
+      // Same "current lease" priority as useLandlordBranding: active first,
+      // then upcoming, most recent within a status.
+      const { data } = await supabase
+        .from('leases')
+        .select('status, unit:units(properties(student_housing))')
+        .eq('tenant_id', tenantId)
+        .in('status', ['active', 'upcoming'])
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+      const rows = (data ?? []) as unknown as {
+        status: string
+        unit: { properties: { student_housing: boolean | null } | null } | null
+      }[]
+      const current = rows.find((r) => r.status === 'active') ?? rows.find((r) => r.status === 'upcoming') ?? null
+      setEnabled(!!current?.unit?.properties?.student_housing)
+    })()
+    return () => { cancelled = true }
+  }, [tenantId])
+  return enabled
+}
 
 // One ambient illustration per route — sits large and washed-out behind the
 // page's content cards to add depth without competing with them. Each route
@@ -50,6 +84,11 @@ export default function TenantLayout() {
   const location = useLocation()
   const badges = useTenantBadges(profile?.id)
   const { branding: landlord, loading: brandingLoading } = useLandlordBrandingState(profile?.id)
+  const studentHousing = useStudentHousing(profile?.id)
+  // Resources slots in before Settings; everyone else keeps the six-tab bar.
+  const visibleNavItems = studentHousing
+    ? [...navItems.slice(0, 5), { to: '/tenant/resources', label: 'Resources', Icon: GraduationCap }, navItems[5]]
+    : navItems
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const pageBg = PAGE_BG[location.pathname] ?? null
@@ -226,7 +265,7 @@ export default function TenantLayout() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="flex max-w-2xl mx-auto">
-          {navItems.map(({ to, label, Icon }) => (
+          {visibleNavItems.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -246,15 +285,21 @@ export default function TenantLayout() {
                       strokeWidth={1.75}
                     />
                     {badgeFor(to) && (
+                      // Decorative dot — the accessible "new activity" lives in
+                      // the link's label text below (aria-label on a bare span
+                      // isn't reliably exposed to assistive tech).
                       <span
+                        aria-hidden="true"
                         className={`absolute -top-0.5 -right-1.5 w-2.5 h-2.5 rounded-full ring-2 ${
                           landlord ? 'bg-white ring-primary-700' : 'bg-brand-500 ring-white'
                         }`}
-                        aria-label="New activity"
                       />
                     )}
                   </div>
-                  <span>{label}</span>
+                  <span>
+                    {label}
+                    {badgeFor(to) && <span className="sr-only"> (new activity)</span>}
+                  </span>
                   {isActive && (
                     <span className={`absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${landlord ? 'bg-white' : 'bg-brand-500'}`} />
                   )}

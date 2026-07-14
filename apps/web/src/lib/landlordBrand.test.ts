@@ -77,13 +77,18 @@ describe('deriveBrandRamp', () => {
   // The whole point of the derivation: buttons (white on 500) and links
   // (600 on white) must clear AA no matter what the landlord picks —
   // including pathological near-white picks like pure yellow or a pastel.
-  it('guarantees 4.5:1 vs white on the 500 and 600 steps for any pick', () => {
+  // 700 carries white text too (tenant portal bottom nav): its safety is
+  // implied by monotonic darkening from the corrected 600, but assert it
+  // explicitly so a future STEP_LIGHTNESS tweak can't silently break it.
+  it('guarantees 4.5:1 vs white on the 500, 600, and 700 steps for any pick', () => {
     const picks = ['#FFEE00', '#FFB6C1', '#87CEEB', '#00A896', '#FF0000', '#777777', '#FFFFFF', '#000000']
     for (const hex of picks) {
       const ramp = deriveBrandRamp(hex)
       expect(contrastRatio(tripletToRgb(ramp['500']), [255, 255, 255]), `${hex} 500`)
         .toBeGreaterThanOrEqual(4.5)
       expect(contrastRatio(tripletToRgb(ramp['600']), [255, 255, 255]), `${hex} 600`)
+        .toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(tripletToRgb(ramp['700']), [255, 255, 255]), `${hex} 700`)
         .toBeGreaterThanOrEqual(4.5)
     }
   })

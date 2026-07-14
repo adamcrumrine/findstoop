@@ -459,6 +459,7 @@ function ItemRow({ item, canEdit, hashRecords, onChange, onPhotoAdd, onPhotoDele
                 key={c.key}
                 type="button"
                 disabled={!canEdit}
+                aria-pressed={active}
                 onClick={() => onChange({ condition: c.key })}
                 className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                   active ? c.cls : 'bg-white text-mute border-gray-200 hover:border-gray-400'

@@ -15,6 +15,8 @@
 // apps/web/public/brands/<id>/, and build with VITE_BRAND=<id>.
 // See docs/white-label.md.
 
+import { getUniversity, type UniversityPortal } from './universityPortals'
+
 export interface Brand {
   id: string
   /** User-visible product/company name — "Stoop", "Hawk Investments". */
@@ -201,6 +203,12 @@ const HOSTNAME_BRANDS: Record<string, string> = {
 // provides the portal shell, and lib/portalBrand.ts resolves the landlord's
 // name/logo/accent at runtime via the anon get_portal_brand RPC. Unknown
 // slugs simply render the generic portal — nothing to enumerate.
+//
+// EXCEPT university subdomains ({university}.findstoop.com): those resolve to
+// the static university registry (universityPortals.ts) and must win BEFORE
+// landlord resolution — a university subdomain is never a landlord slug and
+// never hits get_portal_brand. Reserved at the DB too so no landlord can claim
+// one (see the reserve-university-slugs migration).
 /** Platform base domain for landlord portal slugs ("{slug}.findstoop.com"). */
 export const PORTAL_BASE_DOMAIN = 'findstoop.com'
 const BASE_DOMAIN = `.${PORTAL_BASE_DOMAIN}`
@@ -213,13 +221,25 @@ function slugFromHostname(hostname: string): string | null {
   return label
 }
 
-/** The landlord portal slug this page is being served for, or null. */
-export const PORTAL_SLUG: string | null =
+// One first-level subdomain label for this host (e.g. 'osu' or 'acme'), or null.
+const subdomainSlug: string | null =
   typeof window !== 'undefined' ? slugFromHostname(window.location.hostname) : null
+
+/** The live university whose portal is being served, or null. Wins over the
+ *  landlord portal slug — a university subdomain resolves statically here. */
+export const UNIVERSITY: UniversityPortal | null =
+  subdomainSlug ? getUniversity(subdomainSlug) : null
+
+/** The university slug this page is being served for, or null. */
+export const UNIVERSITY_SLUG: string | null = UNIVERSITY?.slug ?? null
+
+/** The landlord portal slug this page is being served for, or null. A
+ *  university subdomain is NOT a landlord slug — it never resolves here. */
+export const PORTAL_SLUG: string | null = UNIVERSITY ? null : subdomainSlug
 
 const runtimeBrandId =
   typeof window !== 'undefined'
-    ? (HOSTNAME_BRANDS[window.location.hostname] ?? (PORTAL_SLUG ? 'my' : undefined))
+    ? (HOSTNAME_BRANDS[window.location.hostname] ?? ((PORTAL_SLUG || UNIVERSITY_SLUG) ? 'my' : undefined))
     : undefined
 const brandId = runtimeBrandId || import.meta.env.VITE_BRAND || 'stoop'
 export const BRAND: Brand = BRANDS[brandId] ?? stoop

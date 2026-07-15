@@ -15,6 +15,7 @@ import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 import { renewalWindow, depositMirror, type DepositMirrorInfo } from '../../lib/tenantMilestones'
 import { deadlineUrgency } from '../../lib/depositReturn'
+import { studentFeaturesOn } from '../../lib/studentFeatures'
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-lg ${className ?? ''}`} />
@@ -468,8 +469,9 @@ function TenantDashboardInner({ onRetry }: { onRetry: () => void }) {
         <SetupChecklist lease={lease} paymentMethodSetup={paymentMethodSetup} autopayEnabled={autopayEnabled} />
       )}
 
-      {/* Renter resources — only when the landlord enabled student-housing mode. */}
-      {!loading && lease?.unit?.properties?.student_housing && (
+      {/* Renter resources — student-housing property, a student-marked lease,
+          or a university subdomain (see lib/studentFeatures). */}
+      {!loading && studentFeaturesOn(lease) && (
         <button
           onClick={() => navigate('/tenant/resources')}
           className="w-full bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:bg-brand-100 transition-colors text-left"

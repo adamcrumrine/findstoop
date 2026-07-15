@@ -24,6 +24,11 @@ export interface Lease {
   document_url: string | null
   sent_for_signature_at: string | null
   collect_last_months_rent?: boolean
+  // TRUE when the manager has marked this lease a student lease (à la carte,
+  // without a university subdomain), turning on the student renter tools for
+  // this tenant. Optional: the column is added by an additive migration and is
+  // simply absent (undefined) until it's applied. See lib/studentFeatures.ts.
+  is_student?: boolean | null
   created_at: string
   // Optional embed when the lease is fetched with property info — used by the
   // tenant dashboard to show "Property name · Unit X".

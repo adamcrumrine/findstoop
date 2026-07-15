@@ -8,14 +8,22 @@
 // the tenant has no lease, or when the landlord set no branding at all — the
 // caller then falls back to the build-time BRAND.
 //
-// Landlord branding is the SUBDOMAIN experience: it applies only when the
-// tenant is on a {company}.findstoop.com portal host (PORTAL_SLUG set). On the
-// bare findstoop.com the tenant portal stays pure Stoop, matching how the
+// Landlord branding is the SUBDOMAIN experience: it applies when the tenant is
+// on a {company}.findstoop.com portal host (PORTAL_SLUG set) OR a
+// {university}.findstoop.com host (UNIVERSITY_SLUG set). On the bare
+// findstoop.com the tenant portal stays pure Stoop, matching how the
 // marketing/portal front door already resolves branding by hostname.
+//
+// On a university subdomain the university fronts the portal chrome, but the
+// landlord identity resolved here is still what money + legal surfaces (Pay
+// Rent, Documents) present — a student always knows who they actually pay and
+// sign with. So we resolve it on university hosts too, not just landlord ones.
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { PORTAL_SLUG } from '../lib/brand'
+import { PORTAL_SLUG, UNIVERSITY_SLUG } from '../lib/brand'
+
+const ON_BRANDED_HOST = Boolean(PORTAL_SLUG || UNIVERSITY_SLUG)
 
 export interface LandlordBranding {
   companyName: string | null
@@ -50,14 +58,14 @@ export interface LandlordBrandingState {
  */
 export function useLandlordBrandingState(tenantId: string | undefined): LandlordBrandingState {
   const [branding, setBranding] = useState<LandlordBranding | null>(null)
-  // Only portal subdomains have anything to resolve — starting true off-portal
+  // Only branded subdomains have anything to resolve — starting true off-host
   // would flash a one-frame header skeleton (effects run after first paint).
-  const [loading, setLoading] = useState(Boolean(PORTAL_SLUG))
+  const [loading, setLoading] = useState(ON_BRANDED_HOST)
 
   useEffect(() => {
-    // Off a portal subdomain → no landlord branding; the portal renders as
+    // Off a branded subdomain → no landlord branding; the portal renders as
     // Stoop immediately — nothing to wait on.
-    if (!PORTAL_SLUG) { setBranding(null); setLoading(false); return }
+    if (!ON_BRANDED_HOST) { setBranding(null); setLoading(false); return }
     // Portal subdomain, but we don't know the tenant yet — stay in the
     // loading state rather than reporting "no branding" prematurely.
     if (!tenantId) { setBranding(null); setLoading(true); return }

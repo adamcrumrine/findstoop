@@ -25,7 +25,7 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import {
   ArrowLeft, AlertTriangle, Save, Send, FileSignature, Loader2, CheckCircle2,
   FileText, ExternalLink, ClipboardList, ArrowRight, Check, ShieldCheck,
-  Scale, ChevronRight, Lock,
+  Scale, ChevronRight, Lock, GraduationCap,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
@@ -731,6 +731,10 @@ export default function ReviewLease() {
 
       {/* Stacked layout: editable fields full-width on top, then document. */}
       <div className="space-y-4">
+        {/* Student lease — administrative marking (not a lease term), so it
+            stays editable even on an executed lease, like the move-out notice. */}
+        <StudentLeaseCard lease={lease} />
+
         {/* Editable structured fields — multi-column grid, full width */}
         <section className="bg-white rounded-2xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-4">Lease details</h2>
@@ -1264,6 +1268,63 @@ export default function ReviewLease() {
         )
       })()}
     </div>
+  )
+}
+
+// ── Student lease toggle ───────────────────────────────────────────────
+// Marks this lease a student lease (leases.is_student) — the à-la-carte way a
+// manager turns on the student renter tools for one tenant without a
+// university subdomain or flipping the whole property to Student Housing mode.
+// Mirrors PropertyDetail's Student Housing switch idiom. Administrative, not a
+// lease term, so it stays editable regardless of executed status.
+//
+// Reads `is_student` off the lease tolerantly (loaded via `select('*')`) and
+// writes it directly; if the column doesn't exist yet (pre-migration) the
+// write simply errors into a toast — the page never breaks.
+function StudentLeaseCard({ lease }: { lease: LeaseWithRefs }) {
+  const [on, setOn] = useState(Boolean((lease as { is_student?: boolean | null }).is_student))
+  const [saving, setSaving] = useState(false)
+  const toggle = async () => {
+    if (saving) return
+    const next = !on
+    setOn(next)
+    setSaving(true)
+    const { error } = await supabase.from('leases').update({ is_student: next }).eq('id', lease.id)
+    setSaving(false)
+    if (error) {
+      setOn(!next)
+      toast.error(error.message)
+    } else {
+      toast.success(next ? 'Marked as a student lease' : 'Student lease marking removed')
+    }
+  }
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+            <h2 className="text-sm font-semibold text-ink">Student lease</h2>
+          </div>
+          <p className="text-xs text-mute mt-1.5 leading-relaxed">
+            Mark this a student lease to give this tenant the free renter tools in their portal —
+            a plain-English lease explainer, their Ohio tenant rights, move-in documentation, and
+            deposit protection. Use this for a student renter when the whole property isn't student
+            housing. Powered by {BRAND.name}.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Student lease"
+          onClick={toggle}
+          className={`shrink-0 mt-1 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? 'bg-brand-600' : 'bg-gray-300'}`}
+        >
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+    </section>
   )
 }
 

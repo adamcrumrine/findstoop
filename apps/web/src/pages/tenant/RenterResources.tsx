@@ -9,7 +9,9 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { getTenantActiveLease } from '@findstoop/shared/api/leases'
 import type { Lease } from '@findstoop/shared/types/lease'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
-import { FileSearch, ScrollText, Camera, ShieldCheck, Banknote, Scale, GitCompareArrows, Loader2, GraduationCap, ChevronRight, type LucideIcon } from 'lucide-react'
+import { UNIVERSITY } from '../../lib/brand'
+import { studentFeaturesOn } from '../../lib/studentFeatures'
+import { FileSearch, ScrollText, Camera, ShieldCheck, Banknote, Scale, GitCompareArrows, Loader2, GraduationCap, ChevronRight, ExternalLink, Building2, Mail, Phone, type LucideIcon } from 'lucide-react'
 
 export default function RenterResources() {
   const { user } = useAuth()
@@ -29,7 +31,7 @@ export default function RenterResources() {
     return <div className="flex justify-center py-20 text-mute"><Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} /></div>
   }
 
-  const enabled = !!lease?.unit?.properties?.student_housing
+  const enabled = studentFeaturesOn(lease)
   const leaseId = lease?.id
 
   if (!enabled) {
@@ -56,7 +58,11 @@ export default function RenterResources() {
     <div className="max-w-2xl mx-auto">
       <header className="mb-5">
         <h1 className="text-2xl font-bold text-ink">Renter resources</h1>
-        <p className="text-sm text-mute mt-1">Free tools to help you rent smart — especially around your security deposit.</p>
+        <p className="text-sm text-mute mt-1">
+          {UNIVERSITY
+            ? `Free tools to help ${UNIVERSITY.shortName} students rent smart — especially around your security deposit.`
+            : 'Free tools to help you rent smart — especially around your security deposit.'}
+        </p>
       </header>
 
       <div className="space-y-3">
@@ -80,6 +86,57 @@ export default function RenterResources() {
             : <Link key={t.title} to={t.to} className={cls}>{inner}</Link>
         })}
       </div>
+
+      {/* University campus resources — the school's own off-campus-housing
+          links + office contact, from the university registry. Only shown on a
+          university subdomain; generic student tenants keep the tools above. */}
+      {UNIVERSITY && (UNIVERSITY.campusLinks.length > 0 || UNIVERSITY.housingOffice) && (
+        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink mb-3">
+            <Building2 className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
+            {UNIVERSITY.shortName} campus resources
+          </h2>
+
+          {UNIVERSITY.campusLinks.length > 0 && (
+            <ul className="space-y-1.5 mb-3">
+              {UNIVERSITY.campusLinks.map((l) => (
+                <li key={l.url}>
+                  <a
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-800 font-medium"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-semibold text-ink">{UNIVERSITY.housingOffice.name}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-mute">
+              {UNIVERSITY.housingOffice.email && (
+                <a href={`mailto:${UNIVERSITY.housingOffice.email}`} className="inline-flex items-center gap-1 hover:text-ink">
+                  <Mail className="w-3.5 h-3.5" strokeWidth={1.75} /> {UNIVERSITY.housingOffice.email}
+                </a>
+              )}
+              {UNIVERSITY.housingOffice.phone && (
+                <a href={`tel:${UNIVERSITY.housingOffice.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1 hover:text-ink">
+                  <Phone className="w-3.5 h-3.5" strokeWidth={1.75} /> {UNIVERSITY.housingOffice.phone}
+                </a>
+              )}
+              {UNIVERSITY.housingOffice.url && (
+                <a href={UNIVERSITY.housingOffice.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-ink">
+                  <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} /> Website
+                </a>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="mt-6 flex justify-center"><PoweredByStoop size="md" /></div>
     </div>

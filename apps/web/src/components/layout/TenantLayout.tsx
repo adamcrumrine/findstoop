@@ -8,7 +8,7 @@ import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
 import PoweredByStoop from '../shared/PoweredByStoop'
 import InstallPrompt from '../shared/InstallPrompt'
-import { BRAND, IS_WHITE_LABEL } from '../../lib/brand'
+import { BRAND, IS_WHITE_LABEL, UNIVERSITY, UNIVERSITY_SLUG } from '../../lib/brand'
 import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
 import { useLandlordBrandingState } from '../../hooks/useLandlordBranding'
 
@@ -34,26 +34,31 @@ const navItems: NavItem[] = [
 // useTenantDashboard so the layout doesn't adopt its full
 // lease/payments/maintenance fetch just for a nav item.
 function useStudentHousing(tenantId: string | undefined): boolean {
-  const [enabled, setEnabled] = useState(false)
+  // On a university subdomain the student features are ALWAYS on — no query.
+  const [enabled, setEnabled] = useState(Boolean(UNIVERSITY_SLUG))
   useEffect(() => {
+    if (UNIVERSITY_SLUG) { setEnabled(true); return }
     if (!tenantId) { setEnabled(false); return }
     let cancelled = false
     ;(async () => {
       // Same "current lease" priority as useLandlordBranding: active first,
-      // then upcoming, most recent within a status.
+      // then upcoming, most recent within a status. Select `*` so the
+      // per-lease `is_student` flag comes through when present but a missing
+      // column (pre-migration) can't throw.
       const { data } = await supabase
         .from('leases')
-        .select('status, unit:units(properties(student_housing))')
+        .select('*, unit:units(properties(student_housing))')
         .eq('tenant_id', tenantId)
         .in('status', ['active', 'upcoming'])
         .order('created_at', { ascending: false })
       if (cancelled) return
       const rows = (data ?? []) as unknown as {
         status: string
+        is_student?: boolean | null
         unit: { properties: { student_housing: boolean | null } | null } | null
       }[]
       const current = rows.find((r) => r.status === 'active') ?? rows.find((r) => r.status === 'upcoming') ?? null
-      setEnabled(!!current?.unit?.properties?.student_housing)
+      setEnabled(!!current?.unit?.properties?.student_housing || !!current?.is_student)
     })()
     return () => { cancelled = true }
   }, [tenantId])
@@ -83,8 +88,24 @@ export default function TenantLayout() {
   const { signOut, profile } = useAuth()
   const location = useLocation()
   const badges = useTenantBadges(profile?.id)
-  const { branding: landlord, loading: brandingLoading } = useLandlordBrandingState(profile?.id)
+  const { branding: landlord, loading: landlordLoading } = useLandlordBrandingState(profile?.id)
   const studentHousing = useStudentHousing(profile?.id)
+
+  // Who fronts the portal chrome (header, nav, palette). On a university
+  // subdomain the UNIVERSITY wins — resolved synchronously from the static
+  // registry, so there's nothing to wait on. Otherwise it's the landlord's
+  // brand (unchanged). The landlord identity resolved above still fronts the
+  // money + legal surfaces (Pay Rent, Documents) even under a university —
+  // those pages read useLandlordBranding themselves.
+  const portalBrand: { companyName: string | null; logoUrl: string | null; brandColor: string | null; primaryColor: string | null } | null =
+    UNIVERSITY
+      ? { companyName: UNIVERSITY.name, logoUrl: UNIVERSITY.logoUrl ?? null, brandColor: UNIVERSITY.accentColor, primaryColor: UNIVERSITY.primaryColor }
+      : landlord
+  // University identity is known before paint; only landlord resolution waits.
+  const brandingLoading = UNIVERSITY ? false : landlordLoading
+  // Sublabel under the portal name: a university carries a "Student portal"
+  // lockup; a landlord keeps "Rental Portal".
+  const portalKind = UNIVERSITY ? 'Student portal' : 'Rental Portal'
   // Resources slots in before Settings; everyone else keeps the six-tab bar.
   const visibleNavItems = studentHousing
     ? [...navItems.slice(0, 5), { to: '/tenant/resources', label: 'Resources', Icon: GraduationCap }, navItems[5]]
@@ -105,11 +126,11 @@ export default function TenantLayout() {
   // too — same "one color brands both roles" fallback the landlord already
   // gets when only brandColor is set.
   useEffect(() => {
-    const accent = landlord?.brandColor ?? landlord?.primaryColor ?? null
+    const accent = portalBrand?.brandColor ?? portalBrand?.primaryColor ?? null
     if (!accent) return
-    applyLandlordBrand(accent, landlord?.primaryColor ?? null)
+    applyLandlordBrand(accent, portalBrand?.primaryColor ?? null)
     return () => clearLandlordBrand()
-  }, [landlord?.brandColor, landlord?.primaryColor])
+  }, [portalBrand?.brandColor, portalBrand?.primaryColor])
 
   // Map of route → badge flag for the green cherry dot.
   const badgeFor = (to: string): boolean => {
@@ -155,40 +176,40 @@ export default function TenantLayout() {
         className={`px-4 py-3 flex items-center justify-between sticky top-0 z-30 shrink-0 ${
           // Neutral surface while branding is still resolving — otherwise a
           // branded subdomain flashes the default Stoop header first, then
-          // pops to the landlord's colors once the fetch lands.
-          brandingLoading ? 'bg-white border-b border-gray-200' : landlord ? 'bg-primary-600 shadow-sm' : 'bg-white border-b border-gray-200'
+          // pops to the brand's colors once the fetch lands.
+          brandingLoading ? 'bg-white border-b border-gray-200' : portalBrand ? 'bg-primary-600 shadow-sm' : 'bg-white border-b border-gray-200'
         }`}
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
       >
-        <Link to="/" aria-label={brandingLoading ? 'Home' : `${landlord?.companyName ?? BRAND.name} home`} className="min-w-0 mr-3">
+        <Link to="/" aria-label={brandingLoading ? 'Home' : `${portalBrand?.companyName ?? BRAND.name} home`} className="min-w-0 mr-3">
           {brandingLoading ? (
             <span className="flex items-center gap-2.5 min-w-0" aria-hidden="true">
               <span className="w-10 h-10 rounded-full bg-gray-100 animate-pulse shrink-0" />
               <span className="hidden sm:block w-24 h-4 rounded bg-gray-100 animate-pulse" />
             </span>
-          ) : landlord ? (
+          ) : portalBrand ? (
             <span className="flex items-center gap-2.5 min-w-0">
-              {landlord.logoUrl ? (
+              {portalBrand.logoUrl ? (
                 <img
-                  src={landlord.logoUrl}
+                  src={portalBrand.logoUrl}
                   alt=""
                   className="w-10 h-10 rounded-full object-cover bg-white ring-2 ring-white/30 shrink-0"
                 />
               ) : (
                 <span className="w-10 h-10 rounded-full bg-white/15 ring-2 ring-white/30 text-white font-bold text-lg inline-flex items-center justify-center shrink-0">
-                  {(landlord.companyName ?? 'R').charAt(0).toUpperCase()}
+                  {(portalBrand.companyName ?? 'R').charAt(0).toUpperCase()}
                 </span>
               )}
               <span className="min-w-0">
-                {landlord.companyName && (
-                  // Show the full company name — wrap to two lines rather than
+                {portalBrand.companyName && (
+                  // Show the full name — wrap to two lines rather than
                   // truncate; only very long names (past ~2 lines) get clamped.
                   <span className="block text-white font-semibold leading-tight line-clamp-2">
-                    {landlord.companyName}
+                    {portalBrand.companyName}
                   </span>
                 )}
-                <span className={`block text-white/70 leading-tight ${landlord.companyName ? 'text-[11px]' : 'text-base font-semibold text-white'}`}>
-                  Rental Portal
+                <span className={`block text-white/70 leading-tight ${portalBrand.companyName ? 'text-[11px]' : 'text-base font-semibold text-white'}`}>
+                  {portalKind}
                 </span>
               </span>
             </span>
@@ -261,7 +282,7 @@ export default function TenantLayout() {
           header, so white text clears contrast with room to spare). */}
       <nav
         aria-label="Tenant primary navigation"
-        className={`fixed bottom-0 left-0 right-0 z-20 ${landlord ? 'bg-primary-700' : 'bg-white border-t border-gray-200'}`}
+        className={`fixed bottom-0 left-0 right-0 z-20 ${portalBrand ? 'bg-primary-700' : 'bg-white border-t border-gray-200'}`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="flex max-w-2xl mx-auto">
@@ -271,7 +292,7 @@ export default function TenantLayout() {
               to={to}
               className={({ isActive }) =>
                 `relative flex flex-col items-center justify-center flex-1 pt-3 pb-3 text-[10px] font-medium transition-colors ${
-                  landlord
+                  portalBrand
                     ? isActive ? 'text-white' : 'text-white/60 hover:text-white/85'
                     : isActive ? 'text-brand-600' : 'text-mute'
                 }`
@@ -291,7 +312,7 @@ export default function TenantLayout() {
                       <span
                         aria-hidden="true"
                         className={`absolute -top-0.5 -right-1.5 w-2.5 h-2.5 rounded-full ring-2 ${
-                          landlord ? 'bg-white ring-primary-700' : 'bg-brand-500 ring-white'
+                          portalBrand ? 'bg-white ring-primary-700' : 'bg-brand-500 ring-white'
                         }`}
                       />
                     )}
@@ -301,7 +322,7 @@ export default function TenantLayout() {
                     {badgeFor(to) && <span className="sr-only"> (new activity)</span>}
                   </span>
                   {isActive && (
-                    <span className={`absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${landlord ? 'bg-white' : 'bg-brand-500'}`} />
+                    <span className={`absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${portalBrand ? 'bg-white' : 'bg-brand-500'}`} />
                   )}
                 </>
               )}
@@ -311,8 +332,8 @@ export default function TenantLayout() {
         {/* Attribution — always on when another brand fronts the portal
             (landlord branding or a white-label build). Lives inside the fixed
             nav so it stays visible without its own layout band. */}
-        {(landlord || IS_WHITE_LABEL) && (
-          <div className={`flex justify-center py-1 ${landlord ? 'bg-white/95 border-t border-white/20' : 'border-t border-gray-100'}`}>
+        {(portalBrand || IS_WHITE_LABEL) && (
+          <div className={`flex justify-center py-1 ${portalBrand ? 'bg-white/95 border-t border-white/20' : 'border-t border-gray-100'}`}>
             <PoweredByStoop />
           </div>
         )}

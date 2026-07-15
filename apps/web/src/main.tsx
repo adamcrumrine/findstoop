@@ -6,7 +6,7 @@ import { AuthProvider } from '@findstoop/shared/hooks/AuthProvider'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import { installGlobalErrorHandlers } from './lib/analytics'
 import { applyBrandTheme } from './lib/brand'
-import { applyPortalBrandTheme } from './lib/portalBrand'
+import { applyPortalBrandTheme, applyUniversityBrandTheme } from './lib/portalBrand'
 import App from './App.tsx'
 import './index.css'
 
@@ -20,6 +20,10 @@ applyBrandTheme()
 // {company}.findstoop.com — layer the landlord's accent/title on top once
 // their public brand resolves (async; generic portal renders meanwhile).
 applyPortalBrandTheme()
+
+// {university}.findstoop.com — static registry, so the university's palette and
+// title apply synchronously before first paint (no fetch). No-op otherwise.
+applyUniversityBrandTheme()
 
 // Register service worker — auto-updates silently in background
 registerSW({ immediate: false })

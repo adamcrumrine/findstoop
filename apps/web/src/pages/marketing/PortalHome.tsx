@@ -1,17 +1,27 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, CreditCard, Wrench, FileSignature, KeyRound, MessageSquare, ShieldCheck } from 'lucide-react'
-import { BRAND } from '../../lib/brand'
+import { BRAND, UNIVERSITY } from '../../lib/brand'
 import { useSeo } from '../../lib/useSeo'
+import PoweredByStoop from '../../components/shared/PoweredByStoop'
 
 // Homepage for portal-experience brands (see brand.ts): a property company's
 // own front door. Residents get straight-to-action cards instead of the SaaS
 // marketing pitch that Home.tsx serves for the default brand.
 export default function PortalHome() {
   useSeo({
-    title: 'Resident portal',
-    description: BRAND.description,
+    title: UNIVERSITY ? `${UNIVERSITY.name} renter portal` : 'Resident portal',
+    description: UNIVERSITY ? UNIVERSITY.tagline : BRAND.description,
     path: '/',
   })
+
+  // A university subdomain speaks to its students by name; otherwise the
+  // generic portal copy (or a landlord's, applied by color at boot) stands.
+  const headline = UNIVERSITY
+    ? `${UNIVERSITY.shortName} student housing, handled.`
+    : (BRAND.portal?.headline ?? `Welcome to ${BRAND.name}`)
+  const subline = UNIVERSITY
+    ? `Pay rent, sign your lease, request maintenance, and get renter help built for ${UNIVERSITY.name} students — wherever you live off campus.`
+    : (BRAND.portal?.subline ?? BRAND.tagline)
 
   return (
     <>
@@ -20,10 +30,10 @@ export default function PortalHome() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgb(var(--brand-grad-from)/0.10),transparent_60%)] pointer-events-none" />
         <div className="relative max-w-6xl mx-auto px-5 lg:px-8 pt-16 pb-14 lg:pt-24 lg:pb-20 text-center">
           <h1 className="text-4xl lg:text-6xl font-bold text-ink tracking-tight">
-            {BRAND.portal?.headline ?? `Welcome to ${BRAND.name}`}
+            {headline}
           </h1>
           <p className="mt-5 text-lg text-mute max-w-2xl mx-auto">
-            {BRAND.portal?.subline ?? BRAND.tagline}
+            {subline}
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -40,6 +50,13 @@ export default function PortalHome() {
               Create a resident account
             </Link>
           </div>
+          {/* Attribution — a university fronts the portal, the platform is
+              credited per the brand rules. */}
+          {UNIVERSITY && (
+            <div className="mt-6 flex justify-center">
+              <PoweredByStoop size="md" />
+            </div>
+          )}
         </div>
       </section>
 

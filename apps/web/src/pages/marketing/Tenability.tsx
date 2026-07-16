@@ -16,15 +16,11 @@ import {
   CreditCard, IdCard, BarChart3,
   type LucideIcon,
 } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 export default function Tenability() {
-  useSeo({
-    title: 'Tenability™ — the 0–100 AI rentability score (from $5)',
-    description: `Tenability™ is ${BRAND.name}'s private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.`,
-    path: '/tenability',
-  })
+  useRouteSeo('/tenability')
 
   return (
     <>

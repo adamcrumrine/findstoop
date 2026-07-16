@@ -7,15 +7,11 @@
 // additional disclosures depending on residence of the visitor.
 
 import { Link } from 'react-router-dom'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 export default function Privacy() {
-  useSeo({
-    title: 'Privacy Policy',
-    description: `How ${BRAND.name} collects, uses, and protects landlord, tenant, and applicant data. What we share, what we don't, and your rights.`,
-    path: '/privacy',
-  })
+  useRouteSeo('/privacy')
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">

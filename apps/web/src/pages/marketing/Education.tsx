@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import {
   BookOpen, ArrowRight, ShieldCheck, ClipboardList, FileText,
-  ClipboardCheck, Sparkles,
+  ClipboardCheck, Sparkles, PiggyBank, FileCheck2, RefreshCcw, Scale,
+  Banknote, PackageCheck,
   type LucideIcon,
 } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 interface Article {
@@ -56,6 +57,60 @@ const articles: Article[] = [
     Icon: ClipboardCheck,
     status: 'live',
   },
+  {
+    to: '/education/security-deposit-rules-for-landlords',
+    category: 'Compliance',
+    title: 'Security deposit rules for landlords — limits, timelines, itemized deductions',
+    blurb: 'A national overview of how much you can charge, what you can deduct, and how fast you have to give the rest back — plus a highlighted look at Ohio\'s specific rules.',
+    readMinutes: 10,
+    Icon: PiggyBank,
+    status: 'live',
+  },
+  {
+    to: '/education/rental-application-process',
+    category: 'Operations',
+    title: 'The rental application process, step by step',
+    blurb: 'From listing the vacancy to handing over keys — the seven-stage flow that fills a unit fast without cutting corners on screening or compliance.',
+    readMinutes: 8,
+    Icon: FileCheck2,
+    status: 'live',
+  },
+  {
+    to: '/education/lease-renewal-guide',
+    category: 'Operations',
+    title: 'Lease renewal — how and when to renew a tenant',
+    blurb: 'When to start the renewal conversation, how to set the new rent, and how to decide whether to renew at all.',
+    readMinutes: 8,
+    Icon: RefreshCcw,
+    status: 'live',
+  },
+  {
+    to: '/education/month-to-month-vs-fixed-term-lease',
+    category: 'Operations',
+    title: 'Month-to-month vs. fixed-term leases — how to choose',
+    blurb: 'The real tradeoffs between flexibility and predictability, and a simple framework for picking the right structure for a given property.',
+    readMinutes: 7,
+    Icon: Scale,
+    status: 'live',
+  },
+  {
+    to: '/education/how-to-collect-rent-online',
+    category: 'Operations',
+    title: 'How to collect rent online — ACH, cards, and checks compared',
+    blurb: 'The real cost and speed of each payment method, how to set up autopay, and what to look for in a rent-collection tool.',
+    readMinutes: 9,
+    Icon: Banknote,
+    status: 'live',
+  },
+  {
+    to: '/education/moving-out-checklist-for-tenants',
+    category: 'For Renters',
+    title: 'Moving-out checklist for tenants — how to get your full deposit back',
+    blurb: 'The documentation habits that turn a security-deposit dispute into an easy win — written for renters, not landlords.',
+    readMinutes: 8,
+    Icon: PackageCheck,
+    status: 'live',
+  },
   // ── Coming soon (always last) ───────────────────────────────────────────
   {
     to: '#',
@@ -75,23 +130,10 @@ const articles: Article[] = [
     Icon: BookOpen,
     status: 'soon',
   },
-  {
-    to: '#',
-    category: 'Operations',
-    title: 'Rent collection — ACH vs card vs check, ranked by pain',
-    blurb: 'The real cost (and risk) of each payment method, late-fee laws by state, and how to set rules that don\'t make you the bad guy.',
-    readMinutes: 6,
-    Icon: BookOpen,
-    status: 'soon',
-  },
 ]
 
 export default function Education() {
-  useSeo({
-    title: 'Education — practical guides for small landlords',
-    description: 'Practical, jargon-free guides for landlords who own one rental, ten rentals, or are thinking about buying their first one. Tenant screening, Fair Housing compliance, lead-paint disclosure, move-in checklists, and more.',
-    path: '/education',
-  })
+  useRouteSeo('/education')
 
   const live = articles.filter((a) => a.status === 'live')
   const soon = articles.filter((a) => a.status === 'soon')

@@ -31,6 +31,12 @@ const ManagerImport        = lazy(() => import('./pages/manager/Import'))
 const EduFairHousing       = lazy(() => import('./pages/marketing/education/FairHousingGuide'))
 const EduLeadPaint         = lazy(() => import('./pages/marketing/education/LeadBasedPaintDisclosure'))
 const EduMoveInChecklist   = lazy(() => import('./pages/marketing/education/MoveInChecklistGuide'))
+const EduSecurityDeposit   = lazy(() => import('./pages/marketing/education/SecurityDepositRules'))
+const EduRentalApplication = lazy(() => import('./pages/marketing/education/RentalApplicationProcess'))
+const EduLeaseRenewal      = lazy(() => import('./pages/marketing/education/LeaseRenewalGuide'))
+const EduMonthToMonth      = lazy(() => import('./pages/marketing/education/MonthToMonthVsFixedTerm'))
+const EduCollectRentOnline = lazy(() => import('./pages/marketing/education/HowToCollectRentOnline'))
+const EduMoveOutTenants    = lazy(() => import('./pages/marketing/education/MovingOutChecklistForTenants'))
 const MarketingApply       = lazy(() => import('./pages/marketing/Apply'))
 const ApplicationStatus    = lazy(() => import('./pages/public/ApplicationStatus'))
 const RenterCheck          = lazy(() => import('./pages/public/RenterCheck'))
@@ -41,6 +47,7 @@ const Privacy              = lazy(() => import('./pages/marketing/Privacy'))
 const Terms                = lazy(() => import('./pages/marketing/Terms'))
 const FairHousing          = lazy(() => import('./pages/marketing/FairHousing'))
 const Accessibility        = lazy(() => import('./pages/marketing/Accessibility'))
+const NotFound              = lazy(() => import('./pages/marketing/NotFound'))
 
 // Auth
 const Welcome        = lazy(() => import('./pages/auth/Welcome'))
@@ -152,6 +159,12 @@ export default function App() {
             <Route path="/education/fair-housing-act-guide"    element={<EduFairHousing />} />
             <Route path="/education/lead-based-paint-disclosure" element={<EduLeadPaint />} />
             <Route path="/education/move-in-checklist-guide"   element={<EduMoveInChecklist />} />
+            <Route path="/education/security-deposit-rules-for-landlords" element={<EduSecurityDeposit />} />
+            <Route path="/education/rental-application-process" element={<EduRentalApplication />} />
+            <Route path="/education/lease-renewal-guide" element={<EduLeaseRenewal />} />
+            <Route path="/education/month-to-month-vs-fixed-term-lease" element={<EduMonthToMonth />} />
+            <Route path="/education/how-to-collect-rent-online" element={<EduCollectRentOnline />} />
+            <Route path="/education/moving-out-checklist-for-tenants" element={<EduMoveOutTenants />} />
             <Route path="/pricing"      element={<MarketingPricing />} />
             <Route path="/features"     element={<MarketingFeatures />} />
             <Route path="/tenability"   element={<MarketingTenability />} />
@@ -162,6 +175,13 @@ export default function App() {
             <Route path="/terms"        element={<Terms />} />
             <Route path="/fair-housing" element={<FairHousing />} />
             <Route path="/accessibility" element={<Accessibility />} />
+            {/* Catch-all — any path not matched above (including inside the
+                other route groups below, since react-router-dom ranks all
+                sibling <Route>s in one flat table regardless of nesting).
+                See src/pages/marketing/NotFound.tsx for why this is a soft
+                404 rather than a real HTTP 404. Keep this LAST in the group
+                so newly added marketing routes above it still win. */}
+            <Route path="*" element={<NotFound />} />
           </Route>
 
           {/* Dev-only brand QA page — palette, treatments, landlord-color simulator. */}

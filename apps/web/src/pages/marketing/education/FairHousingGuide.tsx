@@ -1,14 +1,10 @@
 import { Link } from 'react-router-dom'
 import EducationArticle from '../../../components/marketing/EducationArticle'
-import { useSeo } from '../../../lib/useSeo'
+import { useRouteSeo } from '../../../lib/useSeo'
 import { BRAND } from '../../../lib/brand'
 
 export default function FairHousingGuide() {
-  useSeo({
-    title: 'Fair Housing Act — a small landlord\'s compliance guide for 2026',
-    description: 'A plain-English guide to the Fair Housing Act for individual landlords: protected classes, what you can and can\'t ask, advertising rules, reasonable accommodations, and the costliest mistakes to avoid.',
-    path: '/education/fair-housing-act-guide',
-  })
+  useRouteSeo('/education/fair-housing-act-guide')
 
   return (
     <EducationArticle

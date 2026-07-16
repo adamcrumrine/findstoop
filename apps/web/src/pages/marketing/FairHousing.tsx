@@ -5,15 +5,11 @@
 
 import { Link } from 'react-router-dom'
 import { Home } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 export default function FairHousing() {
-  useSeo({
-    title: 'Fair Housing Statement',
-    description: `${BRAND.legalName} is committed to equal housing opportunity. We comply with the federal Fair Housing Act and applicable state and local fair-housing laws.`,
-    path: '/fair-housing',
-  })
+  useRouteSeo('/fair-housing')
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">

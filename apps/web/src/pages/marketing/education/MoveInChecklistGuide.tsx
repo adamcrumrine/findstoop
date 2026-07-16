@@ -1,13 +1,9 @@
 import EducationArticle from '../../../components/marketing/EducationArticle'
-import { useSeo } from '../../../lib/useSeo'
+import { useRouteSeo } from '../../../lib/useSeo'
 import { BRAND } from '../../../lib/brand'
 
 export default function MoveInChecklistGuide() {
-  useSeo({
-    title: 'Move-in & move-out checklists for landlords — the deposit-saving guide',
-    description: 'A complete guide to using move-in and move-out inspection checklists in residential rentals: what to document, how to photograph, state-by-state security-deposit rules, and how to make the checklist hold up if a dispute reaches small-claims court.',
-    path: '/education/move-in-checklist-guide',
-  })
+  useRouteSeo('/education/move-in-checklist-guide')
 
   return (
     <EducationArticle

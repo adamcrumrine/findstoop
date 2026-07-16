@@ -1,14 +1,10 @@
 import { Link } from 'react-router-dom'
 import EducationArticle from '../../../components/marketing/EducationArticle'
-import { useSeo } from '../../../lib/useSeo'
+import { useRouteSeo } from '../../../lib/useSeo'
 import { BRAND } from '../../../lib/brand'
 
 export default function LeadBasedPaintDisclosure() {
-  useSeo({
-    title: 'Lead-based paint disclosure for pre-1978 rentals — federal compliance guide',
-    description: 'How to comply with the federal lead-based paint disclosure rule (24 CFR 35.92) for pre-1978 residential rentals: when it applies, what the form requires, penalties for skipping it, and a step-by-step compliance flow.',
-    path: '/education/lead-based-paint-disclosure',
-  })
+  useRouteSeo('/education/lead-based-paint-disclosure')
 
   return (
     <EducationArticle

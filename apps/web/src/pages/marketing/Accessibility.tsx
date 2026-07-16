@@ -3,15 +3,11 @@
 // 2024 DOJ Title II rule extension to web/app content.
 
 import { Link } from 'react-router-dom'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 export default function Accessibility() {
-  useSeo({
-    title: 'Accessibility Statement',
-    description: `${BRAND.name}'s commitment to accessible design, the standards we follow, known limitations, and how to report accessibility barriers.`,
-    path: '/accessibility',
-  })
+  useRouteSeo('/accessibility')
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">

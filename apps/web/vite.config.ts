@@ -166,7 +166,9 @@ export default defineConfig({
     brandIndexHtml(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'robots.txt', 'sitemap.xml'],
+      // sitemap.xml is no longer a public/ asset — scripts/prerender.mjs
+      // generates it into dist AFTER the SW manifest is built (uncached on purpose).
+      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'robots.txt'],
       manifest: {
         background_color: '#ffffff',
         display: 'standalone',

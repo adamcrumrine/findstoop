@@ -3,7 +3,7 @@ import {
   ShieldCheck, Sparkles, FileSignature, CreditCard, Wrench,
   MessageSquare, Folder, BarChart3, ArrowRight, type LucideIcon,
 } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 type Status = 'live' | 'beta' | 'soon'
@@ -90,11 +90,7 @@ const STATUS_CFG: Record<Status, { label: string; cls: string }> = {
 }
 
 export default function Features() {
-  useSeo({
-    title: 'Features',
-    description: 'Verified pre-qualification with AI Tenability™ scoring, e-sign leases, online rent collection, maintenance tracking, in-app messaging, and Schedule-E-friendly reports — every tool a small landlord actually uses.',
-    path: '/features',
-  })
+  useRouteSeo('/features')
   return (
     <>
       {/* Hero */}

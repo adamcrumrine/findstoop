@@ -3,15 +3,11 @@
 // Specific high-risk clauses called out inline so a reviewer can find them.
 
 import { Link } from 'react-router-dom'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 export default function Terms() {
-  useSeo({
-    title: 'Terms of Service',
-    description: `The agreement between ${BRAND.legalName} and the landlords, tenants, and applicants who use the platform.`,
-    path: '/terms',
-  })
+  useRouteSeo('/terms')
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">

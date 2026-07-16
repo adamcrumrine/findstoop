@@ -1,14 +1,10 @@
 import { Link } from 'react-router-dom'
 import EducationArticle from '../../../components/marketing/EducationArticle'
-import { useSeo } from '../../../lib/useSeo'
+import { useRouteSeo } from '../../../lib/useSeo'
 import { BRAND } from '../../../lib/brand'
 
 export default function HowToScreenTenants() {
-  useSeo({
-    title: 'How to screen tenants in 2026 — a complete guide for small landlords',
-    description: 'A practical, jargon-free guide to tenant screening for small landlords: what to ask for, what the law allows, how to verify income, and where AI fits in. Updated for 2026.',
-    path: '/education/how-to-screen-tenants',
-  })
+  useRouteSeo('/education/how-to-screen-tenants')
 
   return (
     <EducationArticle

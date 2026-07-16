@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Check, ArrowRight, Sparkles } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 // Single-tier pricing: $9/unit/mo, $90/unit/yr.
@@ -37,11 +37,7 @@ const billingExamples = [
 ]
 
 export default function Pricing() {
-  useSeo({
-    title: 'Pricing — $9 per unit per month',
-    description: 'Simple per-unit pricing — $9 per unit per month, $90 per unit per year. Every feature included. Applicants pay $5 for verified pre-qualification. No setup fees, no upsells.',
-    path: '/pricing',
-  })
+  useRouteSeo('/pricing')
   return (
     <>
       {/* Hero */}

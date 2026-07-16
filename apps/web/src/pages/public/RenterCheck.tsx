@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
 import { useRenterPartner } from '../../hooks/useRenterPartner'
 import { BRAND } from '../../lib/brand'
+import { useRouteSeo } from '../../lib/useSeo'
 import type { LeaseAnalysis, ExplainLeaseResponse, RedFlagSeverity } from '@findstoop/shared/types/leaseAnalysis'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import {
@@ -36,6 +37,7 @@ const SEV: Record<RedFlagSeverity, { dot: string; chip: string; label: string }>
 }
 
 export default function RenterCheck() {
+  useRouteSeo('/renter-check')
   const [params] = useSearchParams()
   const ref = params.get('ref') // channel attribution (e.g. ?ref=osu or a landlord code)
   const partner = useRenterPartner(ref) // co-brand for a known university or self-serve landlord

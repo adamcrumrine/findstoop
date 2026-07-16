@@ -1,10 +1,41 @@
 import { Link } from 'react-router-dom'
 import {
   ClipboardList, CreditCard, FileSignature, Wrench, MessageSquare,
-  ShieldCheck, Sparkles, ArrowRight, type LucideIcon,
+  ShieldCheck, Sparkles, ArrowRight, FileSearch, Scale, Banknote, type LucideIcon,
 } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
+
+interface FreeTool {
+  Icon: LucideIcon
+  title: string
+  body: string
+  to: string
+}
+
+// Free, no-login renter tools (own standalone routes — see App.tsx). Not
+// otherwise linked from the marketing surface, so a renter finding /tenants
+// organically had no path to them without already knowing the URL.
+const freeTools: FreeTool[] = [
+  {
+    Icon: FileSearch,
+    title: 'Renter Check',
+    body: 'Upload any lease PDF for a plain-English breakdown of what you owe and the red flags to watch for.',
+    to: '/renter-check',
+  },
+  {
+    Icon: Scale,
+    title: 'Deposit Check',
+    body: "Upload your landlord's deduction letter and see each line item judged fair, questionable, or unfair.",
+    to: '/deposit-check',
+  },
+  {
+    Icon: Banknote,
+    title: 'Deposit demand letter',
+    body: 'Generate a print-ready letter demanding the security deposit your landlord owes you.',
+    to: '/deposit-demand',
+  },
+]
 
 interface Perk {
   Icon: LucideIcon
@@ -46,11 +77,7 @@ const perks: Perk[] = [
 ]
 
 export default function Tenants() {
-  useSeo({
-    title: 'For renters',
-    description: `Apply for rentals on ${BRAND.name} with verified pre-qualification for $5, e-sign your lease from your phone, and pay rent free by ACH. Verified applications jump the queue and decisions land in under 24 hours.`,
-    path: '/tenants',
-  })
+  useRouteSeo('/tenants')
   return (
     <>
       {/* Hero */}
@@ -139,6 +166,39 @@ export default function Tenants() {
             with our AI consistency check on top. Full bureau-pulled credit + criminal + eviction reports are coming
             soon as a separate upgrade.
           </p>
+        </div>
+      </section>
+
+      {/* Free tools — no login, not tied to a {BRAND.name} account */}
+      <section className="py-16 border-t border-gray-100">
+        <div className="max-w-6xl mx-auto px-5 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">
+              Free tools for any renter
+            </h2>
+            <p className="mt-3 text-mute max-w-xl mx-auto">
+              No account, no login — useful whether or not your landlord uses {BRAND.name}.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-5">
+            {freeTools.map(({ Icon, title, body, to }) => (
+              <Link
+                key={to}
+                to={to}
+                className="block bg-white rounded-2xl border border-gray-100 p-6 hover:border-brand-200 hover:shadow-md transition-all"
+              >
+                <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center mb-4">
+                  <Icon className="w-5 h-5 text-brand-600" strokeWidth={1.75} />
+                </div>
+                <h3 className="text-lg font-semibold text-ink">{title}</h3>
+                <p className="mt-2 text-sm text-mute leading-relaxed">{body}</p>
+                <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-600">
+                  Try it free
+                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 

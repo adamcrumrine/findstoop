@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom'
 import {
   ArrowRight, Clock, ShieldCheck, FileText, Sparkles, Check, CheckCircle2,
 } from 'lucide-react'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 interface VendorRow {
@@ -90,11 +90,7 @@ const VENDORS: VendorRow[] = [
 ]
 
 export default function Migrate() {
-  useSeo({
-    title: `Migrate to ${BRAND.name} — from Avail, Buildium, DoorLoop, AppFolio + more`,
-    description: `Move your properties, units, tenants, and leases from Avail, Buildium, DoorLoop, TenantCloud, AppFolio, or TurboTenant to ${BRAND.name} in under five minutes. Our import wizard maps CSV exports automatically and sends branded migration emails to your tenants.`,
-    path: '/migrate',
-  })
+  useRouteSeo('/migrate')
 
   return (
     <>

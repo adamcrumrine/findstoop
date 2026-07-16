@@ -4,15 +4,11 @@
 // raising red flags about AI involvement.
 
 import { Link } from 'react-router-dom'
-import { useSeo } from '../../lib/useSeo'
+import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
 export default function ScreeningTerms() {
-  useSeo({
-    title: 'Screening Terms',
-    description: `Plain-language terms covering ${BRAND.name}'s tenant pre-qualification — what we collect, how it's used, automated screening tools, your rights, and data deletion.`,
-    path: '/screening-terms',
-  })
+  useRouteSeo('/screening-terms')
   return (
     <div className="max-w-2xl mx-auto py-10 px-5">
       <Link to="/" className="text-sm text-brand-600 hover:underline">← {BRAND.name}</Link>

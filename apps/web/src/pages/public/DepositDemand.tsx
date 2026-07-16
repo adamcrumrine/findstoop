@@ -15,11 +15,13 @@ import type { DocumentContext, TemplateField } from '@findstoop/shared/lib/docum
 import Letterhead from '../../components/documents/Letterhead'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
 import { inputClass } from '../../components/shared/FormField'
+import { useRouteSeo } from '../../lib/useSeo'
 import { ArrowLeft, Printer, Loader2 } from 'lucide-react'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
 export default function DepositDemand() {
+  useRouteSeo('/deposit-demand')
   const { user, profile } = useAuth()
   const [params] = useSearchParams()
   // Prefill the amount owed when arriving from the Deposit Check (?owed=…).

@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
 import { useRenterPartner } from '../../hooks/useRenterPartner'
 import { BRAND } from '../../lib/brand'
+import { useRouteSeo } from '../../lib/useSeo'
 import type { DepositCheckResult, CheckDepositResponse, DeductionVerdict } from '@findstoop/shared/types/depositCheck'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import { Loader2, UploadCloud, Scale, RotateCcw, CheckCircle2, AlertTriangle, XCircle, Banknote, ArrowRight } from 'lucide-react'
@@ -33,6 +34,7 @@ const VERDICT: Record<DeductionVerdict, { Icon: typeof CheckCircle2; chip: strin
 }
 
 export default function DepositCheck() {
+  useRouteSeo('/deposit-check')
   const [params] = useSearchParams()
   const ref = params.get('ref')
   const partner = useRenterPartner(ref) // co-brand for a university or self-serve landlord

@@ -5,6 +5,7 @@ import { X, Loader2, Lock, CreditCard, Landmark, FileText, ExternalLink, CheckCi
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { BRAND, brandColor } from '../../lib/brand'
+import ModalShell from '../shared/ModalShell'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe(): ReturnType<typeof loadStripe> {
@@ -66,13 +67,6 @@ export default function ManageBillingModal({ open, onClose, onChange }: Props) {
   const [view, setView] = useState<'summary' | 'updatePayment' | 'confirmCancel'>('summary')
   const [acting, setActing] = useState(false)
 
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [open])
-
   const load = async () => {
     setLoading(true)
     try {
@@ -131,11 +125,8 @@ export default function ManageBillingModal({ open, onClose, onChange }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-8"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalShell onClose={onClose} maxWidth="max-w-xl" aria-label="Manage billing">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {/* Branded header */}
         <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-t-2xl p-6 relative">
           <button
@@ -194,7 +185,7 @@ export default function ManageBillingModal({ open, onClose, onChange }: Props) {
           <span>Secured by Stripe · 256-bit encryption</span>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 

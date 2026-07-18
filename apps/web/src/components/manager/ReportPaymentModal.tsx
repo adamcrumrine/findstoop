@@ -3,11 +3,12 @@
 // instead of a subscription. On success it returns the paymentIntentId so the
 // caller can generate the report (the edge function re-verifies the charge).
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { X, Loader2, Lock, CheckCircle2, FileText } from 'lucide-react'
 import { brandColor } from '../../lib/brand'
+import ModalShell from '../shared/ModalShell'
 
 let stripePromise: ReturnType<typeof loadStripe> | null = null
 function getStripe(): ReturnType<typeof loadStripe> {
@@ -24,18 +25,11 @@ interface Props {
 }
 
 export default function ReportPaymentModal({ open, onClose, onPaid, clientSecret, price }: Props) {
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [open])
-
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-8" onClick={(e) => e.stopPropagation()}>
+    <ModalShell onClose={onClose} maxWidth="max-w-md" aria-label="Basic report payment">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-t-2xl p-6 relative">
           <button type="button" onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 inline-flex items-center justify-center transition-colors" aria-label="Close">
             <X className="w-4 h-4" strokeWidth={2} />
@@ -75,7 +69,7 @@ export default function ReportPaymentModal({ open, onClose, onPaid, clientSecret
           <Lock className="w-3 h-3" strokeWidth={2} /><span>Secured by Stripe · 256-bit encryption</span>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 

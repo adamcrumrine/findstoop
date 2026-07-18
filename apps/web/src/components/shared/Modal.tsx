@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   open: boolean
@@ -56,7 +57,10 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
 
   if (!open) return null
 
-  return (
+  // Portal to <body>: page content sits inside a `relative z-10` layout
+  // column, so without the portal the fixed bottom nav (z-20) paints over
+  // the overlay on mobile.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div
@@ -64,7 +68,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[90vh] overflow-y-auto"
+        className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-xl max-h-[calc(100dvh-3rem)] sm:max-h-[90vh] overflow-y-auto overscroll-contain"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <h2 id={titleId} className="text-base font-semibold text-gray-900">{title}</h2>
@@ -77,8 +81,9 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
             ×
           </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:pb-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

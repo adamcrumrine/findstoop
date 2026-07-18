@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { loadStripe, type Stripe as StripeJs } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { X, Loader2, Lock, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { BRAND, brandColor } from '../../lib/brand'
+import ModalShell from '../shared/ModalShell'
 
 // Singleton — Stripe recommends one loadStripe per app session.
 let stripePromise: ReturnType<typeof loadStripe> | null = null
@@ -27,14 +28,6 @@ const PER_UNIT_MONTHLY = 9
 const PER_UNIT_ANNUAL  = 90
 
 export default function SubscribeModal({ open, onClose, onSuccess, clientSecret, plan, quantity }: Props) {
-  // Lock body scroll while open
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [open])
-
   if (!open) return null
 
   const perUnit = plan === 'annual' ? PER_UNIT_ANNUAL : PER_UNIT_MONTHLY
@@ -42,11 +35,8 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
   const intervalLabel = plan === 'annual' ? '/year' : '/month'
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-8"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalShell onClose={onClose} maxWidth="max-w-lg" aria-label="Subscribe">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {/* Branded header */}
         <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-t-2xl p-6 relative">
           <button
@@ -113,7 +103,7 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
           <span>Secured by Stripe · 256-bit encryption · cancel anytime</span>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 

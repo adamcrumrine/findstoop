@@ -115,7 +115,7 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
       </FormField>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Amount ($)" required error={errors.amount}>
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.amount} onChange={set('amount')} placeholder="1500" />
+          <input className={inputClass} type="number" inputMode="decimal" min="0" step="0.01" value={form.amount} onChange={set('amount')} placeholder="1500" />
         </FormField>
         <FormField label="Type">
           <select className={selectClass} value={form.type} onChange={set('type')}>
@@ -257,6 +257,7 @@ function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMi
           <div className="flex items-center gap-1">
             <input
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0"
               value={draftAmount}
@@ -871,6 +872,7 @@ function ApplyCreditForm({
         <input
           className={inputClass}
           type="number"
+          inputMode="decimal"
           min="0.01"
           step="0.01"
           max={Number(target.amount)}

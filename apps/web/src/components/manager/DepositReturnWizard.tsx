@@ -210,7 +210,10 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
           <h2 className="text-base font-bold text-ink">Deposit return</h2>
           <p className="text-xs text-mute truncate">{tenantName}{where ? ` · ${where}` : ''}</p>
         </div>
-        <p className="text-xs uppercase tracking-wider text-mute font-semibold shrink-0">Step {step} of 3</p>
+        <p className="text-xs uppercase tracking-wider text-mute font-semibold shrink-0">
+          <span className="sm:hidden">{step}/3</span>
+          <span className="hidden sm:inline">Step {step} of 3</span>
+        </p>
         <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg text-mute hover:text-ink hover:bg-gray-50">
           <X className="w-4 h-4" strokeWidth={2} />
         </button>

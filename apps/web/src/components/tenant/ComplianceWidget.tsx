@@ -339,6 +339,7 @@ function LabeledInput({ label, value, onChange, placeholder, type = 'text' }: {
       <span className="block text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1">{label}</span>
       <input
         type={type}
+        inputMode={type === 'number' ? 'decimal' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

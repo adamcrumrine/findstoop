@@ -102,18 +102,18 @@ function UnitForm({ initial, properties, onSubmit, onCancel, submitting }: UnitF
       </div>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Bedrooms">
-          <input className={inputClass} type="number" min="0" value={form.bedrooms} onChange={set('bedrooms')} placeholder="2" />
+          <input className={inputClass} type="number" inputMode="decimal" min="0" value={form.bedrooms} onChange={set('bedrooms')} placeholder="2" />
         </FormField>
         <FormField label="Bathrooms">
-          <input className={inputClass} type="number" min="0" step="0.5" value={form.bathrooms} onChange={set('bathrooms')} placeholder="1" />
+          <input className={inputClass} type="number" inputMode="decimal" min="0" step="0.5" value={form.bathrooms} onChange={set('bathrooms')} placeholder="1" />
         </FormField>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Square Feet">
-          <input className={inputClass} type="number" min="0" value={form.square_feet} onChange={set('square_feet')} placeholder="750" />
+          <input className={inputClass} type="number" inputMode="decimal" min="0" value={form.square_feet} onChange={set('square_feet')} placeholder="750" />
         </FormField>
         <FormField label="Rent Amount" required error={errors.rent_amount}>
-          <input className={inputClass} type="number" min="0" step="0.01" value={form.rent_amount} onChange={set('rent_amount')} placeholder="1500" />
+          <input className={inputClass} type="number" inputMode="decimal" min="0" step="0.01" value={form.rent_amount} onChange={set('rent_amount')} placeholder="1500" />
         </FormField>
       </div>
       <div className="flex gap-3 pt-2">

@@ -247,7 +247,7 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
           <FileSignature className="w-4 h-4 text-brand-600" strokeWidth={1.75} />
           <h2 className="font-semibold text-ink">New lease · step {step} of 3</h2>
         </div>
-        <button onClick={handleClose} disabled={submitting} className="text-mute hover:text-ink text-xl leading-none">×</button>
+        <button onClick={handleClose} disabled={submitting} aria-label="Close" className="p-2.5 -m-2.5 rounded-lg text-mute hover:text-ink text-xl leading-none">×</button>
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5">
@@ -347,18 +347,18 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Monthly rent ($)">
-                <input type="number" min="0" className={inputCls} value={form.rent_amount} onChange={(e) => set('rent_amount', e.target.value)} placeholder={unit ? String(unit.rent_amount) : '1500'} />
+                <input type="number" inputMode="decimal" min="0" className={inputCls} value={form.rent_amount} onChange={(e) => set('rent_amount', e.target.value)} placeholder={unit ? String(unit.rent_amount) : '1500'} />
               </Field>
               <Field label="Rent due-day (1–28)">
-                <input type="number" min={1} max={28} className={inputCls} value={form.payment_due_day} onChange={(e) => set('payment_due_day', e.target.value)} />
+                <input type="number" inputMode="decimal" min={1} max={28} className={inputCls} value={form.payment_due_day} onChange={(e) => set('payment_due_day', e.target.value)} />
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Security deposit ($)">
-                <input type="number" min="0" className={inputCls} value={form.security_deposit} onChange={(e) => set('security_deposit', e.target.value)} placeholder="0" />
+                <input type="number" inputMode="decimal" min="0" className={inputCls} value={form.security_deposit} onChange={(e) => set('security_deposit', e.target.value)} placeholder="0" />
               </Field>
               <Field label="Pet deposit ($)">
-                <input type="number" min="0" className={inputCls} value={form.pet_deposit} onChange={(e) => set('pet_deposit', e.target.value)} placeholder="0" />
+                <input type="number" inputMode="decimal" min="0" className={inputCls} value={form.pet_deposit} onChange={(e) => set('pet_deposit', e.target.value)} placeholder="0" />
               </Field>
             </div>
             <label className="flex items-center gap-2 text-sm text-ink mt-1">

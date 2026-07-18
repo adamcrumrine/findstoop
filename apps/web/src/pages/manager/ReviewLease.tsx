@@ -960,10 +960,10 @@ export default function ReviewLease() {
                 )}
               </FormField>
               <FormField label="Monthly rent ($)" required>
-                <input type="number" min="0" step="0.01" className={inputClass} value={fields.rent_amount} onChange={(e) => set('rent_amount', e.target.value)} />
+                <input type="number" inputMode="decimal" min="0" step="0.01" className={inputClass} value={fields.rent_amount} onChange={(e) => set('rent_amount', e.target.value)} />
               </FormField>
               <FormField label="Rent due-day (1–28)">
-                <input type="number" min={1} max={28} className={inputClass} value={fields.payment_due_day} onChange={(e) => set('payment_due_day', e.target.value)} />
+                <input type="number" inputMode="decimal" min={1} max={28} className={inputClass} value={fields.payment_due_day} onChange={(e) => set('payment_due_day', e.target.value)} />
               </FormField>
             </div>
 
@@ -971,7 +971,7 @@ export default function ReviewLease() {
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">Deposits &amp; Options</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
               <FormField label="Security deposit ($)">
-                <input type="number" min="0" step="0.01" className={inputClass} value={fields.security_deposit} onChange={(e) => set('security_deposit', e.target.value)} />
+                <input type="number" inputMode="decimal" min="0" step="0.01" className={inputClass} value={fields.security_deposit} onChange={(e) => set('security_deposit', e.target.value)} />
               </FormField>
               <div>
                 <label className="block text-xs uppercase tracking-wider text-mute font-semibold mb-1.5">Pets</label>
@@ -986,7 +986,7 @@ export default function ReviewLease() {
               </div>
               {fields.pets_allowed ? (
                 <FormField label="Pet deposit ($)">
-                  <input type="number" min="0" step="0.01" className={inputClass} value={fields.pet_deposit} onChange={(e) => set('pet_deposit', e.target.value)} />
+                  <input type="number" inputMode="decimal" min="0" step="0.01" className={inputClass} value={fields.pet_deposit} onChange={(e) => set('pet_deposit', e.target.value)} />
                 </FormField>
               ) : (
                 <div />
@@ -1776,7 +1776,7 @@ function ReplacePdfModal({ leaseId, managerId, currentTenants, onClose, onReplac
     <ModalShell onClose={onClose} maxWidth="max-w-xl" aria-label="Replace signed lease PDF">
         <header className="px-5 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-ink">Replace signed lease PDF</h2>
-          <button type="button" onClick={onClose} disabled={submitting} className="text-mute hover:text-ink text-xl leading-none">×</button>
+          <button type="button" onClick={onClose} disabled={submitting} aria-label="Close" className="p-2.5 -m-2.5 rounded-lg text-mute hover:text-ink text-xl leading-none">×</button>
         </header>
 
         <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">

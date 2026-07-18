@@ -1212,6 +1212,7 @@ function PaymentScheduleEditor({ lease, onClose, onRebuilt }: { lease: Lease; on
       <FormField label="Rent due-day (1–28)">
         <input
           type="number"
+          inputMode="numeric"
           min={1}
           max={28}
           value={dueDay}

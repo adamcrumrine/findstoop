@@ -558,6 +558,7 @@ export default function ManagerSettings() {
             <div className="relative">
               <input
                 type="number"
+                inputMode="numeric"
                 min={0}
                 max={30}
                 value={settings.late_fee_grace_days}
@@ -605,6 +606,7 @@ export default function ManagerSettings() {
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-mute text-sm">$</span>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min={0}
                   step={1}
                   value={settings.late_fee_amount}
@@ -619,6 +621,7 @@ export default function ManagerSettings() {
               <div className="relative">
                 <input
                   type="number"
+                  inputMode="decimal"
                   min={0}
                   max={50}
                   step={0.5}

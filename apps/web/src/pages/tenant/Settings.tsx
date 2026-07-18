@@ -637,6 +637,7 @@ function BioField({
       <input
         id={id}
         type={type}
+        inputMode={type === 'number' ? 'decimal' : undefined}
         value={value}
         onChange={onChange}
         onBlur={onBlur}

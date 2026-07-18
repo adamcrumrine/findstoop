@@ -43,6 +43,24 @@ img[src^='/illustrations/'] {
 }
 
 @layer base {
+  /* Kill the translucent gray flash iOS/Android overlay on every tap —
+     buttons/links have their own hover/active styling. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Removes the double-tap-to-zoom delay on tappable elements so buttons
+     respond immediately, while leaving pinch-zoom intact. */
+  button,
+  [role='button'],
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
   /* iOS Safari auto-zooms the whole page when a focused form control's
      font-size is under 16px, and stays zoomed after blur. Most of our
      controls use text-sm (14px), so force 16px at phone widths. !important

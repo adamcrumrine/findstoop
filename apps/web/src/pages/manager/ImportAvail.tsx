@@ -1698,11 +1698,11 @@ function UnmatchedPdfRow({ file, fileIndex, pdfStartDate, properties, joinedLeas
           </label>
           <label className="block">
             <span className="block text-[10px] uppercase tracking-wider text-mute font-semibold mb-1">Rent / mo</span>
-            <input type="number" value={rentAmount} onChange={(e) => setRentAmount(e.target.value)} placeholder="1500" className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <input type="number" inputMode="decimal" value={rentAmount} onChange={(e) => setRentAmount(e.target.value)} placeholder="1500" className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
           </label>
           <label className="block">
             <span className="block text-[10px] uppercase tracking-wider text-mute font-semibold mb-1">Deposit</span>
-            <input type="number" value={securityDeposit} onChange={(e) => setSecurityDeposit(e.target.value)} placeholder="optional" className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <input type="number" inputMode="decimal" value={securityDeposit} onChange={(e) => setSecurityDeposit(e.target.value)} placeholder="optional" className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" />
           </label>
           <div className="col-span-2 sm:col-span-4 flex justify-end mt-1">
             <button

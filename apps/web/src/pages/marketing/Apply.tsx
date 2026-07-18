@@ -242,7 +242,7 @@ export default function Apply() {
               <input className={inputClass} value={form.current_zip} onChange={(e) => set('current_zip', e.target.value)} />
             </Field>
             <Field label="Current monthly rent">
-              <input type="number" min="0" className={inputClass} value={form.current_rent} onChange={(e) => set('current_rent', e.target.value)} placeholder="1500" />
+              <input type="number" inputMode="decimal" min="0" className={inputClass} value={form.current_rent} onChange={(e) => set('current_rent', e.target.value)} placeholder="1500" />
             </Field>
             <Field label="Current landlord name">
               <input className={inputClass} value={form.current_landlord_name} onChange={(e) => set('current_landlord_name', e.target.value)} />
@@ -266,7 +266,7 @@ export default function Apply() {
               <input className={inputClass} value={form.job_title} onChange={(e) => set('job_title', e.target.value)} />
             </Field>
             <Field label="Gross monthly income">
-              <input type="number" min="0" className={inputClass} value={form.monthly_income} onChange={(e) => set('monthly_income', e.target.value)} placeholder="6000" />
+              <input type="number" inputMode="decimal" min="0" className={inputClass} value={form.monthly_income} onChange={(e) => set('monthly_income', e.target.value)} placeholder="6000" />
             </Field>
             <Field label="Employment start date">
               <input type="date" className={inputClass} value={form.employment_start_date} onChange={(e) => set('employment_start_date', e.target.value)} />
@@ -278,7 +278,7 @@ export default function Apply() {
         <Section Icon={Users} title="Household">
           <Grid>
             <Field label="Total household size (incl. you)">
-              <input type="number" min="1" className={inputClass} value={form.household_size} onChange={(e) => set('household_size', e.target.value)} />
+              <input type="number" inputMode="decimal" min="1" className={inputClass} value={form.household_size} onChange={(e) => set('household_size', e.target.value)} />
             </Field>
             <Field label="Any pets?">
               <div className="flex gap-2 mt-1">

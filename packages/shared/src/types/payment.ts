@@ -1,5 +1,5 @@
 export type PaymentType = 'rent' | 'late_fee' | 'pet_fee' | 'pet_deposit' | 'utility' | 'fee' | 'fine' | 'credit' | 'other'
-export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'disputed' | 'refunded'
 
 export interface Payment {
   id: string

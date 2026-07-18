@@ -15,6 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, stripeFee, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
 import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
+import { tokensMatch } from '../_shared/screeningAuth.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -60,12 +61,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { applicationId, addons } = await req.json() as {
+    const { applicationId, statusToken, addons } = await req.json() as {
       applicationId?: string
+      statusToken?: string
       addons?: Partial<Record<AddonKey, boolean>>
     }
     if (!applicationId) {
       return json(req, { error: 'applicationId required' }, { status: 400 })
+    }
+    if (!statusToken) {
+      return json(req, { error: 'statusToken required' }, { status: 401 })
     }
     // v1: pre-qual + selfie ID match are live (both run on our own Claude
     // vision pipeline). Credit / criminal / eviction remain "Coming Soon"
@@ -92,10 +97,31 @@ Deno.serve(async (req) => {
 
     const { data: app, error: appErr } = await admin
       .from('applications')
-      .select('id, email, first_name, last_name, applicant_profile_id, unit_id')
+      .select('id, email, first_name, last_name, applicant_profile_id, unit_id, status_token, ai_screening_consent_at')
       .eq('id', applicationId)
       .single()
     if (appErr || !app) return json(req, { error: 'Application not found' }, { status: 404 })
+
+    // SECURITY: the flow is anonymous, so possession of the application's
+    // status_token (returned to the browser that submitted the application)
+    // is the ownership proof. Without this check, anyone holding a leaked
+    // applicationId could retrieve the screening order's access_token — the
+    // capability that unlocks all of the applicant's screening PII.
+    if (!tokensMatch(statusToken, app.status_token)) {
+      return json(req, { error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Tapping Continue on the pre-qual intro is the applicant's AI-screening
+    // consent (and FCRA §1681b(a)(3)(F) authorization where applicable).
+    // Recorded here — server-side — because the anonymous client has no RLS
+    // path to update the applications row itself.
+    if (!app.ai_screening_consent_at) {
+      await admin
+        .from('applications')
+        .update({ ai_screening_consent_at: new Date().toISOString() })
+        .eq('id', applicationId)
+        .is('ai_screening_consent_at', null)
+    }
 
     const zero = { amount_cents: 0, margin_cents: 0 }
     const base = BASE_PRICING.prequal

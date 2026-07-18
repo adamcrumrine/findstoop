@@ -130,7 +130,7 @@ export async function prefillProperty(address: string, zip?: string): Promise<Pa
   return data as ParcelPrefill
 }
 
-/** Start a one-time $4.99 charge for a Basic report. Returns { free: true } for
+/** Start a one-time $5.49 charge for a Basic report. Returns { free: true } for
  *  comp accounts (skip payment) or a Stripe client secret to confirm. */
 export async function createReportPayment(): Promise<{ free: boolean; clientSecret?: string; paymentIntentId?: string }> {
   const { data, error } = await supabase.functions.invoke('create-report-payment', { body: {} })

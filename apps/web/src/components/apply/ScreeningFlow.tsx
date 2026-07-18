@@ -65,6 +65,10 @@ export interface ScreeningRequirements {
 
 interface Props {
   applicationId: string
+  // applications.status_token, returned by the insert on the Apply page.
+  // Proves this browser authored the application — start-screening requires
+  // it before handing back the screening order's access token.
+  statusToken: string
   applicantName: string
   applicantEmail: string
   // Manager-set via property setup. Applicant doesn't choose — they just see
@@ -102,7 +106,7 @@ const PATH_OPTIONS: { id: IncomePath; label: string; kinds: DocKind[]; helper: s
   { id: 'new_hire',      label: 'New hire (no paychecks yet)', kinds: ['offer_letter'],          helper: 'Signed offer letter from employer' },
 ]
 
-export default function ScreeningFlow({ applicationId, applicantName, applicantEmail, requirements }: Props) {
+export default function ScreeningFlow({ applicationId, statusToken, applicantName, applicantEmail, requirements }: Props) {
   const [step, setStep] = useState<Step>('intro')
   const [orderId, setOrderId] = useState<string | null>(null)
   // Per-order capability token from start-screening. Required by the OCR /
@@ -115,18 +119,15 @@ export default function ScreeningFlow({ applicationId, applicantName, applicantE
   // ── Begin payment ────────────────────────────────────────────────────
   // Tapping Continue counts as consent to the AI screening process AND, for
   // any FCRA-regulated checks the manager required, the §1681b(a)(3)(F)
-  // written authorization to procure a consumer report. We record the
-  // timestamp once on the application.
+  // written authorization to procure a consumer report. start-screening
+  // records the timestamp server-side after verifying the status token —
+  // the old anonymous client-side update silently no-oped under RLS.
   const startPayment = async () => {
     setError(null)
-    await supabase
-      .from('applications')
-      .update({ ai_screening_consent_at: new Date().toISOString() })
-      .eq('id', applicationId)
-      .is('ai_screening_consent_at', null)
     const { data, error } = await supabase.functions.invoke('start-screening', {
       body: {
         applicationId,
+        statusToken,
         addons: {
           selfie_match:          requirements.selfie,
           credit_self_disclosed: requirements.credit_self_disclosed,

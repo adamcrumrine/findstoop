@@ -98,8 +98,10 @@ Deno.serve(async (req) => {
     }
 
     // Build PaymentIntent params. If the landlord has Connect set up, use
-    // destination charges so rent goes direct to their bank (and Stripe
-    // fees are borne by the landlord, not the platform).
+    // destination charges so rent goes direct to their bank. The 3.5% card
+    // surcharge is retained by the platform via application_fee_amount —
+    // without it the full amount (rent + surcharge) transfers to the landlord
+    // and FindStoop absorbs the card fee, violating the surcharge policy.
     interface PIParams {
       amount: number
       currency: string
@@ -108,6 +110,7 @@ Deno.serve(async (req) => {
       metadata: Record<string, string>
       transfer_data?: { destination: string }
       on_behalf_of?: string
+      application_fee_amount?: number
     }
     const params: PIParams = {
       amount: totalCents,
@@ -134,6 +137,9 @@ Deno.serve(async (req) => {
     if (connectReady && connectAccountId) {
       params.transfer_data = { destination: connectAccountId }
       params.on_behalf_of = connectAccountId
+      // Landlord receives exactly the rent; the surcharge stays on the
+      // platform balance (where the Stripe processing fee is debited from).
+      if (surchargeCents > 0) params.application_fee_amount = surchargeCents
     }
 
     // Idempotency key keyed on the payment row + method: a double-clicked

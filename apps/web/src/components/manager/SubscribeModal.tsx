@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { loadStripe, type Stripe as StripeJs } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { X, Loader2, Lock, CheckCircle2 } from 'lucide-react'
+import { X, Loader2, Lock, CheckCircle2, Landmark, CreditCard, ChevronLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { CARD_SURCHARGE_PCT, cardSurchargeCents } from '@findstoop/shared/lib/billing'
 import { BRAND, brandColor } from '../../lib/brand'
 import ModalShell from '../shared/ModalShell'
 
@@ -15,11 +16,24 @@ function getStripe(): ReturnType<typeof loadStripe> {
   return stripePromise
 }
 
+export interface SubscriptionBreakdown {
+  subtotalCents: number
+  surchargeCents: number
+  totalCents: number
+}
+
 interface Props {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  // Two-step flow: while clientSecret is null the modal shows the rail
+  // chooser; picking one calls onSelectRail, the parent creates the
+  // subscription server-side (which bakes in the 3.5% card surcharge), and
+  // the returned clientSecret + breakdown flip the modal to the payment step.
+  onSelectRail: (payWith: 'card' | 'ach') => Promise<void>
+  onChangeRail: () => void
   clientSecret: string | null
+  breakdown: SubscriptionBreakdown | null
   plan: 'monthly' | 'annual'
   quantity: number
 }
@@ -27,12 +41,35 @@ interface Props {
 const PER_UNIT_MONTHLY = 9
 const PER_UNIT_ANNUAL  = 90
 
-export default function SubscribeModal({ open, onClose, onSuccess, clientSecret, plan, quantity }: Props) {
+function fmtCents(cents: number): string {
+  return (cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+export default function SubscribeModal({
+  open, onClose, onSuccess, onSelectRail, onChangeRail, clientSecret, breakdown, plan, quantity,
+}: Props) {
+  const [creating, setCreating] = useState<'card' | 'ach' | null>(null)
   if (!open) return null
 
   const perUnit = plan === 'annual' ? PER_UNIT_ANNUAL : PER_UNIT_MONTHLY
-  const total = perUnit * Math.max(1, quantity)
+  const baseCents = perUnit * Math.max(1, quantity) * 100
   const intervalLabel = plan === 'annual' ? '/year' : '/month'
+  // Exact totals come from the server once the subscription exists; before
+  // that the chooser shows the same math (shared helper) as an estimate.
+  const totalCents = breakdown?.totalCents ?? baseCents
+
+  const pickRail = async (rail: 'card' | 'ach') => {
+    if (creating) return
+    setCreating(rail)
+    try {
+      await onSelectRail(rail)
+    } finally {
+      setCreating(null)
+    }
+  }
 
   return (
     <ModalShell onClose={onClose} maxWidth="max-w-lg" aria-label="Subscribe">
@@ -60,17 +97,67 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
             Unlock the formatted lease PDF, the tenant portal, and rent collection.
           </p>
           <div className="mt-5 flex items-baseline gap-1">
-            <span className="text-4xl font-bold">${total.toLocaleString()}</span>
+            <span className="text-4xl font-bold">${fmtCents(totalCents)}</span>
             <span className="text-sm text-white/80 font-medium">{intervalLabel}</span>
           </div>
           <p className="text-xs text-white/80 mt-1">
-            ${perUnit}/unit/{plan === 'annual' ? 'year' : 'month'} · {quantity} {quantity === 1 ? 'unit' : 'units'} · billed only on active units
+            {breakdown && breakdown.surchargeCents > 0
+              ? `$${fmtCents(breakdown.subtotalCents)} plan + $${fmtCents(breakdown.surchargeCents)} card processing fee (${CARD_SURCHARGE_PCT}%)`
+              : `$${perUnit}/unit/${plan === 'annual' ? 'year' : 'month'} · ${quantity} ${quantity === 1 ? 'unit' : 'units'} · billed only on active units`}
           </p>
         </div>
 
-        {/* Payment form */}
-        <div className="p-6">
-          {clientSecret ? (
+        {/* Step 1: pick the payment rail (decides whether the 3.5% card
+            surcharge applies — the server bakes it into the invoice). */}
+        {!clientSecret ? (
+          <div className="p-6 space-y-3">
+            <p className="text-sm text-mute leading-relaxed">
+              How would you like to pay? Bank transfer (ACH) has no processing fee;
+              cards add a {CARD_SURCHARGE_PCT}% fee on each invoice to cover card-network costs.
+            </p>
+            <button
+              type="button"
+              disabled={creating !== null}
+              onClick={() => pickRail('ach')}
+              className="w-full flex items-center gap-3 border border-gray-300 hover:border-brand-400 hover:bg-brand-50 rounded-xl p-4 text-left transition-colors disabled:opacity-50"
+            >
+              {creating === 'ach'
+                ? <Loader2 className="w-5 h-5 animate-spin text-brand-600" strokeWidth={1.75} />
+                : <Landmark className="w-5 h-5 text-brand-600" strokeWidth={1.75} />}
+              <span className="flex-1">
+                <span className="block text-sm font-semibold text-ink">US bank account (ACH)</span>
+                <span className="block text-xs text-mute mt-0.5">No processing fee</span>
+              </span>
+              <span className="text-sm font-semibold text-ink">${fmtCents(baseCents)}{intervalLabel}</span>
+            </button>
+            <button
+              type="button"
+              disabled={creating !== null}
+              onClick={() => pickRail('card')}
+              className="w-full flex items-center gap-3 border border-gray-300 hover:border-brand-400 hover:bg-brand-50 rounded-xl p-4 text-left transition-colors disabled:opacity-50"
+            >
+              {creating === 'card'
+                ? <Loader2 className="w-5 h-5 animate-spin text-brand-600" strokeWidth={1.75} />
+                : <CreditCard className="w-5 h-5 text-brand-600" strokeWidth={1.75} />}
+              <span className="flex-1">
+                <span className="block text-sm font-semibold text-ink">Card / Apple Pay / Google Pay</span>
+                <span className="block text-xs text-mute mt-0.5">+{CARD_SURCHARGE_PCT}% processing fee per invoice</span>
+              </span>
+              <span className="text-sm font-semibold text-ink">
+                ${fmtCents(baseCents + cardSurchargeCents(baseCents))}{intervalLabel}
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className="p-6">
+            <button
+              type="button"
+              onClick={onChangeRail}
+              className="inline-flex items-center gap-1 text-xs text-mute hover:text-ink mb-3 transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2} />
+              Change payment method
+            </button>
             <Elements
               stripe={getStripe()}
               options={{
@@ -88,14 +175,15 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
                 },
               }}
             >
-              <SubscribeForm onSuccess={onSuccess} onClose={onClose} total={total} intervalLabel={intervalLabel} />
+              <SubscribeForm
+                onSuccess={onSuccess}
+                onClose={onClose}
+                totalCents={totalCents}
+                intervalLabel={intervalLabel}
+              />
             </Elements>
-          ) : (
-            <div className="flex items-center justify-center py-12 text-mute">
-              <Loader2 className="w-5 h-5 animate-spin" strokeWidth={1.75} />
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Trust footer */}
         <div className="px-6 pb-5 pt-1 flex items-center justify-center gap-1.5 text-xs text-mute">
@@ -110,12 +198,12 @@ export default function SubscribeModal({ open, onClose, onSuccess, clientSecret,
 function SubscribeForm({
   onSuccess,
   onClose,
-  total,
+  totalCents,
   intervalLabel,
 }: {
   onSuccess: () => void
   onClose: () => void
-  total: number
+  totalCents: number
   intervalLabel: string
 }) {
   const stripe = useStripe()
@@ -187,12 +275,6 @@ function SubscribeForm({
         </div>
       )}
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 leading-relaxed">
-        <strong className="font-semibold">Heads up — card surcharge:</strong>{' '}
-        Pay with a US bank account (ACH) for the lowest cost. Paying by card adds a 3.5% processing
-        fee on each billing cycle to offset Stripe's card-network fees.
-      </div>
-
       <button
         type="submit"
         disabled={!stripe || processing}
@@ -204,12 +286,12 @@ function SubscribeForm({
             Processing…
           </>
         ) : (
-          <>Subscribe — ${total.toLocaleString()}{intervalLabel}</>
+          <>Subscribe — ${fmtCents(totalCents)}{intervalLabel}</>
         )}
       </button>
 
       <p className="text-xs text-mute text-center leading-relaxed">
-        By subscribing, you authorize {BRAND.name} to charge your payment method ${total.toLocaleString()}{intervalLabel}
+        By subscribing, you authorize {BRAND.name} to charge your payment method ${fmtCents(totalCents)}{intervalLabel}
         until you cancel. Cancel any time from the Billing page.
       </p>
     </form>

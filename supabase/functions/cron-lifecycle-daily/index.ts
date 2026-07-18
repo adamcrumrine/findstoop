@@ -21,6 +21,10 @@ const RESEND_FROM      = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop
 const resend = new Resend(RESEND_API_KEY)
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', { apiVersion: '2023-10-16' })
 
+// Must match create-payment-intent (and packages/shared/src/lib/billing.ts):
+// card charges carry a 3.5% surcharge passed to the tenant; ACH does not.
+const CARD_SURCHARGE_PCT = 3.5
+
 const admin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -758,7 +762,7 @@ Deno.serve(async (req) => {
         id, amount, tenant_id, lease_id, scheduled_for, due_date, type, initiated_at,
         tenant:profiles!payments_tenant_id_fkey(
           autopay_enabled, payment_complimentary, stripe_customer_id, stripe_default_payment_method_id,
-          email, full_name
+          stripe_default_pm_type, email, full_name
         ),
         lease:leases!payments_lease_id_fkey(
           unit:units(unit_number, property:properties(name))
@@ -793,20 +797,57 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const intent = await stripe.paymentIntents.create({
-          amount: Math.round(Number(row.amount) * 100),
+        // Mirror the manual create-payment-intent path: the saved PM's type
+        // decides the 3.5% card surcharge, and the landlord's Connect status
+        // decides whether the funds route direct to their bank. The profiles
+        // row mirrors the PM type at save time (setup_intent.succeeded);
+        // fall back to Stripe for PMs saved before the mirror existed.
+        let pmType: string | null = tenant.stripe_default_pm_type ?? null
+        if (!pmType) {
+          try {
+            pmType = (await stripe.paymentMethods.retrieve(tenant.stripe_default_payment_method_id)).type ?? null
+          } catch { pmType = null }
+        }
+        const isCard = pmType !== 'us_bank_account' // unknown type ⇒ treat as card (never under-charge the surcharge rail)
+        const rentCents = Math.round(Number(row.amount) * 100)
+        const surchargeCents = isCard ? Math.round(Number(row.amount) * CARD_SURCHARGE_PCT) : 0
+
+        const { data: ctxRows } = await admin.rpc('lease_payout_context', { lease_uuid: row.lease_id })
+        const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows
+        const connectAccountId: string | null = ctx?.connect_account_id ?? null
+        const connectReady: boolean = !!ctx?.charges_enabled
+
+        const params: Stripe.PaymentIntentCreateParams = {
+          amount: rentCents + surchargeCents,
           currency: 'usd',
           customer: tenant.stripe_customer_id,
           payment_method: tenant.stripe_default_payment_method_id,
+          // Default payment_method_types is ['card'] — an ACH PM can't confirm
+          // against it, so declare the saved PM's rail explicitly.
+          payment_method_types: [isCard ? 'card' : 'us_bank_account'],
           off_session: true,
           confirm: true,
+          description: isCard ? 'Rent + 3.5% card processing fee (autopay)' : 'Rent payment via ACH (autopay)',
           metadata: {
             findstoop_payment_id: row.id,
             findstoop_lease_id: row.lease_id,
             findstoop_tenant_id: row.tenant_id,
             findstoop_autopay: 'true',
+            rentAmount: String(row.amount),
+            surchargeAmount: (surchargeCents / 100).toFixed(2),
+            paymentMethod: isCard ? 'card' : 'us_bank_account',
+            connectMode: connectReady && connectAccountId ? 'destination' : 'platform',
           },
-        }, {
+        }
+        if (connectReady && connectAccountId) {
+          params.transfer_data = { destination: connectAccountId }
+          params.on_behalf_of = connectAccountId
+          // Landlord receives exactly the rent; the surcharge stays on the
+          // platform balance (same as create-payment-intent).
+          if (surchargeCents > 0) params.application_fee_amount = surchargeCents
+        }
+
+        const intent = await stripe.paymentIntents.create(params, {
           // Keyed on the payment row id: if the cron re-runs or is redelivered
           // before initiated_at commits, the same rent row can't be charged twice.
           idempotencyKey: `autopay:${row.id}`,

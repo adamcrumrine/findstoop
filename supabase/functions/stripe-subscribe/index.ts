@@ -6,7 +6,14 @@
 //   and returns the latest invoice's PaymentIntent client_secret so the
 //   client can render its own (FindStoop-branded) PaymentElement.
 //
-// Payment methods enabled: card (incl. Apple Pay & Google Pay) + us_bank_account (ACH).
+// Payment method is chosen by the manager BEFORE checkout (body.payWith):
+//   • 'ach'  → us_bank_account only, no surcharge.
+//   • 'card' → card only (incl. Apple Pay & Google Pay), plus the 3.5% card
+//     surcharge: a pending invoice item is created before the subscription so
+//     the FIRST invoice carries it, and the stripe-webhook invoice.created
+//     handler adds it to every renewal invoice while the default PM is a card.
+// Legacy clients that omit payWith get the old both-rails behavior with no
+// first-invoice surcharge (renewals are still surcharged by the webhook).
 
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -14,6 +21,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
 })
+
+// Must match stripe-webhook / create-payment-intent (and
+// packages/shared/src/lib/billing.ts).
+const CARD_SURCHARGE_PCT = 3.5
 // Single-tier pricing: $9/unit/mo, $90/unit/yr. No free units, no tiers.
 const PRICE_MONTHLY = Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY') ?? ''
 const PRICE_YEARLY  = Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY')  ?? ''
@@ -37,11 +48,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    // ── Body: optional plan choice (defaults to monthly) ────────────────
+    // ── Body: optional plan + payment-rail choice ───────────────────────
     let plan: 'monthly' | 'annual' = 'monthly'
+    let payWith: 'card' | 'ach' | null = null
     try {
       const body = await req.json().catch(() => ({}))
       if (body?.plan === 'annual') plan = 'annual'
+      if (body?.payWith === 'card' || body?.payWith === 'ach') payWith = body.payWith
     } catch { /* no body — fine */ }
     const chosenPriceId = plan === 'annual' ? PRICE_YEARLY : PRICE_MONTHLY
     if (!chosenPriceId) return json({ error: `No price configured for plan=${plan}` }, { status: 500 })
@@ -116,24 +129,43 @@ Deno.serve(async (req) => {
       if (existing && existing.status === 'incomplete') {
         const latestInvoice = existing.latest_invoice as Stripe.Invoice | null
         const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent | null
+        // A resumed attempt must match the requested rail — an abandoned card
+        // attempt carries the surcharge invoice item (and card-only PI), so it
+        // can't be reused for an ACH retry and vice versa. Legacy clients
+        // (payWith omitted) resume whatever exists.
+        const existingTypes = existing.payment_settings?.payment_method_types ?? []
+        const railMatches =
+          payWith === null ||
+          (payWith === 'card'
+            ? existingTypes.length === 1 && existingTypes[0] === 'card'
+            : existingTypes.length === 1 && existingTypes[0] === 'us_bank_account')
         // If the PaymentIntent can still be confirmed, hand its client_secret
         // back. Stripe rejects further confirms once it's succeeded/canceled.
         const usableStatuses = new Set(['requires_payment_method', 'requires_confirmation', 'requires_action', 'processing'])
-        if (paymentIntent?.client_secret && usableStatuses.has(paymentIntent.status)) {
+        if (railMatches && paymentIntent?.client_secret && usableStatuses.has(paymentIntent.status)) {
           const item = existing.items.data[0]
+          const qty = item?.quantity ?? Math.max(1, paidUnits)
+          const subtotalCents = (item?.price?.unit_amount ?? 0) * qty
+          const totalCents = paymentIntent.amount
           return json({
             status: 'setup',
             clientSecret: paymentIntent.client_secret,
             subscriptionId: existing.id,
             paidUnits,
-            quantity: item?.quantity ?? Math.max(1, paidUnits),
+            quantity: qty,
             plan,
             appUrl: APP_URL,
             resumed: true,
+            breakdown: {
+              subtotalCents,
+              surchargeCents: Math.max(0, totalCents - subtotalCents),
+              totalCents,
+            },
           })
         }
-        // PI is in a dead state but sub is still incomplete — clean up so we
-        // can issue a fresh one below.
+        // Wrong rail for this attempt, or the PI is in a dead state — cancel
+        // the abandoned subscription (voids its invoice + PI) and clear the
+        // local row so a fresh one is created below.
         try { await stripe.subscriptions.cancel(existing.id) } catch { /* noop */ }
         await admin.from('profiles').update({
           stripe_subscription_id: null,
@@ -162,13 +194,47 @@ Deno.serve(async (req) => {
     // Minimum quantity is 1 — once they activate additional units,
     // syncSubscriptionQuantity bumps it up.
     const quantity = Math.max(1, paidUnits)
+
+    // Sweep any surcharge invoice item left over from an abandoned card
+    // attempt — a stale pending item would otherwise piggyback onto this
+    // subscription's first invoice (or double up with a fresh one).
+    try {
+      const pendingItems = await stripe.invoiceItems.list({ customer: customerId, pending: true, limit: 100 })
+      for (const it of pendingItems.data) {
+        if (it.metadata?.findstoop_surcharge === 'true') {
+          try { await stripe.invoiceItems.del(it.id) } catch { /* noop */ }
+        }
+      }
+    } catch { /* listing failed — worst case Stripe rejects nothing; continue */ }
+
+    // Card rail: the 3.5% surcharge goes on as a pending invoice item so the
+    // FIRST invoice carries it (subscription creation pulls pending items in).
+    // Renewal invoices are surcharged by the stripe-webhook invoice.created
+    // handler, which re-checks the default PM each cycle.
+    const price = await stripe.prices.retrieve(chosenPriceId)
+    const subtotalCents = (price.unit_amount ?? 0) * quantity
+    const surchargeCents = payWith === 'card' ? Math.round(subtotalCents * (CARD_SURCHARGE_PCT / 100)) : 0
+    if (surchargeCents > 0) {
+      await stripe.invoiceItems.create({
+        customer: customerId,
+        currency: 'usd',
+        amount: surchargeCents,
+        description: `${CARD_SURCHARGE_PCT}% card processing fee`,
+        metadata: { findstoop_surcharge: 'true', platform: 'findstoop' },
+      })
+    }
+
+    const paymentMethodTypes: ('card' | 'us_bank_account')[] =
+      payWith === 'card' ? ['card'] :
+      payWith === 'ach'  ? ['us_bank_account'] :
+      ['card', 'us_bank_account'] // legacy client — old behavior
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: chosenPriceId, quantity }],
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
-        payment_method_types: ['card', 'us_bank_account'],
+        payment_method_types: paymentMethodTypes,
       },
       expand: ['latest_invoice.payment_intent'],
       metadata: { findstoop_manager_id: user.id, platform: 'findstoop' },
@@ -192,6 +258,9 @@ Deno.serve(async (req) => {
       return json({ error: 'Stripe did not return a client_secret for the new subscription' }, { status: 500 })
     }
 
+    // Report the PI's actual amount as the total — it's what the manager will
+    // be charged (subtotal + surcharge item pulled onto the first invoice).
+    const totalCents = paymentIntent?.amount ?? subtotalCents + surchargeCents
     return json({
       status: 'setup',
       clientSecret,
@@ -200,6 +269,11 @@ Deno.serve(async (req) => {
       quantity,
       plan,
       appUrl: APP_URL,
+      breakdown: {
+        subtotalCents,
+        surchargeCents: Math.max(0, totalCents - subtotalCents),
+        totalCents,
+      },
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'

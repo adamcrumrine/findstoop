@@ -78,7 +78,9 @@ export default function Apply() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
-  const [submittedAppId, setSubmittedAppId] = useState<string | null>(null)
+  // id + status_token from the insert — the token doubles as the applicant's
+  // proof-of-ownership for start-screening (the flow has no auth session).
+  const [submittedApp, setSubmittedApp] = useState<{ id: string; statusToken: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -127,13 +129,13 @@ export default function Apply() {
       household_size: form.household_size ? Number(form.household_size) : null,
       has_pets: form.has_pets,
       pets_description: form.has_pets ? form.pets_description.trim() || null : null,
-    }).select('id').single()
+    }).select('id, status_token').single()
     setSubmitting(false)
     if (insertError || !inserted) {
       setError(insertError?.message ?? 'Could not submit application')
       return
     }
-    setSubmittedAppId(inserted.id as string)
+    setSubmittedApp({ id: inserted.id as string, statusToken: inserted.status_token as string })
   }
 
   if (loading) {
@@ -158,11 +160,12 @@ export default function Apply() {
     )
   }
 
-  if (submittedAppId) {
+  if (submittedApp) {
     return (
       <div className="max-w-3xl mx-auto py-10 px-5">
         <ScreeningFlow
-          applicationId={submittedAppId}
+          applicationId={submittedApp.id}
+          statusToken={submittedApp.statusToken}
           applicantName={`${form.first_name} ${form.last_name}`.trim()}
           applicantEmail={form.email.trim().toLowerCase()}
           requirements={{

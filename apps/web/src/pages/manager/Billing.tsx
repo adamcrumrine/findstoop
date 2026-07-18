@@ -8,7 +8,7 @@ import {
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
-import SubscribeModal from '../../components/manager/SubscribeModal'
+import SubscribeModal, { type SubscriptionBreakdown } from '../../components/manager/SubscribeModal'
 import ManageBillingModal from '../../components/manager/ManageBillingModal'
 import { BRAND } from '../../lib/brand'
 
@@ -76,10 +76,14 @@ export default function Billing() {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly')
   // Embedded Stripe Elements subscription flow — opened in-place instead of
   // redirecting to hosted Checkout (which carries the wrong brand identity).
+  // Opens with clientSecret null (rail-chooser step); once the manager picks
+  // ACH vs card the server creates the subscription — with the 3.5% card
+  // surcharge baked into the invoice — and fills in clientSecret + breakdown.
   const [subscribeModal, setSubscribeModal] = useState<{
-    clientSecret: string
     plan: 'monthly' | 'annual'
     quantity: number
+    clientSecret: string | null
+    breakdown: SubscriptionBreakdown | null
   } | null>(null)
   const [manageModalOpen, setManageModalOpen] = useState(false)
 
@@ -143,33 +147,58 @@ export default function Billing() {
   const monthlyCost = (state?.paidUnits ?? 0) * PER_UNIT
 
   const handleSubscribe = async () => {
+    // States we already know locally don't need the chooser round-trip.
+    if (state?.complimentary) {
+      toast('Your account is on a complimentary plan — no billing required.', { icon: '✓' })
+      return
+    }
+    if (state?.status === 'active' || state?.status === 'trialing') {
+      setManageModalOpen(true)
+      return
+    }
+    // Open the modal on the rail-chooser step; the subscription is only
+    // created once the manager picks ACH vs card (the choice decides the
+    // 3.5% card surcharge, so it must precede the Stripe call).
+    setSubscribeModal({
+      plan: selectedPlan,
+      quantity: Math.max(1, state?.paidUnits ?? 1),
+      clientSecret: null,
+      breakdown: null,
+    })
+  }
+
+  const createSubscription = async (payWith: 'card' | 'ach') => {
     setSubscribing(true)
     try {
       const { data, error } = await supabase.functions.invoke('stripe-subscribe', {
-        body: { plan: selectedPlan },
+        body: { plan: subscribeModal?.plan ?? selectedPlan, payWith },
       })
       if (error) throw error
       if (data?.status === 'complimentary') {
         toast(data.message ?? 'Your account is on a complimentary plan.', { icon: '✓' })
+        setSubscribeModal(null)
         await refresh()
         return
       }
       if (data?.status === 'setup' && data.clientSecret) {
         setSubscribeModal({
-          clientSecret: data.clientSecret,
           plan: data.plan ?? selectedPlan,
           quantity: data.quantity ?? Math.max(1, data.paidUnits ?? 1),
+          clientSecret: data.clientSecret,
+          breakdown: data.breakdown ?? null,
         })
         return
       }
       if (data?.status === 'manage') {
         // Already subscribed — open the Stoop-branded manage modal
         // instead of redirecting to Stripe's (Prospekteer-branded) portal.
+        setSubscribeModal(null)
         setManageModalOpen(true)
         return
       }
       if (data?.status === 'no_payment_needed') {
         toast(data.message ?? 'No payment method needed yet.', { icon: '✓' })
+        setSubscribeModal(null)
         return
       }
       toast.error(data?.error ?? 'Could not start billing.')
@@ -456,7 +485,10 @@ export default function Billing() {
         open={!!subscribeModal}
         onClose={() => setSubscribeModal(null)}
         onSuccess={() => { void refresh() }}
+        onSelectRail={createSubscription}
+        onChangeRail={() => setSubscribeModal((s) => (s ? { ...s, clientSecret: null, breakdown: null } : s))}
         clientSecret={subscribeModal?.clientSecret ?? null}
+        breakdown={subscribeModal?.breakdown ?? null}
         plan={subscribeModal?.plan ?? 'monthly'}
         quantity={subscribeModal?.quantity ?? 1}
       />

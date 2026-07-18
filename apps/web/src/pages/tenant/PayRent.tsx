@@ -14,11 +14,11 @@ import PaymentMethodCard from '../../components/tenant/PaymentMethodCard'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import Dialog from '../../components/shared/Dialog'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
+import { CARD_SURCHARGE_PCT, cardSurcharge } from '@findstoop/shared/lib/billing'
 import { BRAND, brandColor } from '../../lib/brand'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 
 type PayMethod = 'us_bank_account' | 'card'
-const CARD_SURCHARGE_PCT = 3.5
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '')
 
@@ -283,7 +283,9 @@ export default function TenantPayRent() {
   }, [profile?.id, paid])
 
   const rentAmount = Number(nextPayment?.amount ?? 0)
-  const surcharge = method === 'card' ? +(rentAmount * (CARD_SURCHARGE_PCT / 100)).toFixed(2) : 0
+  // Shared helper matches the server's cent-rounding exactly, so the amount
+  // shown here always equals what create-payment-intent charges.
+  const surcharge = method === 'card' ? cardSurcharge(rentAmount) : 0
   const totalToCharge = +(rentAmount + surcharge).toFixed(2)
 
   const handleStartPayment = async () => {
@@ -513,16 +515,16 @@ export default function TenantPayRent() {
                   >
                     <CardIcon className="w-4 h-4" strokeWidth={1.75} />
                     {/* Concrete dollars beat percentages — the fee on THIS payment. */}
-                    Card · +{formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)}
+                    Card · +{formatUsdCents(cardSurcharge(rentAmount))}
                   </button>
                 </div>
                 {method === 'card' ? (
                   <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
-                    Card payments include a {formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)} processing fee ({CARD_SURCHARGE_PCT}%). Total: {formatUsdCents(totalToCharge)}. Bank transfer is free.
+                    Card payments include a {formatUsdCents(cardSurcharge(rentAmount))} processing fee ({CARD_SURCHARGE_PCT}%). Total: {formatUsdCents(totalToCharge)}. Bank transfer is free.
                   </p>
                 ) : (
                   <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
-                    Bank transfer is free — you’re saving {formatUsdCents(rentAmount * CARD_SURCHARGE_PCT / 100)} vs. paying by card.
+                    Bank transfer is free — you’re saving {formatUsdCents(cardSurcharge(rentAmount))} vs. paying by card.
                   </p>
                 )}
                 <button

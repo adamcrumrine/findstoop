@@ -27,6 +27,10 @@ const APP_URL = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') ?? '')
 const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop.com'
 
+// Must match create-payment-intent / stripe-subscribe (and
+// packages/shared/src/lib/billing.ts): card charges carry a 3.5% surcharge.
+const CARD_SURCHARGE_PCT = 3.5
+
 // A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
 // bounced days later (insufficient funds, closed account). The cron's
 // autopay-failure alert only covers charge-time declines; this covers the
@@ -96,6 +100,49 @@ async function notifyTenantPaymentFailed(paymentRowId: string | null, stripePaym
   } catch { /* fail-soft */ }
 }
 
+// The manager's OWN subscription invoice failed to charge. Without an alert
+// the landlord silently goes past_due and can lose access at period end —
+// tenants get email+push+SMS on payment failure, so managers should too.
+// Fires once per Stripe dunning attempt (each retry is a distinct event).
+async function notifyManagerSubscriptionPaymentFailed(managerId: string, inv: Stripe.Invoice) {
+  const { data: mgr } = await admin
+    .from('profiles')
+    .select('id, email, full_name')
+    .eq('id', managerId)
+    .maybeSingle()
+  if (!mgr?.email) return
+
+  const firstName = (mgr.full_name?.split(' ')[0]) ?? 'there'
+  const amountStr = `$${((inv.amount_due ?? 0) / 100).toLocaleString()}`
+
+  try {
+    await resend.emails.send({
+      from: RESEND_FROM,
+      to: mgr.email,
+      subject: `Action needed: your FindStoop subscription payment (${amountStr}) failed`,
+      html: `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
+          <p>Hi ${escapeHtml(firstName)},</p>
+          <p>Your FindStoop subscription payment of <strong>${amountStr}</strong> didn't go through. Stripe will retry automatically, but if the payment keeps failing your subscription will lapse and tenant payments, lease PDFs, and the tenant portal will pause for your properties.</p>
+          <p style="text-align:center;margin:28px 0">
+            <a href="${APP_URL}/manager/billing" style="display:inline-block;background:#00A896;color:white;padding:12px 28px;text-decoration:none;border-radius:8px;font-weight:600">Update payment method</a>
+          </p>
+          <p style="color:#8E8E93;font-size:13px">If you recently updated your card or bank account, no action may be needed — we'll email you again only if the retry fails.</p>
+        </div>
+      `,
+    })
+  } catch { /* fail-soft — push below may still land */ }
+
+  try {
+    await sendPushToProfile(admin, mgr.id, {
+      title: 'Subscription payment failed',
+      body: `${amountStr} couldn't be charged. Update your payment method to keep FindStoop active.`,
+      url: '/manager/billing',
+      tag: `sub-payment-failed-${inv.id}`,
+    })
+  } catch { /* fail-soft */ }
+}
+
 interface UpdateFields {
   stripe_subscription_id?: string | null
   stripe_subscription_item_id?: string | null
@@ -152,6 +199,9 @@ Deno.serve(async (req) => {
     managerId = data?.id ?? null
   }
 
+  // Insert-first acts as a concurrency-safe claim (UNIQUE stripe_event_id);
+  // the catch block below RELEASES the claim on handler failure so Stripe's
+  // retry reprocesses instead of hitting the duplicate branch.
   const { error: insertErr } = await admin.from('billing_events').insert({
     stripe_event_id: event.id,
     event_type: event.type,
@@ -199,7 +249,56 @@ Deno.serve(async (req) => {
         const cust = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
         if (cust) {
           await admin.from('profiles').update({ subscription_status: 'past_due' }).eq('stripe_customer_id', cust)
+          if (managerId) await notifyManagerSubscriptionPaymentFailed(managerId, inv)
         }
+        break
+      }
+      case 'invoice.created': {
+        // Card-surcharge policy for manager subscriptions: renewal invoices
+        // get a 3.5% line item when the subscription will charge a card.
+        // Stripe creates subscription-cycle invoices as drafts and waits
+        // ~1 hour before finalizing, which is the window to add the item.
+        // (The FIRST invoice is handled at subscription-create time in
+        // stripe-subscribe — it's finalized immediately, so it can't be
+        // amended here.)
+        const inv = event.data.object as Stripe.Invoice
+        if (inv.status !== 'draft' || !inv.subscription) break
+        if (inv.billing_reason === 'subscription_create') break
+        const subtotal = inv.subtotal ?? 0
+        if (subtotal <= 0 || !customerId) break
+        // Redelivery guard on top of billing_events: never add a second
+        // surcharge line to the same invoice.
+        const alreadySurcharged = inv.lines.data.some((l) => l.metadata?.findstoop_surcharge === 'true')
+        if (alreadySurcharged) break
+
+        // The PM that will be charged: subscription default first (set via
+        // save_default_payment_method=on_subscription), customer default second.
+        const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription.id
+        const sub = await stripe.subscriptions.retrieve(subId)
+        let pmId = typeof sub.default_payment_method === 'string'
+          ? sub.default_payment_method
+          : sub.default_payment_method?.id ?? null
+        if (!pmId) {
+          const cust = await stripe.customers.retrieve(customerId)
+          if (!('deleted' in cust && cust.deleted)) {
+            const c = cust as Stripe.Customer
+            pmId = typeof c.invoice_settings?.default_payment_method === 'string'
+              ? c.invoice_settings.default_payment_method
+              : c.invoice_settings?.default_payment_method?.id ?? null
+          }
+        }
+        if (!pmId) break
+        const pm = await stripe.paymentMethods.retrieve(pmId)
+        if (pm.type !== 'card') break
+
+        await stripe.invoiceItems.create({
+          customer: customerId,
+          invoice: inv.id,
+          currency: inv.currency ?? 'usd',
+          amount: Math.round(subtotal * (CARD_SURCHARGE_PCT / 100)),
+          description: `${CARD_SURCHARGE_PCT}% card processing fee`,
+          metadata: { findstoop_surcharge: 'true', platform: 'findstoop' },
+        })
         break
       }
       case 'invoice.paid': {
@@ -241,6 +340,80 @@ Deno.serve(async (req) => {
         }
         break
       }
+      // ── Disputes & refunds ──────────────────────────────────────────────
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute
+        const piId = typeof dispute.payment_intent === 'string'
+          ? dispute.payment_intent
+          : dispute.payment_intent?.id ?? null
+        if (!piId) break
+        // Flip the rent row so the manager's ledger stops counting disputed
+        // money as collected, then tell the landlord — they must respond to
+        // the dispute in Stripe within the evidence deadline.
+        const { data: row } = await admin
+          .from('payments')
+          .select(`
+            id, amount,
+            lease:leases!payments_lease_id_fkey(
+              unit:units(unit_number, property:properties(name, manager:profiles(id, email, full_name)))
+            )
+          `)
+          .eq('stripe_payment_id', piId)
+          .maybeSingle()
+        if (row) {
+          await admin.from('payments').update({ status: 'disputed' }).eq('id', row.id)
+          // deno-lint-ignore no-explicit-any
+          const r = row as any
+          const lease = Array.isArray(r.lease) ? r.lease[0] : r.lease
+          const unit = lease && (Array.isArray(lease.unit) ? lease.unit[0] : lease.unit)
+          const property = unit && (Array.isArray(unit.property) ? unit.property[0] : unit.property)
+          const manager = property && (Array.isArray(property.manager) ? property.manager[0] : property.manager)
+          if (manager?.email) {
+            const amountStr = `$${Number(r.amount).toLocaleString()}`
+            try {
+              await resend.emails.send({
+                from: RESEND_FROM,
+                to: manager.email,
+                subject: `A tenant disputed a ${amountStr} payment at ${property?.name ?? 'your property'}`,
+                html: `
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
+                    <p>Hi ${escapeHtml((manager.full_name?.split(' ')[0]) ?? 'there')},</p>
+                    <p>A tenant disputed a <strong>${amountStr}</strong> rent payment at <strong>${escapeHtml(property?.name ?? 'your property')}</strong>${unit?.unit_number ? ` · Unit ${escapeHtml(String(unit.unit_number))}` : ''}. The funds are withheld while the card network reviews it, and the payment now shows as <strong>Disputed</strong> in FindStoop.</p>
+                    <p>We've logged the dispute and will follow up — if you have context (signed lease, payment history, communications), reply to this email so it can be included in the evidence.</p>
+                  </div>
+                `,
+              })
+            } catch { /* fail-soft */ }
+          }
+        }
+        // Always leave an ops trail — disputes carry deadlines.
+        await logApiCall({
+          function_name: 'stripe-webhook', vendor: 'stripe', status_code: 200,
+          reference_id: piId,
+          error_message: `charge.dispute.created: ${dispute.reason ?? 'unknown reason'} (${dispute.status})`,
+          metadata: { event_type: event.type, dispute_id: dispute.id, amount: dispute.amount, payment_row: row?.id ?? null },
+        })
+        break
+      }
+      case 'charge.refunded': {
+        const ch = event.data.object as Stripe.Charge
+        const piId = typeof ch.payment_intent === 'string' ? ch.payment_intent : ch.payment_intent?.id ?? null
+        if (!piId) break
+        if (ch.refunded) {
+          // Fully refunded — reflect it on whichever record the charge backs.
+          await admin.from('payments').update({ status: 'refunded' }).eq('stripe_payment_id', piId)
+          await admin.from('screening_orders').update({ payment_status: 'refunded' }).eq('stripe_payment_intent_id', piId)
+        } else {
+          // Partial refund: leave status alone but keep an ops trail.
+          await logApiCall({
+            function_name: 'stripe-webhook', vendor: 'stripe', status_code: 200,
+            reference_id: piId,
+            error_message: `partial refund: ${ch.amount_refunded}/${ch.amount} cents`,
+            metadata: { event_type: event.type, charge_id: ch.id },
+          })
+        }
+        break
+      }
       // ── Tenant rent payments (autopay + manual) ─────────────────────────
       // Matches by metadata.findstoop_payment_id when the cron created the
       // row, otherwise by stripe_payment_id when the client inserted it.
@@ -257,27 +430,28 @@ Deno.serve(async (req) => {
           break
         }
         const update = { status: 'completed', paid_at: new Date().toISOString(), stripe_payment_id: pi.id }
-        if (pi.metadata?.findstoop_payment_id) {
+        // Resolve the row first (metadata id preferred, legacy stripe_payment_id
+        // match otherwise) so the amount reconciliation below covers BOTH paths.
+        const { data: row } = pi.metadata?.findstoop_payment_id
+          ? await admin.from('payments').select('id, amount').eq('id', pi.metadata.findstoop_payment_id).maybeSingle()
+          : await admin.from('payments').select('id, amount').eq('stripe_payment_id', pi.id).maybeSingle()
+        if (row) {
           // Defense in depth: reconcile the charged amount against the row's
           // rent before marking it paid, so an under-charged PaymentIntent can
           // never flip a full rent row to "completed". amount_received includes
           // the card surcharge, so it must be AT LEAST the rent in cents.
-          const { data: row } = await admin
-            .from('payments').select('amount').eq('id', pi.metadata.findstoop_payment_id).single()
-          const expectedRentCents = row ? Math.round(Number(row.amount) * 100) : null
-          if (expectedRentCents !== null && (pi.amount_received ?? 0) < expectedRentCents) {
+          const expectedRentCents = Math.round(Number(row.amount) * 100)
+          if ((pi.amount_received ?? 0) < expectedRentCents) {
             await logApiCall({
               function_name: 'stripe-webhook', vendor: 'stripe', status_code: 409,
               reference_id: pi.id,
               error_message: `amount mismatch: received ${pi.amount_received} < expected rent ${expectedRentCents}`,
-              metadata: { payment_id: pi.metadata.findstoop_payment_id, event_type: event.type },
+              metadata: { payment_id: row.id, event_type: event.type },
             })
             // Do NOT mark completed — leave the row for manual review.
             break
           }
-          await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
-        } else {
-          await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
+          await admin.from('payments').update(update).eq('id', row.id)
         }
         const tenantId = pi.metadata?.findstoop_tenant_id || pi.metadata?.tenantId
         if (tenantId) {
@@ -363,6 +537,13 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown error'
+    // Release the idempotency claim FIRST: the billing_events row was inserted
+    // before processing, so without this delete Stripe's retry would hit the
+    // duplicate branch above and return 200 — permanently dropping the event
+    // after any transient handler failure.
+    try {
+      await admin.from('billing_events').delete().eq('stripe_event_id', event.id)
+    } catch { /* if this fails the event is lost to retries — the log below is the trail */ }
     // Persist the failure so a broken money-path event is visible in
     // api_call_log — otherwise it only ever surfaces as a silent Stripe retry.
     await logApiCall({

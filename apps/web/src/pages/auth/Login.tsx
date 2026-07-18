@@ -6,6 +6,7 @@ import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { supabase } from '../../lib/supabase'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import PasswordInput from '../../components/shared/PasswordInput'
 import { BRAND } from '../../lib/brand'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
@@ -212,9 +213,8 @@ export default function Login({ role }: Props) {
                 Forgot password?
               </Link>
             </div>
-            <input
+            <PasswordInput
               id="login-password"
-              type="password"
               autoComplete="current-password"
               required
               value={password}

@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useAuth } from '@findstoop/shared/hooks/useAuth'
+import { defaultPathForRole } from '../../lib/roleRouting'
 import {
   CreditCard, FileSignature, Wrench, ShieldCheck, MessageSquare,
   ArrowRight, Check, Sparkles, BarChart3, ClipboardList,
@@ -15,6 +17,12 @@ export default function Home() {
   useRouteSeo('/')
   const [email, setEmail] = useState('')
   const navigate = useNavigate()
+  const { user, role } = useAuth()
+
+  // Signed-in users land on their dashboard instead of the marketing page —
+  // matters most for the installed PWA, whose start_url is "/". Signed-out
+  // visitors (and the SEO prerender, which has no session) see the page.
+  if (user && role) return <Navigate to={defaultPathForRole(role)} replace />
 
   const handleSignup = (e: React.FormEvent) => {
     e.preventDefault()

@@ -331,6 +331,7 @@ export default function ManagerMaintenance() {
           <input
             type="text"
             placeholder="Search title or description…"
+            enterKeyHint="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm placeholder-mute focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"

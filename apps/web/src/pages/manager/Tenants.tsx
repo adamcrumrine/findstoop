@@ -267,6 +267,7 @@ export default function ManagerTenants() {
           <input
             type="search"
             placeholder="Search by name, email, or phone…"
+            enterKeyHint="search"
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
             className="flex-1 min-w-[200px] text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"

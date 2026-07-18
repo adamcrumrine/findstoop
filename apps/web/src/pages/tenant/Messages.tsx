@@ -265,6 +265,7 @@ function TenantMessagesInner({ onRetry }: { onRetry: () => void }) {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={handleKeyDown}
+              enterKeyHint="send"
               placeholder="Message your manager…"
               rows={1}
               className="flex-1 px-3 py-2.5 border border-gray-300 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 max-h-28 overflow-y-auto"

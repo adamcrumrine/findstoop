@@ -8,6 +8,7 @@ import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { checkPasswordStrength, hibpCheckPassword } from '../../lib/passwordSecurity'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import PasswordInput from '../../components/shared/PasswordInput'
 import { BRAND } from '../../lib/brand'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
@@ -187,9 +188,8 @@ export default function Register({ role }: Props) {
             <label htmlFor="register-password" className="block text-sm font-medium text-ink mb-1">
               Password <span className="text-red-500">*</span>
             </label>
-            <input
+            <PasswordInput
               id="register-password"
-              type="password"
               autoComplete="new-password"
               required
               value={password}
@@ -206,9 +206,8 @@ export default function Register({ role }: Props) {
             <label htmlFor="register-confirm" className="block text-sm font-medium text-ink mb-1">
               Confirm password <span className="text-red-500">*</span>
             </label>
-            <input
+            <PasswordInput
               id="register-confirm"
-              type="password"
               autoComplete="new-password"
               required
               value={confirm}

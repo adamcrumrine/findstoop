@@ -12,6 +12,7 @@ import { formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
 import { verifyImageMagicBytes } from '../../lib/fileValidation'
 import { resizeImage } from '../../components/shared/ImageUploader'
+import { SkeletonBlock } from '../../components/shared/Skeleton'
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
@@ -351,7 +352,12 @@ export default function Expenses() {
           <h2 className="text-xs uppercase tracking-wider text-mute font-semibold">Expenses · {year}</h2>
         </div>
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-mute"><Loader2 className="w-5 h-5 animate-spin" strokeWidth={1.75} /></div>
+          <div className="p-4 space-y-3">
+            <SkeletonBlock className="h-5 w-full" />
+            <SkeletonBlock className="h-5 w-5/6" />
+            <SkeletonBlock className="h-5 w-full" />
+            <SkeletonBlock className="h-5 w-4/6" />
+          </div>
         ) : expenses.length === 0 ? (
           <p className="text-sm text-mute text-center py-10">No expenses recorded for {year} yet. Add your first above.</p>
         ) : (

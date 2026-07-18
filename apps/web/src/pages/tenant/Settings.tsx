@@ -448,7 +448,7 @@ export default function TenantSettings() {
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
           <div>
             <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Email</dt>
-            <dd className="text-ink mt-0.5">{profile?.email ?? '—'}</dd>
+            <dd className="text-ink mt-0.5 break-all">{profile?.email ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Name</dt>

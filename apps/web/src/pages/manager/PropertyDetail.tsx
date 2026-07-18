@@ -33,6 +33,7 @@ import FormField, { inputClass } from '../../components/shared/FormField'
 import ImageUploader from '../../components/shared/ImageUploader'
 import Avatar from '../../components/shared/Avatar'
 import { BRAND, brandColor } from '../../lib/brand'
+import { SkeletonBlock, SkeletonList } from '../../components/shared/Skeleton'
 
 type TabId = 'overview' | 'units' | 'turnover' | 'leases' | 'tenants' | 'maintenance' | 'payments' | 'compliance'
 
@@ -117,8 +118,10 @@ export default function ManagerPropertyDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-mute">
-        <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
+      <div className="space-y-4">
+        <SkeletonBlock className="h-8 w-64" />
+        <SkeletonBlock className="h-4 w-40" />
+        <SkeletonList count={3} />
       </div>
     )
   }

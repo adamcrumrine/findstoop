@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from 'react-router-dom'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import LoadingSpinner from './components/shared/LoadingSpinner'
 import ManagerLayout from './components/layout/ManagerLayout'
@@ -144,10 +144,27 @@ function RouteTracker() {
   return null
 }
 
+// Scroll to the top on forward navigations (link/button pushes), like a
+// full page load would. POP (back/forward) keeps the browser's position so
+// "back" returns you to where you were in a list. Resets both the window
+// (tenant/marketing layouts scroll the document) and #main-content (the
+// manager layout scrolls an inner column).
+function ScrollReset() {
+  const { pathname } = useLocation()
+  const navType = useNavigationType()
+  useEffect(() => {
+    if (navType === 'POP') return
+    window.scrollTo(0, 0)
+    document.getElementById('main-content')?.scrollTo(0, 0)
+  }, [pathname, navType])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <RouteTracker />
+      <ScrollReset />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public marketing */}

@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { scoreBand, affordability } from '../../lib/screening'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
+import { SkeletonList } from '../../components/shared/Skeleton'
 
 interface OrderRow {
   id: string
@@ -148,9 +149,7 @@ export default function Screening() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-mute">
-          <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
-        </div>
+        <SkeletonList count={3} />
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center">
           <div className="w-14 h-14 mx-auto mb-4 bg-brand-50 rounded-2xl flex items-center justify-center">

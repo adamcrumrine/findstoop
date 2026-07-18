@@ -38,7 +38,7 @@ export default function ApplicationStatusLayout() {
   }, [landlord?.brandColor])
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-dvh flex flex-col bg-white">
       <header className="border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
           {/* Landlord branding wins when set: logo → company name → build brand. */}

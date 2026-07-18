@@ -90,7 +90,8 @@ export default function RentRoll() {
           {rows.length === 0 ? (
             <p className="text-sm text-mute py-8 text-center">No units to report.</p>
           ) : (
-            <table className="w-full text-xs border border-gray-300 border-collapse">
+            <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-xs border border-gray-300 border-collapse min-w-[640px]">
               <thead>
                 <tr className="bg-gray-50 text-left">
                   <Th>Property</Th>
@@ -131,6 +132,7 @@ export default function RentRoll() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           )}
 
           <div className="mt-8 pt-4 border-t border-gray-200 text-[11px] text-mute text-center">

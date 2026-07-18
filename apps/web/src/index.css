@@ -42,6 +42,20 @@ img[src^='/illustrations/'] {
   filter: var(--illustration-filter);
 }
 
+@layer base {
+  /* iOS Safari auto-zooms the whole page when a focused form control's
+     font-size is under 16px, and stays zoomed after blur. Most of our
+     controls use text-sm (14px), so force 16px at phone widths. !important
+     is required to beat Tailwind's text-* utility classes. */
+  @media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
 @layer utilities {
   /* Horizontal scroll strips (e.g. mobile tab bars) without a visible scrollbar. */
   .no-scrollbar {

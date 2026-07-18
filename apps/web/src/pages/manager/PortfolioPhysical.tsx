@@ -221,6 +221,7 @@ function PropertySections({ p, multi }: { p: PropertyPhysical; multi: boolean })
             <Empty>No occupied units to compare.</Empty>
           ) : (
             <>
+              <div className="overflow-x-auto print:overflow-visible">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-mute border-b border-gray-200">
@@ -246,6 +247,7 @@ function PropertySections({ p, multi }: { p: PropertyPhysical; multi: boolean })
                   ))}
                 </tbody>
               </table>
+              </div>
               {p.rentDrift.belowMarketUnits > 0 && (
                 <p className="text-xs mt-2">
                   {p.rentDrift.belowMarketUnits} unit{p.rentDrift.belowMarketUnits === 1 ? ' rents' : 's rent'} more than{' '}

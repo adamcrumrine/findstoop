@@ -242,7 +242,7 @@ export default function NotificationsBell() {
       <div
         ref={panelRef}
         role="dialog"
-        className="fixed z-[70] w-[min(360px,calc(100vw-1.5rem))] max-h-[70vh] overflow-y-auto bg-white rounded-xl border border-gray-200 shadow-xl"
+        className="fixed z-[70] w-[min(360px,calc(100vw-1.5rem))] max-h-[min(70vh,calc(100dvh-5.5rem))] overflow-y-auto overscroll-contain bg-white rounded-xl border border-gray-200 shadow-xl"
         style={anchor ? anchor : { top: 56, left: 12 }}
       >
         <div className="px-4 py-3 border-b border-gray-100 sticky top-0 bg-white">

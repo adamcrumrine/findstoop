@@ -355,7 +355,8 @@ export default function Expenses() {
         ) : expenses.length === 0 ? (
           <p className="text-sm text-mute text-center py-10">No expenses recorded for {year} yet. Add your first above.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wider text-mute border-b border-gray-100">
                 <th className="px-4 py-2 font-semibold">Date</th>
@@ -386,6 +387,7 @@ export default function Expenses() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

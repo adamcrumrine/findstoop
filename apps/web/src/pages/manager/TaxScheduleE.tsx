@@ -180,7 +180,8 @@ export default function TaxScheduleE() {
               <section key={ci} className="mb-10 break-inside-avoid">
                 {chunks.length > 1 && <p className="text-xs font-semibold text-mute mb-2">Copy {ci + 1} of {chunks.length}</p>}
                 {/* Property headers */}
-                <table className="w-full text-sm border border-gray-300 border-collapse">
+                <div className="overflow-x-auto print:overflow-visible">
+                <table className="w-full text-sm border border-gray-300 border-collapse min-w-[560px]">
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="text-left p-2 border border-gray-300 font-semibold w-1/3">Property</th>
@@ -220,6 +221,7 @@ export default function TaxScheduleE() {
                     />
                   </tbody>
                 </table>
+                </div>
 
                 {/* Stoop income breakdown note for these properties */}
                 <div className="mt-2 text-[11px] text-mute">

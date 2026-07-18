@@ -7,6 +7,7 @@ import SignaturePad, { type SignaturePadHandle } from '../../components/shared/S
 import { FileSignature, ShieldCheck, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { BRAND } from '../../lib/brand'
+import ModalShell from '../../components/shared/ModalShell'
 
 interface LeaseDetail {
   id: string
@@ -362,8 +363,12 @@ export default function SignLease() {
           lease (it's now active), but they haven't set up billing yet. The
           formatted PDF, tenant portal, and rent payments are paywalled. */}
       {showBillingPrompt && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <ModalShell
+          onClose={() => { setShowBillingPrompt(false); navigate(backHref) }}
+          maxWidth="max-w-md"
+          aria-label="Finish setting up billing"
+        >
+          <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
             <div className="inline-flex items-center gap-2 text-xs font-medium text-red-700 bg-red-50 px-2.5 py-1 rounded-full mb-3">
               <ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.75} />
               Action required
@@ -396,7 +401,7 @@ export default function SignLease() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* Per-incremental-unit billing confirmation (manager only). */}
@@ -407,8 +412,12 @@ export default function SignLease() {
         const newMonthly = nextUnits * PER_UNIT
         const oldMonthly = currentUnits * PER_UNIT
         return (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !submitting && setConfirmingBilling(false)}>
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <ModalShell
+            onClose={() => { if (!submitting) setConfirmingBilling(false) }}
+            maxWidth="max-w-md"
+            aria-label="Confirm new monthly bill"
+          >
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
               <h2 className="text-lg font-semibold text-ink">Confirm new monthly bill</h2>
               <p className="text-sm text-mute mt-1">
                 Signing this lease activates the unit. Your {BRAND.name} subscription will charge $9/unit/month on active units.
@@ -445,7 +454,7 @@ export default function SignLease() {
                 </button>
               </div>
             </div>
-          </div>
+          </ModalShell>
         )
       })()}
     </div>

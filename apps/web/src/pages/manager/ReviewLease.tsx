@@ -32,6 +32,7 @@ import FormField, { inputClass } from '../../components/shared/FormField'
 import { useInspection } from '@findstoop/shared/hooks/useInspection'
 import { formatUsdCents } from '@findstoop/shared/lib/format'
 import { BRAND } from '../../lib/brand'
+import ModalShell from '../../components/shared/ModalShell'
 
 interface LeaseWithRefs extends Lease {
   payment_due_day?: number | null
@@ -1237,8 +1238,8 @@ export default function ReviewLease() {
       {showProratePrompt && (() => {
         const months = monthsBetween(fields.start_date, fields.end_date)
         return (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowProratePrompt(false)}>
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <ModalShell onClose={() => setShowProratePrompt(false)} maxWidth="max-w-md" aria-label="Non-standard lease term">
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
               <h2 className="text-lg font-semibold text-ink">Non-standard lease term</h2>
               <p className="text-sm text-mute mt-1">
                 You set the term to <strong>{months} months</strong> (the standard is 12). Do you want to prorate the first and/or last month's rent so the payment schedule aligns with the actual occupancy days?
@@ -1264,7 +1265,7 @@ export default function ReviewLease() {
                 </button>
               </div>
             </div>
-          </div>
+          </ModalShell>
         )
       })()}
     </div>
@@ -1772,14 +1773,13 @@ function ReplacePdfModal({ leaseId, managerId, currentTenants, onClose, onReplac
   const willRemove = currentTenants.filter((t) => t.email && !extractedEmails.has(t.email.toLowerCase()))
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <header className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+    <ModalShell onClose={onClose} maxWidth="max-w-xl" aria-label="Replace signed lease PDF">
+        <header className="px-5 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-ink">Replace signed lease PDF</h2>
           <button type="button" onClick={onClose} disabled={submitting} className="text-mute hover:text-ink text-xl leading-none">×</button>
         </header>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <p className="text-xs text-mute leading-relaxed">
             Drop the correct signed lease PDF here. We'll read the tenant list out of it and replace both the PDF
             and the tenant list on this lease in one step. The previous PDF is detached but kept in your storage
@@ -1847,7 +1847,7 @@ function ReplacePdfModal({ leaseId, managerId, currentTenants, onClose, onReplac
           )}
         </div>
 
-        <footer className="px-5 py-3 border-t border-gray-200 flex justify-between items-center gap-2">
+        <footer className="px-5 py-3 border-t border-gray-200 flex justify-between items-center gap-2 shrink-0">
           <button type="button" onClick={onClose} disabled={submitting} className="text-sm text-mute hover:text-ink px-3">
             Cancel
           </button>
@@ -1861,7 +1861,6 @@ function ReplacePdfModal({ leaseId, managerId, currentTenants, onClose, onReplac
             {submitting ? 'Replacing…' : 'Confirm replacement'}
           </button>
         </footer>
-      </div>
-    </div>
+    </ModalShell>
   )
 }

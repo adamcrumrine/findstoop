@@ -4,6 +4,7 @@ import { X, Bug, Sparkles, MessageSquare, Loader2, CheckCircle2 } from 'lucide-r
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { BRAND } from '../../lib/brand'
+import ModalShell from '../shared/ModalShell'
 
 interface Props {
   open: boolean
@@ -61,8 +62,8 @@ export default function FeedbackModal({ open, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[10vh] overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <ModalShell onClose={onClose} maxWidth="max-w-md" aria-label="Send feedback">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-t-2xl p-5 relative">
           <button
             type="button"
@@ -148,6 +149,6 @@ export default function FeedbackModal({ open, onClose }: Props) {
           </form>
         )}
       </div>
-    </div>
+    </ModalShell>
   )
 }

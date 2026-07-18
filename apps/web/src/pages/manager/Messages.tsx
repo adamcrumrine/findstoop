@@ -12,6 +12,7 @@ import { MessageSquare, Users as UsersIcon, ImagePlus, Loader2, Plus, X, ArrowLe
 import toast from 'react-hot-toast'
 import Avatar from '../../components/shared/Avatar'
 import FairHousingFindings from '../../components/manager/FairHousingFindings'
+import ModalShell from '../../components/shared/ModalShell'
 import AiFeedback from '../../components/shared/AiFeedback'
 import { runFairHousingLint, applyLintSuggestion } from '../../lib/fairHousingLint'
 import type { LintFinding, LintResult } from '../../lib/fairHousingLint'
@@ -618,9 +619,8 @@ export default function ManagerMessages() {
 
       {/* Start-new-conversation picker — two steps: lease, then tenants. */}
       {pickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 pt-[10vh] overflow-y-auto" onClick={closePicker}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style={{ minHeight: '420px', maxHeight: '80vh' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+        <ModalShell onClose={closePicker} maxWidth="max-w-md" aria-label="Start a conversation">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 {pickerLeaseId && (
                   <button
@@ -651,7 +651,7 @@ export default function ManagerMessages() {
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto overscroll-contain flex-1 min-h-[320px]">
               {!pickerLeaseId ? (
                 pickableLeases.length === 0 ? (
                   <p className="px-5 py-10 text-center text-sm text-mute">
@@ -728,7 +728,7 @@ export default function ManagerMessages() {
             </div>
 
             {pickerLeaseId && (
-              <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between gap-3">
+              <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between gap-3 shrink-0">
                 <p className="text-xs text-mute">
                   {pickerSelected.size === 0 && 'Select at least one tenant.'}
                   {pickerSelected.size === 1 && 'Will open a 1:1 direct message.'}
@@ -745,8 +745,7 @@ export default function ManagerMessages() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* Thread panel */}

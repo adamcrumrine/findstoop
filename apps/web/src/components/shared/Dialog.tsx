@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 // Headless accessible dialog wrapper — same focus-trap/Escape/focus-restore
 // behavior as shared/Modal.tsx, but doesn't bake in a header/title bar.
@@ -67,7 +68,10 @@ export default function Dialog({ open, onClose, children, overlayClassName, pane
 
   if (!open) return null
 
-  return (
+  // Portal to <body>: page content sits inside a `relative z-10` layout
+  // column, so without the portal the fixed bottom nav (z-20) paints over
+  // the overlay on mobile.
+  return createPortal(
     <div className={overlayClassName} onClick={onClose}>
       <div
         ref={dialogRef}
@@ -80,6 +84,7 @@ export default function Dialog({ open, onClose, children, overlayClassName, pane
       >
         {children(titleId)}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

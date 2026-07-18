@@ -26,6 +26,7 @@ import { verifyImageMagicBytes } from '../../lib/fileValidation'
 import type { PhotoHashRecord } from '../../lib/photoIntegrity'
 import { fetchPhotoHashRecords, recordInspectionPhotoHash } from '../../lib/photoIntegrityStore'
 import PhotoVerifyBadge from '../../components/shared/PhotoVerifyBadge'
+import ModalShell from '../../components/shared/ModalShell'
 
 const CONDITIONS: { key: Exclude<ItemCondition, null>; label: string; cls: string }[] = [
   { key: 'excellent', label: 'Excellent', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -615,8 +616,8 @@ function SignatureModal({ role, onClose, onSign, defaultName, signatureName, set
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+    <ModalShell onClose={onClose} maxWidth="max-w-md" aria-label={`Sign as ${role}`}>
+      <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <h2 className="text-lg font-semibold text-ink">Sign as {role}</h2>
         <p className="text-sm text-mute mt-2 leading-relaxed">
           By signing, you confirm that the conditions recorded above accurately reflect the
@@ -656,7 +657,7 @@ function SignatureModal({ role, onClose, onSign, defaultName, signatureName, set
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 

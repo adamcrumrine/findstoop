@@ -243,7 +243,7 @@ function Side({ label, item, urls, hashRecords }: {
             <div key={path} className="flex flex-col gap-1">
               {urls[path]
                 ? <a href={urls[path]} target="_blank" rel="noopener noreferrer" className="block w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
-                    <img src={urls[path]} alt="" className="w-full h-full object-cover" />
+                    <img src={urls[path]} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   </a>
                 : <div className="w-14 h-14 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center"><Camera className="w-4 h-4 text-mute-400" strokeWidth={1.5} /></div>}
               <PhotoVerifyBadge record={hashRecords[path]} />

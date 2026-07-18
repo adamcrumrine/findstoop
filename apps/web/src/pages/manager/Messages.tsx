@@ -36,7 +36,7 @@ function MessageBubble({ msg, isOwn, senderName }: {
         )}
         {msg.image_url && !msg.image_purged_at && (
           <a href={msg.image_url} target="_blank" rel="noreferrer" className="block mb-1.5">
-            <img src={msg.image_url} alt="" className="max-w-full max-h-72 rounded-lg" />
+            <img src={msg.image_url} alt="" loading="lazy" decoding="async" className="max-w-full max-h-72 rounded-lg" />
           </a>
         )}
         {msg.image_purged_at && (

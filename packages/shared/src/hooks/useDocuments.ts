@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import {
   getDocumentsByLease,
@@ -37,6 +38,7 @@ export function useTenantDocuments(leaseId: string | null): UseTenantDocumentsRe
   }, [leaseId])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const getDownloadUrl = (doc: Document) => getSignedUrl(doc.storage_url)
 
@@ -76,6 +78,7 @@ export function useManagerDocuments(leaseIds: string[]): UseManagerDocumentsResu
   }, [leaseIds.join(',')])  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const upload = async (
     file: File,

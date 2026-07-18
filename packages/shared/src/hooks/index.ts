@@ -1,4 +1,5 @@
 export * from './useAuth'
+export * from './useForegroundRefresh'
 export * from './useProperties'
 export * from './useUnits'
 export * from './useLeases'

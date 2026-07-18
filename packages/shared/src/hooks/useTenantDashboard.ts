@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { getTenantActiveLease } from '../api/leases'
 import { getTenantPayments, getTenantUpcomingPayments, getNextDuePayment } from '../api/payments'
 import { getTenantMaintenanceRequests } from '../api/maintenance'
@@ -32,6 +33,8 @@ export function useTenantDashboard(tenantId: string | undefined): TenantDashboar
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [paymentMethodSetup, setPaymentMethodSetup] = useState(false)
   const [autopayEnabled, setAutopayEnabled] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
+  useForegroundRefresh(() => setRefreshTick((t) => t + 1))
 
   useEffect(() => {
     if (!tenantId) { setLoading(false); return }
@@ -71,7 +74,7 @@ export function useTenantDashboard(tenantId: string | undefined): TenantDashboar
 
     load()
     return () => { cancelled = true }
-  }, [tenantId])
+  }, [tenantId, refreshTick])
 
   return { lease, nextPayment, upcomingPayments, recentPayments, recentMaintenance, unreadMessages, paymentMethodSetup, autopayEnabled, loading, error }
 }

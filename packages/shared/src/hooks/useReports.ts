@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import { getProperties } from '../api/properties'
 import { getUnits } from '../api/units'
@@ -192,6 +193,7 @@ export function useReports(managerId: string | undefined): ReportsData {
   }, [managerId])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   return {
     monthlyRevenue,

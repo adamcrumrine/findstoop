@@ -532,7 +532,7 @@ function Thumb({ path, onRemove }: { path: string; onRemove?: () => void }) {
   return (
     <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
       {url
-        ? <img src={url} alt="" className="w-full h-full object-cover" />
+        ? <img src={url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
         : <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-4 h-4 animate-spin text-mute" /></div>}
       {onRemove && (
         <button

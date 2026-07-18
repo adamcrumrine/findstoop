@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import {
   getAllPayments, createPayment, markPaymentPaid,
@@ -34,6 +35,7 @@ export function usePayments(leaseIds: string[]) {
   }, [key])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const add = async (data: Omit<Payment, 'id' | 'created_at'>) => {
     const payment = await createPayment(data)

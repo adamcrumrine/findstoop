@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   getLeases, getLeasesWithTenants, getAllLeaseTenantIds,
@@ -70,6 +71,7 @@ export function useLeases(unitIds: string[]) {
   }, [key])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const add = async (data: Omit<Lease, 'id' | 'created_at'>) => {
     const lease = await createLease(data)

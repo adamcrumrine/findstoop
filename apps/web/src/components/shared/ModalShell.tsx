@@ -34,14 +34,40 @@ export default function ModalShell({ onClose, maxWidth = 'max-w-2xl', 'aria-labe
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose })
 
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
+    const trigger = (document.activeElement as HTMLElement) ?? null
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current()
+      // Keep Tab cycling inside the dialog (same trap as shared Modal/Dialog).
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+        )
+        if (!focusables.length) return
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    }
     document.addEventListener('keydown', handler)
+
+    // Initial focus: prefer the first form field so "open modal, start
+    // typing" works; fall back to any focusable (often the close button).
+    const initial =
+      panelRef.current?.querySelector<HTMLElement>('input, select, textarea') ??
+      panelRef.current?.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])')
+    initial?.focus()
+
     return () => {
       document.body.style.overflow = prev
       document.removeEventListener('keydown', handler)
+      trigger?.focus?.()
     }
   }, [])
 
@@ -51,6 +77,7 @@ export default function ModalShell({ onClose, maxWidth = 'max-w-2xl', 'aria-labe
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className={`bg-white w-full ${maxWidth} shadow-xl rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-3rem)] sm:max-h-[90vh] pb-[env(safe-area-inset-bottom)]`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"

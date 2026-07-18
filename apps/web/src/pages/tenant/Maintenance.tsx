@@ -258,7 +258,7 @@ function TenantMaintenanceInner({ onRetry }: { onRetry: () => void }) {
               {req.images && req.images.length > 0 && (
                 <div className="flex gap-1.5 mt-2">
                   {req.images.slice(0, 3).map((url, i) => (
-                    <img key={i} src={url} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    <img key={i} src={url} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover" />
                   ))}
                 </div>
               )}
@@ -351,7 +351,7 @@ function TenantMaintenanceInner({ onRetry }: { onRetry: () => void }) {
             {previews.length > 0 && (
               <div className="flex gap-2 mt-2">
                 {previews.map((src, i) => (
-                  <img key={i} src={src} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                  <img key={i} src={src} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover" />
                 ))}
               </div>
             )}
@@ -419,7 +419,7 @@ function TenantMaintenanceInner({ onRetry }: { onRetry: () => void }) {
                 <div className="grid grid-cols-3 gap-2">
                   {selectedRequest.images.map((url, i) => (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt="" className="w-full aspect-square rounded-lg object-cover" />
+                      <img src={url} alt="" loading="lazy" decoding="async" className="w-full aspect-square rounded-lg object-cover" />
                     </a>
                   ))}
                 </div>

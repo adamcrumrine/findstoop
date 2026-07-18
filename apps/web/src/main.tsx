@@ -1,9 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { Toaster } from 'react-hot-toast'
 import { registerSW } from 'virtual:pwa-register'
 import { AuthProvider } from '@findstoop/shared/hooks/AuthProvider'
 import ErrorBoundary from './components/shared/ErrorBoundary'
+import AppToaster from './components/shared/AppToaster'
+import OfflineBanner from './components/shared/OfflineBanner'
 import { installGlobalErrorHandlers } from './lib/analytics'
 import { applyBrandTheme } from './lib/brand'
 import { applyPortalBrandTheme, applyUniversityBrandTheme } from './lib/portalBrand'
@@ -33,7 +34,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <AuthProvider>
         <App />
-        <Toaster position="top-right" />
+        <AppToaster />
+        <OfflineBanner />
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,

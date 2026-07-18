@@ -434,7 +434,7 @@ export default function ManagerMaintenance() {
                 <div className="grid grid-cols-3 gap-2">
                   {selectedRequest.images.map((url, i) => (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt="" className="w-full aspect-square rounded-lg object-cover" />
+                      <img src={url} alt="" loading="lazy" decoding="async" className="w-full aspect-square rounded-lg object-cover" />
                     </a>
                   ))}
                 </div>

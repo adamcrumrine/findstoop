@@ -298,7 +298,7 @@ export default function DepositReturnWizard({ lease, unit, property, onClose }: 
                                 <div key={path} className="flex flex-col gap-1">
                                   {photoUrls[path]
                                     ? <a href={photoUrls[path]} target="_blank" rel="noopener noreferrer" className="block w-10 h-10 rounded-md overflow-hidden border border-gray-200" title="Move-out photo">
-                                        <img src={photoUrls[path]} alt="" className="w-full h-full object-cover" />
+                                        <img src={photoUrls[path]} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                       </a>
                                     : <span className="w-10 h-10 rounded-md border border-gray-200 bg-gray-100 flex items-center justify-center"><Camera className="w-3.5 h-3.5 text-mute-400" strokeWidth={1.5} /></span>}
                                   <PhotoVerifyBadge record={hashRecords[path]} />

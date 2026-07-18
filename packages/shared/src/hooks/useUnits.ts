@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import { getUnits, getUnitsByProperty, createUnit, updateUnit, deleteUnit } from '../api/units'
 import type { Unit } from '../types/unit'
@@ -24,6 +25,7 @@ export function useUnits(propertyIds: string[]) {
   }, [key])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const add = async (data: Omit<Unit, 'id' | 'created_at'>) => {
     const unit = await createUnit(data)

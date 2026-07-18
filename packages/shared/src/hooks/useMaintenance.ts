@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import {
   getAllTenantMaintenanceRequests,
@@ -50,6 +51,7 @@ export function useTenantMaintenance(tenantId: string | undefined): UseTenantMai
   }, [tenantId])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const submit = async (tid: string, payload: NewRequestPayload) => {
     setSubmitting(true)
@@ -115,6 +117,7 @@ export function useManagerMaintenance(unitIds: string[]): UseManagerMaintenanceR
   }, [unitIds.join(',')])  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const updateStatus = async (
     id: string, status: MaintenanceStatus, notes?: string,

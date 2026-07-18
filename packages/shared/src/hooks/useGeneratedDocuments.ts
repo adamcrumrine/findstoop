@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import {
   listGeneratedDocuments,
@@ -33,6 +34,7 @@ export function useGeneratedDocuments(propertyIds: string[]): UseGeneratedDocume
   }, [propertyIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const voidDoc = async (id: string, actorId: string) => {
     await voidDocument(id, actorId)

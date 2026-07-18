@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback } from 'react'
 import { getProperties, createProperty, updateProperty, deleteProperty } from '../api/properties'
 import type { Property } from '../types/property'
@@ -22,6 +23,7 @@ export function useProperties(managerId: string | undefined) {
   }, [managerId])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   const add = async (data: Omit<Property, 'id' | 'manager_id' | 'created_at' | 'require_selfie_screening' | 'require_credit_check' | 'require_criminal_check' | 'require_eviction_check' | 'require_credit_self_disclosed'>) => {
     if (!managerId) return

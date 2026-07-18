@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { getProperties } from '../api/properties'
 import { getUnits } from '../api/units'
 import { getLeases, getUpcomingLeaseRenewals } from '../api/leases'
@@ -48,6 +49,8 @@ export interface DashboardData {
 export function useManagerDashboard(managerId: string | undefined): DashboardData {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshTick, setRefreshTick] = useState(0)
+  useForegroundRefresh(() => setRefreshTick((t) => t + 1))
   const [properties, setProperties] = useState<Property[]>([])
   const [units, setUnits] = useState<Unit[]>([])
   const [leases, setLeases] = useState<Lease[]>([])
@@ -159,7 +162,7 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
 
     load()
     return () => { cancelled = true }
-  }, [managerId])
+  }, [managerId, refreshTick])
 
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()

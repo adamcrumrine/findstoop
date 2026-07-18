@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
@@ -116,6 +117,7 @@ export function useConversations(currentUserId: string | undefined): UseConversa
   }, [currentUserId])
 
   useEffect(() => { load() }, [load])
+  useForegroundRefresh(load)
 
   useEffect(() => {
     if (!currentUserId) return

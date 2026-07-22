@@ -57,11 +57,18 @@ export default function ModalShell({ onClose, maxWidth = 'max-w-2xl', 'aria-labe
     }
     document.addEventListener('keydown', handler)
 
-    // Initial focus: prefer the first form field so "open modal, start
-    // typing" works; fall back to any focusable (often the close button).
-    const initial =
-      panelRef.current?.querySelector<HTMLElement>('input, select, textarea') ??
-      panelRef.current?.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])')
+    // Initial focus. On a touch device, autofocusing the first field would
+    // pop the software keyboard the instant the sheet opens — shoving a
+    // bottom sheet up before the user has read it. So on coarse pointers we
+    // focus the dialog container itself (tabIndex=-1): the Tab trap still has
+    // an anchor, but no keyboard appears. On desktop we keep the
+    // focus-the-first-field behavior so "open, start typing" works.
+    const coarsePointer =
+      typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+    const initial = coarsePointer
+      ? panelRef.current
+      : panelRef.current?.querySelector<HTMLElement>('input, select, textarea') ??
+        panelRef.current?.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])')
     initial?.focus()
 
     return () => {
@@ -78,7 +85,8 @@ export default function ModalShell({ onClose, maxWidth = 'max-w-2xl', 'aria-labe
     >
       <div
         ref={panelRef}
-        className={`bg-white w-full ${maxWidth} shadow-xl rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-3rem)] sm:max-h-[90vh] pb-[env(safe-area-inset-bottom)]`}
+        tabIndex={-1}
+        className={`bg-white w-full ${maxWidth} shadow-xl rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col max-h-[calc(100dvh-3rem)] sm:max-h-[90vh] pb-[env(safe-area-inset-bottom)] outline-none`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

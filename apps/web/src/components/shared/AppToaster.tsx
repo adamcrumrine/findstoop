@@ -22,6 +22,9 @@ function useToastHaptics() {
       if (t.type === 'success') navigator.vibrate(12)
       else if (t.type === 'error') navigator.vibrate([15, 40, 15])
     }
+    // Prune ids for toasts that have been dismissed so the set can't grow
+    // unbounded across a long session.
+    seen.current = new Set([...seen.current].filter((id) => toasts.some((t) => t.id === id)))
   }, [toasts])
 }
 

@@ -143,7 +143,11 @@ export default function MarketingLayout() {
       <footer className="bg-ink text-white mt-16">
         <div className="max-w-6xl mx-auto px-5 lg:px-8 py-12 grid grid-cols-2 md:grid-cols-5 gap-8 text-sm">
           <div className="col-span-2">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-7 w-auto brightness-0 invert mb-3" />
+            {BRAND.logo.horizontalDark ? (
+              <img src={BRAND.logo.horizontalDark} alt={BRAND.name} className="h-7 w-auto mb-3" />
+            ) : (
+              <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-7 w-auto brightness-0 invert mb-3" />
+            )}
             <p className="text-white/60 max-w-xs">
               {IS_PORTAL
                 ? BRAND.tagline

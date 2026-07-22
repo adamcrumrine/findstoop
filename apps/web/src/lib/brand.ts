@@ -36,8 +36,14 @@ export interface Brand {
   supportEmail: string
   helloEmail: string
   logo: {
-    /** Wordmark for headers, letterheads, auth pages. */
+    /** Wordmark for headers, letterheads, auth pages (dark ink on light). */
     horizontal: string
+    /**
+     * Wordmark for dark backgrounds — mark keeps its color, wordmark text is
+     * white. Optional: brands without one fall back to a `brightness-0 invert`
+     * (all-white silhouette) of `horizontal`.
+     */
+    horizontalDark?: string
     /** Square mark for spinners, modals, app icons. */
     square: string
   }
@@ -96,6 +102,7 @@ const stoop: Brand = {
   helloEmail: 'hello@findstoop.com',
   logo: {
     horizontal: '/stoop_logo_horizontal_trans.png',
+    horizontalDark: '/stoop_logo_horizontal_trans_dark.png',
     square: '/stoop_logo_square_trans.png',
   },
   favicon: {},

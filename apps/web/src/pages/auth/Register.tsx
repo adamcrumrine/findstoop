@@ -119,7 +119,7 @@ export default function Register({ role }: Props) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8 text-center">
           <Link to="/" aria-label={`${BRAND.name} home`} className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
           </Link>
           <h1 className="text-xl font-medium text-ink">Check your email</h1>
           <p className="text-sm text-mute mt-2 mb-6">
@@ -142,7 +142,7 @@ export default function Register({ role }: Props) {
 
         {/* Logo — click returns to the marketing landing page */}
         <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
         </Link>
 
         {/* Heading */}
@@ -264,7 +264,7 @@ function GeoBlockedPage({ state }: { state: string }) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[480px] p-8">
         <Link to="/" aria-label={`${BRAND.name} home`} className="block mx-auto w-fit mb-6 hover:opacity-80 transition-opacity">
-          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-16 w-auto" />
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
         </Link>
         <h1 className="text-xl font-semibold text-ink text-center">{BRAND.name} isn't open in {blockedStateName(state)} yet</h1>
         <p className="text-sm text-mute mt-3 leading-relaxed text-center">

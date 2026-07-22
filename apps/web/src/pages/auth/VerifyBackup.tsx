@@ -46,7 +46,7 @@ export default function VerifyBackup() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
           <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
           </Link>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             <p className="font-medium mb-1">Backup code used</p>
@@ -66,7 +66,7 @@ export default function VerifyBackup() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
         <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
           </Link>
 
         <h1 className="text-xl font-medium text-ink">Enter a backup code</h1>

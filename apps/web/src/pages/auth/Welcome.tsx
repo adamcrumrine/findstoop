@@ -41,7 +41,7 @@ export default function Welcome() {
         {/* Logo + heading */}
         <div className="text-center mb-8">
           <Link to="/" aria-label={`${BRAND.name} home`} className="inline-block hover:opacity-80 transition-opacity">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-16 w-auto mx-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto mx-auto" />
           </Link>
           <h1 className="text-3xl font-bold text-ink mt-6 tracking-tight">Welcome back.</h1>
           <p className="text-sm text-mute mt-2">Pick the account type that fits, and we'll take you to the right place.</p>

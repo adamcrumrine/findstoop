@@ -164,7 +164,7 @@ export default function Login({ role }: Props) {
 
         {/* Logo — click returns to the marketing landing page */}
         <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
         </Link>
 
         {/* Heading */}

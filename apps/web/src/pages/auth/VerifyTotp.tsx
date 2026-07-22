@@ -110,7 +110,7 @@ export default function VerifyTotp() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-[400px] p-8">
 
         <Link to="/" aria-label={`${BRAND.name} home`} className="block mb-6 hover:opacity-80 transition-opacity">
-          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-20 w-auto" />
+          <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-14 w-auto" />
         </Link>
 
         <h1 className="text-xl font-medium text-ink">Verify your identity</h1>

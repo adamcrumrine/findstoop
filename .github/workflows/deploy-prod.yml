@@ -1,0 +1,80 @@
+name: Deploy production
+
+# Publishes findstoop.com whenever stoop-production moves, so shipping no
+# longer requires running `npm run deploy:prod` (i.e. `vercel --prod`) from a
+# developer's machine. The local script still works and stays valid — this is
+# the same deploy, just run by CI.
+#
+# Requires three repository secrets (Settings → Secrets and variables →
+# Actions). Until they exist every run exits green as a no-op, so adding this
+# workflow changes nothing on its own:
+#   VERCEL_TOKEN       — vercel.com/account/tokens
+#   VERCEL_ORG_ID      — from .vercel/project.json ("orgId") after `vercel link`
+#   VERCEL_PROJECT_ID  — from .vercel/project.json ("projectId")
+
+on:
+  push:
+    branches: [stoop-production]
+  # Lets you re-deploy the current branch tip from the Actions tab without a push.
+  workflow_dispatch:
+
+# Never let two production deploys race; queue instead of cancelling so a
+# finished build is not discarded half-way through publishing.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & deploy to Vercel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Absent secrets are a configuration state, not a failure: skip quietly
+      # rather than painting the production branch red.
+      - name: Check Vercel credentials
+        id: creds
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::notice::VERCEL_TOKEN not set — skipping deploy. Add VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID to enable automatic production deploys."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install
+        if: steps.creds.outputs.ready == 'true'
+        run: npm ci
+
+      # `vercel build` runs the project's own build command (npm run build →
+      # tsc && vite build && prerender), so the artifact matches a local deploy.
+      - name: Pull Vercel project settings
+        if: steps.creds.outputs.ready == 'true'
+        run: npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build
+        if: steps.creds.outputs.ready == 'true'
+        run: npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy
+        if: steps.creds.outputs.ready == 'true'
+        run: npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

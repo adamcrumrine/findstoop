@@ -1,0 +1,14 @@
+{
+  "name": "paperboy64",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Three.js paper route rendered like a late-era Nintendo 64 game.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "three": "^0.180.0"
+  }
+}

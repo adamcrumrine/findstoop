@@ -1,0 +1,642 @@
+<title>Paperboy 64</title>
+<style>
+/* @font-face rules are injected by build.mjs as base64 payloads */
+__FONTS__
+
+:root {
+  --ink: #15161b;
+  --ink-soft: #2a2d36;
+  --newsprint: #e8e4d8;
+  --newsprint-dim: #c6c2b6;
+  --red: #c8352b;
+  --amber: #f2a65a;
+  --haze: #8fa9c6;
+  --lawn: #4c7a4b;
+
+  --room: #0b0d12;
+  --room-2: #14171f;
+  --deck: #171a22;
+  --deck-line: #262b36;
+  --deck-text: #9aa3b4;
+  --deck-strong: #e2e6ee;
+
+  --f-display: 'Anton', 'Arial Narrow', sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* The screen itself never changes; the room around it follows the viewer. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --room: #cfcdc4;
+    --room-2: #e2e0d7;
+    --deck: #f0eee6;
+    --deck-line: #c3c0b4;
+    --deck-text: #55585f;
+    --deck-strong: #1c1e24;
+  }
+}
+:root[data-theme='light'] {
+  --room: #cfcdc4;
+  --room-2: #e2e0d7;
+  --deck: #f0eee6;
+  --deck-line: #c3c0b4;
+  --deck-text: #55585f;
+  --deck-strong: #1c1e24;
+}
+:root[data-theme='dark'] {
+  --room: #0b0d12;
+  --room-2: #14171f;
+  --deck: #171a22;
+  --deck-line: #262b36;
+  --deck-text: #9aa3b4;
+  --deck-strong: #e2e6ee;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--room-2), var(--room) 68%);
+  color: var(--deck-strong);
+  font-family: var(--f-mono);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px;
+  /* Centred when it fits, scrollable when it does not -- never clipped. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cab {
+  width: min(100%, calc((100vh - 128px) * 16 / 9));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cab.has-touch { width: min(100%, calc((100vh - 224px) * 16 / 9)); }
+
+.screen {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  /* Everything inside the screen is sized in container units, so the HUD and
+     the title card stay in proportion whether this is a full window or a
+     narrow side panel. */
+  container-type: size;
+  background: #0a0c10;
+  border: 1px solid var(--deck-line);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .55),
+    0 26px 60px -20px rgba(0, 0, 0, .8);
+  overflow: hidden;
+  cursor: crosshair;
+}
+.screen:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+}
+
+/* ------------------------------------------------------------------- HUD */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  padding: 3.2cqh;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+  font-size: 12px;
+  font-size: clamp(8px, 2.45cqh, 14px);
+  color: var(--newsprint);
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.hud.on { opacity: 1; }
+
+.label {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: .78em;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 216, .66);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .9);
+  margin-bottom: .25em;
+}
+
+.num {
+  font-family: var(--f-display);
+  font-size: 2.9em;
+  line-height: .86;
+  letter-spacing: .015em;
+  font-variant-numeric: tabular-nums;
+  color: var(--newsprint);
+  text-shadow:
+    0 .06em 0 rgba(0, 0, 0, .55),
+    0 .12em .2em rgba(0, 0, 0, .75);
+}
+
+.tl { grid-column: 1; grid-row: 1; }
+.tr { grid-column: 2; grid-row: 1; text-align: right; justify-self: end; }
+.bl { grid-column: 1; grid-row: 3; align-self: end; }
+.br { grid-column: 2; grid-row: 3; align-self: end; text-align: right; justify-self: end; }
+
+.combo {
+  font-family: var(--f-display);
+  font-size: 1.25em;
+  letter-spacing: .06em;
+  color: var(--amber);
+  text-shadow: 0 .1em .18em rgba(0, 0, 0, .8);
+  margin-top: .3em;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.combo.on { opacity: 1; transform: none; }
+
+.route {
+  width: 130px;
+  width: clamp(80px, 16cqw, 190px);
+  height: 6px;
+  background: rgba(10, 12, 16, .62);
+  border: 1px solid rgba(232, 228, 216, .32);
+  position: relative;
+  margin: .45em 0 .5em auto;
+}
+.route-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  background: var(--amber);
+  transition: width .18s linear;
+}
+.route-ticks {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg, transparent 0 calc(10% - 1px), rgba(10, 12, 16, .55) calc(10% - 1px) 10%);
+}
+
+.subs { font-weight: 500; color: rgba(232, 228, 216, .82); text-shadow: 0 1px 2px rgba(0, 0, 0, .9); }
+.subs b { color: var(--newsprint); font-weight: 700; }
+
+.stack { display: flex; align-items: flex-end; gap: .5em; }
+.stack svg { width: 2.9em; height: auto; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .8)); }
+
+.lives { display: flex; gap: .45em; justify-content: flex-end; }
+.lives svg { width: 2.5em; height: auto; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .8)); }
+.lives svg.spent { opacity: .22; }
+
+.toasts {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: start;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .3em;
+  margin-top: 5cqh;
+}
+.toast {
+  font-family: var(--f-display);
+  font-size: 22px;
+  font-size: clamp(13px, 5.4cqh, 32px);
+  letter-spacing: .035em;
+  color: var(--newsprint);
+  text-shadow: 0 .07em 0 rgba(0, 0, 0, .6), 0 .12em .22em rgba(0, 0, 0, .85);
+  animation: pop .5s cubic-bezier(.16, 1.2, .3, 1) both;
+}
+.toast.good { color: #b7e3a0; }
+.toast.gold { color: var(--amber); }
+.toast.bad { color: #ff7d70; }
+.toast.out { animation: fade .35s ease forwards; }
+@keyframes pop { from { transform: translateY(10px) scale(.86); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade { to { transform: translateY(-14px); opacity: 0; } }
+
+/* --------------------------------------------------------------- overlays */
+
+.ov {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: 20px;
+  padding: clamp(10px, 4.5cqh, 40px);
+  font-size: 13px;
+  font-size: clamp(9px, 2.6cqh, 15px);
+  background: radial-gradient(120% 100% at 50% 40%, rgba(8, 10, 14, .3), rgba(8, 10, 14, .82) 80%);
+  animation: in .35s ease both;
+}
+.ov.on { display: flex; }
+@keyframes in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Title ------------------------------------------------------------------ */
+
+#ov-title {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  /* Lighter than the results scrim -- the street should still read behind it. */
+  background: radial-gradient(120% 100% at 50% 45%, rgba(8, 10, 14, .18), rgba(8, 10, 14, .68) 82%);
+}
+
+.banner {
+  background: var(--red);
+  color: var(--newsprint);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: .74em;
+  letter-spacing: .34em;
+  text-transform: uppercase;
+  padding: .5em 1.4em .45em;
+  border-top: 2px solid var(--newsprint);
+  border-bottom: 2px solid var(--newsprint);
+}
+
+.wordmark {
+  font-family: var(--f-display);
+  font-size: 96px;
+  font-size: clamp(32px, 14.6cqw, 168px);
+  line-height: .8;
+  letter-spacing: -.005em;
+  color: var(--newsprint);
+  margin: .18em 0 0;
+  padding-bottom: .14em;   /* Anton's descenders overhang the line box */
+  text-wrap: balance;
+  text-shadow:
+    0 .022em 0 var(--red),
+    0 .046em 0 rgba(0, 0, 0, .55),
+    0 .09em .12em rgba(0, 0, 0, .7);
+}
+.wordmark sup {
+  font-size: .27em;
+  vertical-align: .95em;
+  margin-left: .1em;
+  letter-spacing: .02em;
+  color: var(--amber);
+  text-shadow: 0 .04em 0 rgba(0, 0, 0, .6);
+}
+
+.tagline {
+  font-size: .92em;
+  line-height: 1.55;
+  color: var(--newsprint-dim);
+  letter-spacing: .02em;
+  margin: .95em 0 0;
+  max-width: 64ch;
+  text-wrap: balance;
+}
+
+.start {
+  font-family: var(--f-display);
+  font-size: 1.9em;
+  letter-spacing: .1em;
+  color: var(--amber);
+  margin-top: .8em;
+  animation: blink 1.25s steps(1, end) infinite;
+}
+@keyframes blink { 50% { opacity: .18; } }
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .5em 1.5em;
+  margin-top: 1.4em;
+  font-size: .78em;
+  color: rgba(232, 228, 216, .66);
+  letter-spacing: .06em;
+}
+.keys b { color: var(--newsprint); font-weight: 700; }
+kbd {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: .95em;
+  background: rgba(232, 228, 216, .12);
+  border: 1px solid rgba(232, 228, 216, .3);
+  border-bottom-width: 2px;
+  padding: .1em .42em;
+  margin-right: .12em;
+  color: var(--newsprint);
+}
+
+/* Front page ------------------------------------------------------------- */
+
+#ov-results {
+  justify-content: center;
+  align-items: center;
+  font-size: 13px;
+  font-size: clamp(10px, 2.7cqh, 15px);
+}
+
+.page {
+  width: min(100%, 74ch);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--newsprint);
+  color: var(--ink);
+  padding: 1.5em 1.9em;
+  border: 1px solid #b3ae9e;
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .9);
+  /* Uneven paper tone rather than a flat cream fill. */
+  background-image:
+    radial-gradient(140% 90% at 12% 0%, rgba(255, 255, 255, .55), transparent 60%),
+    radial-gradient(120% 80% at 90% 100%, rgba(140, 130, 100, .16), transparent 55%);
+  animation: slam .4s cubic-bezier(.2, 1.1, .3, 1) both;
+}
+@keyframes slam { from { transform: scale(1.06) rotate(-.5deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.masthead {
+  font-family: var(--f-display);
+  font-size: 2.4em;
+  letter-spacing: .02em;
+  text-align: center;
+  border-bottom: 3px double var(--ink);
+  padding-bottom: .12em;
+}
+.dateline {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  font-size: .74em;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  padding: .5em 0;
+  border-bottom: 1px solid var(--ink);
+  color: var(--ink-soft);
+}
+.headline {
+  font-family: var(--f-display);
+  font-size: 2.95em;
+  line-height: .96;
+  letter-spacing: -.004em;
+  margin: .42em 0 .3em;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: .95em;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  border-left: 3px solid var(--red);
+  padding-left: .85em;
+  margin-bottom: 1em;
+  max-width: 60ch;
+}
+
+.cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1.7em; align-items: start; }
+@media (max-width: 620px) { .cols { grid-template-columns: 1fr; } }
+
+.ledger { border-top: 2px solid var(--ink); }
+.ledger h3 {
+  font-family: var(--f-mono);
+  font-size: .74em;
+  font-weight: 700;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  margin: .5em 0 .3em;
+}
+.ledger table { width: 100%; border-collapse: collapse; font-size: .9em; }
+.ledger td { padding: .26em 0; border-bottom: 1px dotted rgba(21, 22, 27, .3); }
+.ledger td:last-child { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ledger tr.warn td { color: var(--red); }
+
+.total { border-top: 2px solid var(--ink); padding-top: .5em; margin-top: .3em; }
+.total .label { color: var(--ink-soft); margin: 0; }
+.total .big {
+  font-family: var(--f-display);
+  font-size: 4.6em;
+  line-height: .88;
+  font-variant-numeric: tabular-nums;
+}
+.ledger.bonus { margin-top: 1em; border-top-width: 1px; }
+.stamp {
+  display: inline-block;
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: .8em;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--red);
+  border: 2px solid var(--red);
+  padding: .28em .7em;
+  transform: rotate(-3.5deg);
+  margin-top: .7em;
+}
+.next {
+  margin-top: 1em;
+  padding-top: .7em;
+  border-top: 1px solid var(--ink);
+  font-size: .88em;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.next b { color: var(--red); }
+
+/* Pause ------------------------------------------------------------------ */
+
+#ov-pause { justify-content: center; align-items: center; text-align: center; }
+#ov-pause .wordmark { font-size: 46px; font-size: clamp(26px, 9cqw, 78px); }
+
+/* ------------------------------------------------------------ touch pads */
+
+/* Deliberately outside the screen: thumbs sitting on top of the HUD is worse
+   than losing a strip of height. */
+.touch { display: none; gap: 8px; align-items: stretch; }
+.touch.on { display: flex; }
+.pad {
+  flex: 1 1 auto;
+  min-height: 74px;
+  border: 1px solid var(--deck-line);
+  background: var(--deck);
+  touch-action: none;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .28em;
+  color: var(--deck-text);
+  user-select: none;
+}
+.pad.active { border-color: var(--amber); color: var(--amber); }
+.tbtns { display: flex; gap: 8px; flex: 0 0 auto; }
+.tbtn {
+  width: 25vw;
+  max-width: 116px;
+  border: 1px solid var(--red);
+  background: color-mix(in srgb, var(--red) 22%, transparent);
+  color: var(--deck-strong);
+  font-family: var(--f-display);
+  font-size: 15px;
+  letter-spacing: .06em;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+  user-select: none;
+}
+.tbtn:active { background: var(--red); color: var(--newsprint); }
+
+/* Portrait phones: 16:9 leaves a postage stamp, so let the screen go taller.
+   The camera reads its aspect from the canvas, so any shape works. */
+@media (orientation: portrait) {
+  .cab { width: 100%; }
+  .screen { aspect-ratio: auto; height: 54vh; height: 54svh; }
+}
+
+/* ------------------------------------------------------------------ deck */
+
+.deck {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.6vw, 20px);
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  background: var(--deck);
+  border: 1px solid var(--deck-line);
+  font-size: 11px;
+  color: var(--deck-text);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.deck .brand {
+  font-family: var(--f-display);
+  font-size: 15px;
+  letter-spacing: .06em;
+  color: var(--deck-strong);
+  text-transform: none;
+}
+.deck .spacer { flex: 1 1 auto; }
+.deck label { display: inline-flex; align-items: center; gap: .5em; }
+.deck select, .deck button {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--deck-strong);
+  background: transparent;
+  border: 1px solid var(--deck-line);
+  padding: .3em .6em;
+  cursor: pointer;
+}
+.deck button:hover, .deck select:hover { border-color: var(--amber); color: var(--amber); }
+.deck button:focus-visible, .deck select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.deck .fps { font-variant-numeric: tabular-nums; min-width: 5.4em; }
+
+.err {
+  max-width: 60ch;
+  padding: 20px;
+  border: 1px solid var(--red);
+  color: var(--deck-strong);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .start { animation: none; }
+  .toast, .page, .ov { animation-duration: .001s; }
+}
+</style>
+
+<div class="cab">
+  <div class="screen" id="screen" tabindex="0" aria-label="Paperboy 64 game screen">
+    <canvas id="view"></canvas>
+
+    <div class="hud" id="hud">
+      <div class="tl">
+        <div class="label">Score</div>
+        <div class="num" id="score">000000</div>
+        <div class="combo" id="combo">&times;2 STREAK</div>
+      </div>
+
+      <div class="tr">
+        <div class="label">Day <span id="day">1</span> &middot; West Elm St</div>
+        <div class="route"><div class="route-fill" id="route"></div><div class="route-ticks"></div></div>
+        <div class="subs"><b id="subs">0/12</b> delivered</div>
+      </div>
+
+      <div class="bl">
+        <div class="label">Papers</div>
+        <div class="stack">
+          <svg viewBox="0 0 24 18" aria-hidden="true">
+            <rect x="1" y="6" width="20" height="11" fill="#e8e4d8" stroke="#15161b" stroke-width="1.4"/>
+            <rect x="3" y="3" width="20" height="11" fill="#f2efe6" stroke="#15161b" stroke-width="1.4"/>
+            <rect x="5.5" y="5.5" width="15" height="2.2" fill="#c8352b"/>
+            <rect x="5.5" y="9" width="11" height="1.2" fill="#6b6a66"/>
+            <rect x="5.5" y="11" width="15" height="1.2" fill="#6b6a66"/>
+          </svg>
+          <div class="num" id="papers">12</div>
+        </div>
+      </div>
+
+      <div class="br">
+        <div class="label">Bikes</div>
+        <div class="lives" id="lives"></div>
+      </div>
+
+      <div class="toasts" id="toasts"></div>
+    </div>
+
+    <div class="ov on" id="ov-title">
+      <div class="banner">Sunrise Edition &middot; Route 14 &middot; West Elm Street</div>
+      <h1 class="wordmark">Paperboy<sup>64</sup></h1>
+      <p class="tagline">Twenty houses before the sun clears the rooftops. Land it on the porch for the money, hug the curb and thread the mailbox for double &mdash; and mind the dogs.</p>
+      <div class="start" id="start-prompt">Press Space to ride</div>
+      <div class="keys">
+        <span><kbd>A</kbd><kbd>D</kbd> <b>steer</b></span>
+        <span><kbd>W</kbd><kbd>S</kbd> <b>speed</b></span>
+        <span><kbd>Q</kbd> <b>throw left</b></span>
+        <span><kbd>E</kbd> <b>throw right</b></span>
+        <span><kbd>Space</kbd> <b>auto throw</b></span>
+        <span><kbd>P</kbd> <b>pause</b></span>
+      </div>
+    </div>
+
+    <div class="ov" id="ov-results"></div>
+
+    <div class="ov" id="ov-pause">
+      <h2 class="wordmark">Paused</h2>
+      <div class="start">Press P to resume</div>
+    </div>
+
+  </div>
+
+  <div class="touch" id="touch">
+    <div class="pad" id="pad">Drag to steer</div>
+    <div class="tbtns">
+      <div class="tbtn" id="tl-btn">Throw L</div>
+      <div class="tbtn" id="tr-btn">Throw R</div>
+    </div>
+  </div>
+
+  <div class="deck">
+    <span class="brand">Paperboy<span style="color:var(--red)">64</span></span>
+    <span class="spacer"></span>
+    <span class="fps" id="fps">&mdash;</span>
+    <label>Video
+      <select id="quality">
+        <option value="240">240p</option>
+        <option value="270" selected>270p</option>
+        <option value="360">360p</option>
+        <option value="540">540p</option>
+      </select>
+    </label>
+    <button id="sound" aria-pressed="true">Sound On</button>
+    <button id="restart">Restart</button>
+  </div>
+</div>

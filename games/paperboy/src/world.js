@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import * as MODELS from './models.js';
-import { LAYOUT } from './models.js';
+import { LAYOUT, HOUSE_SPEC } from './models.js';
 import { mulberry32, range, pick, clamp, box } from './util.js';
 
 // Past ~150 units the exponential fog has swallowed everything, so there is
@@ -12,7 +12,6 @@ import { mulberry32, range, pick, clamp, box } from './util.js';
 const AHEAD = 152;
 const BEHIND = 30;
 
-export const HOUSE_SPACING = 26;
 export const HOUSE_COUNT = 20;
 // Close enough that the first porch is already in view when the round starts.
 const FIRST_HOUSE_Z = -52;
@@ -49,8 +48,13 @@ export class World {
     this.skyRig.add(MODELS.makeHills(M, mulberry32(9)));
 
     const r = this.rng;
+    const housePool = (type, n) => new Pool(
+      () => MODELS.makeHouse(M, mulberry32(200 + Math.floor(Math.random() * 99999)), type), n);
     this.pools = {
-      house: new Pool(() => MODELS.makeHouse(M, mulberry32(200 + Math.floor(Math.random() * 9999))), 11),
+      house_single: housePool('single', 7),
+      house_townhome: housePool('townhome', 10),
+      house_apartment: housePool('apartment', 3),
+      house_mansion: housePool('mansion', 3),
       tree: new Pool(() => ({ group: MODELS.makeTree(M, r) }), 14),
       bush: new Pool(() => ({ group: MODELS.makeBush(M, r) }), 8),
       hydrant: new Pool(() => ({ group: MODELS.makeHydrant(M) }), 5),
@@ -90,17 +94,46 @@ export class World {
     const ents = [];
     const diff = Math.min(1, (day - 1) / 6);
 
-    // Houses first: alternate sides with occasional facing pairs.
+    // Addresses, walking down the street. Each building type sets its own
+    // spacing, so a row of townhomes arrives as a tight burst and a mansion
+    // buys itself a wide frontage.
     let subs = 0;
     const houses = [];
     let side = rng() > 0.5 ? 1 : -1;
-    for (let i = 0; i < HOUSE_COUNT; i++) {
-      const z = FIRST_HOUSE_Z - i * HOUSE_SPACING;
+    let z = FIRST_HOUSE_Z;
+
+    const addHouse = (type) => {
+      const spec = HOUSE_SPEC[type];
       const subscriber = rng() < 0.62;
       if (subscriber) subs++;
-      houses.push({ kind: 'house', z, side, subscriber, delivered: false, missed: false, obj: null, broken: [] });
-      side = rng() > 0.22 ? -side : side;
+      houses.push({
+        kind: 'house', type, spec, z, side, subscriber,
+        delivered: false, missed: false, obj: null, broken: [],
+      });
+      z -= spec.spacing;
+    };
+
+    while (houses.length < HOUSE_COUNT) {
+      const roll = rng();
+      const left = HOUSE_COUNT - houses.length;
+      let type = 'single';
+      // Weighted so a terrace, which eats two or three addresses at once, does
+      // not crowd out the rarer buildings.
+      if (roll > 0.82 && left >= 2) type = 'mansion';
+      else if (roll > 0.64 && left >= 2) type = 'apartment';
+      else if (roll > 0.46 && left >= 3) type = 'townhome';
+
+      if (type === 'townhome') {
+        // Row houses come in terraces sharing party walls, all on one side.
+        const n = Math.min(left, 2 + Math.floor(rng() * 2));
+        for (let i = 0; i < n; i++) addHouse('townhome');
+        z -= 13;
+      } else {
+        addHouse(type);
+      }
+      side = rng() > 0.24 ? -side : side;
     }
+
     // Guarantee a route worth riding.
     while (subs < 11) {
       const h = houses[Math.floor(rng() * houses.length)];
@@ -109,7 +142,7 @@ export class World {
     this.subscriberTotal = subs;
     ents.push(...houses);
 
-    const routeEnd = FIRST_HOUSE_Z - (HOUSE_COUNT - 1) * HOUSE_SPACING;
+    const routeEnd = houses[houses.length - 1].z;
     this.finishZ = routeEnd - 56;
     this.routeStart = FIRST_HOUSE_Z + 30;
 
@@ -176,15 +209,21 @@ export class World {
 
   // -------------------------------------------------------------- streaming
 
+  poolKey(e) {
+    if (e.kind === 'house') return 'house_' + e.type;
+    if (e.kind === 'car' || e.kind === 'dog') return e.kind;
+    return e.type;
+  }
+
   activate(e) {
-    const p = this.pools[e.kind === 'house' ? 'house' : e.kind === 'car' ? 'car' : e.kind === 'dog' ? 'dog' : e.type];
+    const p = this.pools[this.poolKey(e)];
     if (!p) return;
     const obj = p.get();
     e.obj = obj;
     const g = obj.group;
 
     if (e.kind === 'house') {
-      g.position.set(e.side * LAYOUT.houseFrontX, 0, e.z);
+      g.position.set(e.side * e.spec.frontX, 0, e.z);
       g.rotation.y = e.side < 0 ? Math.PI : 0;
       this.dressHouse(e);
     } else if (e.kind === 'car') {
@@ -215,7 +254,7 @@ export class World {
     const g = e.obj.group;
     this.scene.remove(g);
     g.scale.set(1, 1, 1);
-    const key = e.kind === 'house' ? 'house' : e.kind === 'car' ? 'car' : e.kind === 'dog' ? 'dog' : e.type;
+    const key = this.poolKey(e);
     if (this.pools[key]) this.pools[key].put(e.obj);
     e.obj = null;
     if (e.shadow) {
@@ -241,18 +280,22 @@ export class World {
     if (e.broken) for (const i of e.broken) if (a.windows[i]) a.windows[i].material = this.M.windowBroken;
 
     // Cache world-space hit boxes for the paper physics.
+    const spec = e.spec;
     e.obj.group.updateMatrixWorld(true);
     const v = new THREE.Vector3();
     a.boxMesh.getWorldPosition(v);
-    e.tMail = box(v.x, v.y, v.z, 1.05, 0.8, 0.95);
+    // The curbside box is the whole difficulty curve: an apartment's cluster
+    // bank is a barn door, a mansion's stone slot is not.
+    e.tMail = box(v.x, v.y, v.z, 1.05, 0.8, spec.mailW + 0.35);
     a.mat.getWorldPosition(v);
-    e.tPorch = box(v.x, v.y + 0.35, v.z, 1.7, 1.3, 2.7);
+    const pb = spec.porchBox;
+    e.tPorch = box(v.x, v.y + pb[1] * 0.28, v.z, pb[0], pb[1], pb[2]);
     e.tWindows = a.windows.map((w) => {
       w.getWorldPosition(v);
       return box(v.x, v.y, v.z, 0.55, 1.5, 1.95);
     });
-    e.tBody = box(e.side * (LAYOUT.houseFrontX + LAYOUT.houseDepth / 2), 1.8, e.z,
-      LAYOUT.houseDepth, 3.6, LAYOUT.houseWidth);
+    e.tBody = box(e.side * (spec.frontX + spec.depth / 2), spec.wall / 2, e.z,
+      spec.depth, spec.wall, spec.width);
   }
 
   breakWindow(e, index) {

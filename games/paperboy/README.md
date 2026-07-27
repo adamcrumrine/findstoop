@@ -37,18 +37,39 @@ content-security policy.
 | `P` / `Esc` | Pause |
 | `M` | Mute |
 
-Subscribers are the houses with a lit porch, a raised mailbox flag, and a
-chevron floating above the roof. Landing a paper on the doormat is 250 points.
-Riding up onto that side's sidewalk before you throw switches your lock to the
-mailbox itself, which is worth 500 — the reticle turns amber to tell you the
-harder shot is live. Consecutive deliveries build a multiplier; a paper on the
-grass, a wipeout, or a soaking from a sprinkler resets it.
+Subscribers are the addresses with a lit porch, a raised mailbox flag, and a
+chevron floating above the roof. Land a paper on the doormat for the base
+payout. Riding up onto that side's sidewalk before you throw switches your lock
+to the curbside box itself, worth roughly double — the reticle turns amber to
+tell you the harder shot is live. Consecutive deliveries build a multiplier; a
+paper on the grass, a wipeout, or a soaking from a sprinkler resets it.
 
-Non-subscribers are fair game. Their windows are worth 150 apiece. A subscriber's
-window is not: break one and they cancel.
+Non-subscribers are fair game. Their windows pay out, and a subscriber's window
+does not: break one and they cancel.
 
-Miss a subscriber's house entirely and you lose them. Run out of bikes and the
+What an address is worth depends on what kind of building it is:
+
+| Building | Doormat | Curbside box | Window |
+| --- | --- | --- | --- |
+| Row house | 200 | 400 | 125 |
+| House | 250 | 500 | 150 |
+| Apartments | 300 | 450 | 100 |
+| Mansion | 450 | 750 | 300 |
+
+The numbers follow the geometry rather than being assigned arbitrarily. A
+mansion sits far back behind a narrow stone box, so both of its throws are hard
+and both pay. An apartment block has a fat bank of cluster mailboxes that is
+difficult to miss, so its bullseye is worth less than a single-family house's —
+but its lobby entrance is deep enough that the doormat throw pays more. Row
+houses arrive as a terrace of two or three at a time, which turns a whole block
+into one fast burst of short, cheap throws.
+
+Miss a subscriber's address entirely and you lose them. Run out of bikes and the
 route gets reassigned to somebody else.
+
+The camera pans to follow each paper through its arc and holds on the impact
+long enough to see where it landed, then returns. If you would rather it stayed
+locked behind the bike, switch Camera to Fixed on the deck.
 
 ## How the N64 look is done
 

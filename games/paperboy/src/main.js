@@ -86,6 +86,7 @@ const ui = {
       ['Windows broken', r.smashed],
       ['Longest streak', r.bestCombo],
     ];
+    if (r.bestThrow) rows.push([`Best single throw (${r.bestThrowLabel})`, r.bestThrow]);
     const warnRows = [];
     if (r.missed) warnRows.push(['Porches left empty', r.missed]);
     if (r.cancelled) warnRows.push(['Subscriptions cancelled', r.cancelled]);
@@ -327,6 +328,11 @@ function toggleSound() {
   game.audio.setMuted(!next);
 }
 $('sound').addEventListener('click', toggleSound);
+
+$('camera').addEventListener('change', (e) => {
+  game.cameraDynamic = e.target.value === 'dynamic';
+  screenEl.focus({ preventScroll: true });
+});
 
 $('quality').addEventListener('change', (e) => {
   game.setQuality(parseInt(e.target.value, 10));

@@ -341,14 +341,24 @@ kbd {
   font-size: 13px;
   font-size: clamp(10px, 2.7cqh, 15px);
 }
+/* Tighten the whole front page when the screen is short, so more of it fits
+   before the reader has to scroll. */
+@container (max-height: 440px) {
+  #ov-results { font-size: clamp(8px, 2.3cqh, 12px); }
+  .headline { font-size: 2.5em; }
+  .masthead { font-size: 2em; }
+}
 
 .page {
   width: min(100%, 74ch);
   max-height: 100%;
+  /* Flex items default to min-height:auto, which refuses to shrink below the
+     content and pushes the footer out of the screen on short viewports. */
+  min-height: 0;
   overflow-y: auto;
   background: var(--newsprint);
   color: var(--ink);
-  padding: 1.5em 1.9em;
+  padding: 1.5em 1.9em 0;
   border: 1px solid #b3ae9e;
   box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .9);
   /* Uneven paper tone rather than a flat cream fill. */
@@ -398,6 +408,8 @@ kbd {
 }
 
 .cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1.7em; align-items: start; }
+/* Against the screen, not the window -- the page can be a narrow side panel. */
+@container (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .cols { grid-template-columns: 1fr; } }
 
 .ledger { border-top: 2px solid var(--ink); }
@@ -437,8 +449,13 @@ kbd {
   margin-top: .7em;
 }
 .next {
-  margin-top: 1em;
-  padding-top: .7em;
+  /* The page scrolls inside the screen on short viewports, so the one line
+     telling you how to continue is pinned rather than left below the fold. */
+  position: sticky;
+  bottom: 0;
+  background: var(--newsprint);
+  margin: 1em -1.9em 0;
+  padding: .7em 1.9em 1.3em;
   border-top: 1px solid var(--ink);
   font-size: .88em;
   font-weight: 700;
@@ -595,7 +612,7 @@ kbd {
     <div class="ov on" id="ov-title">
       <div class="banner">Sunrise Edition &middot; Route 14 &middot; West Elm Street</div>
       <h1 class="wordmark">Paperboy<sup>64</sup></h1>
-      <p class="tagline">Twenty houses before the sun clears the rooftops. Land it on the porch for the money, hug the curb and thread the mailbox for double &mdash; and mind the dogs.</p>
+      <p class="tagline">Twenty addresses before the sun clears the rooftops &mdash; row houses, walk-ups and one very large mansion, each worth what it is worth. Land it on the porch for the money, hug the curb and thread the box for double.</p>
       <div class="start" id="start-prompt">Press Space to ride</div>
       <div class="keys">
         <span><kbd>A</kbd><kbd>D</kbd> <b>steer</b></span>
@@ -628,6 +645,12 @@ kbd {
     <span class="brand">Paperboy<span style="color:var(--red)">64</span></span>
     <span class="spacer"></span>
     <span class="fps" id="fps">&mdash;</span>
+    <label>Camera
+      <select id="camera">
+        <option value="dynamic" selected>Dynamic</option>
+        <option value="fixed">Fixed</option>
+      </select>
+    </label>
     <label>Video
       <select id="quality">
         <option value="240">240p</option>

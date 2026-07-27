@@ -4,6 +4,7 @@ import { LAYOUT } from './models.js';
 import { makeTextures } from './textures.js';
 import { N64Pass } from './post.js';
 import { World, HOUSE_COUNT } from './world.js';
+import { HOUSE_SPEC } from './models.js';
 import { Audio } from './audio.js';
 import { clamp, lerp, damp, mulberry32, range } from './util.js';
 
@@ -90,6 +91,10 @@ export class Game {
     this.reduceMotion = typeof window.matchMedia === 'function'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.shake = 0;
+    // Delivery cam: while a paper is in the air the look target leans toward
+    // it, then holds on the impact just long enough to see what happened.
+    this.cameraDynamic = true;
+    this.focus = { point: new THREE.Vector3(), paper: null, timer: 0, w: 0 };
     this.camPos = new THREE.Vector3(0, 4, 9);
     this.camLook = new THREE.Vector3(0, 1.4, -8);
 
@@ -140,6 +145,7 @@ export class Game {
     this.stats = {
       delivered: 0, bullseyes: 0, smashed: 0, missed: 0,
       thrown: 0, crashes: 0, cancelled: 0, pickups: 0, airTime: 0,
+      bestThrow: 0, bestThrowLabel: '', mansionBoxes: 0,
     };
     if (!silent) {
       this.score = this.score || 0;
@@ -186,6 +192,7 @@ export class Game {
     else if (this.state === 'play' || this.state === 'crashed') this.updatePlay(dt);
     else if (this.state === 'results' || this.state === 'gameover') this.updateCoast(dt);
     this.updatePapers(dt);
+    this.updateFocus(dt);
     this.updateRider(dt);
     this.updateCamera(dt);
     this.post.material.uniforms.uFlash.value = Math.max(0, this.post.material.uniforms.uFlash.value - dt * 3.5);
@@ -360,6 +367,10 @@ export class Game {
     slot.mesh.position.copy(from);
     slot.mesh.rotation.set(0, 0, 0);
 
+    this.focus.paper = slot;
+    this.focus.timer = 2.0;
+    this.focus.point.copy(from);
+
     this.papersLeft--;
     this.stats.thrown++;
     this.throwCooldown = 0.2;
@@ -454,6 +465,25 @@ export class Game {
     }
   }
 
+  // Track the paper in flight, then freeze on wherever it ended up.
+  updateFocus(dt) {
+    const f = this.focus;
+    if (f.timer > 0) f.timer -= dt;
+    if (f.paper && (!f.paper.alive || f.paper.landed > 0)) f.paper = null;
+    if (f.paper) f.point.copy(f.paper.pos);
+    const live = this.cameraDynamic && f.timer > 0 && this.state === 'play';
+    f.w = damp(f.w, live ? 1 : 0, live ? 9 : 5.5, dt);
+  }
+
+  // Called the moment a paper stops moving, so the hold lands on the impact
+  // rather than trailing the arc.
+  focusOnImpact(q) {
+    if (this.focus.paper !== q) return;
+    this.focus.point.copy(q.pos);
+    this.focus.paper = null;
+    this.focus.timer = Math.min(this.focus.timer, 0.62);
+  }
+
   releaseTarget(q) {
     if (q.targetHouse) {
       q.targetHouse.incoming = Math.max(0, (q.targetHouse.incoming || 1) - 1);
@@ -483,6 +513,7 @@ export class Game {
       q.spin.set(0, 0, 0);
       q.mesh.position.copy(q.pos);
       q.mesh.rotation.set(-Math.PI / 2, 0, Math.random() * 3);
+      this.focusOnImpact(q);
       this.releaseTarget(q);
       this.breakCombo();
       return true;
@@ -491,6 +522,7 @@ export class Game {
   }
 
   onPaperHit(q, house, kind, index) {
+    this.focusOnImpact(q);
     this.releaseTarget(q);
     q.landed = kind === 'mail' ? 0.05 : 1.4;
     q.vel.set(0, 0, 0);
@@ -506,18 +538,20 @@ export class Game {
       this.world.markHouseDone(house);
       this.combo = Math.min(9, this.combo + 1);
       this.bestCombo = Math.max(this.bestCombo, this.combo);
-      const base = kind === 'mail' ? 500 : 250;
-      const gain = base * this.comboMult();
+      const spec = house.spec || HOUSE_SPEC.single;
+      const gain = (kind === 'mail' ? spec.mail : spec.porch) * this.comboMult();
       this.addScore(gain);
+      this.noteThrow(gain, `${spec.label.toLowerCase()} ${kind === 'mail' ? 'box' : 'porch'}`);
+      if (kind === 'mail' && house.type === 'mansion') this.stats.mansionBoxes++;
       if (kind === 'mail') {
         this.stats.bullseyes++;
         this.audio.bullseye();
-        this.ui.toast(`BULLSEYE  +${gain}`, 'gold');
+        this.ui.toast(`BULLSEYE \u00b7 ${spec.label}  +${gain}`, 'gold');
         this.flash(0xffd15c, 0.28);
       } else {
         this.stats.delivered++;
         this.audio.deliver();
-        this.ui.toast(`DELIVERED  +${gain}`, 'good');
+        this.ui.toast(`DELIVERED \u00b7 ${spec.label}  +${gain}`, 'good');
       }
       if (this.combo > 1) this.audio.combo(this.combo);
       this.pushHud();
@@ -537,9 +571,11 @@ export class Game {
         this.flash(0xc8352b, 0.35);
       } else {
         this.stats.smashed++;
-        const gain = 150 * this.comboMult();
+        const spec = house.spec || HOUSE_SPEC.single;
+        const gain = spec.window * this.comboMult();
         this.addScore(gain);
-        this.ui.toast(`SMASH!  +${gain}`, 'good');
+        this.noteThrow(gain, `${spec.label.toLowerCase()} window`);
+        this.ui.toast(`SMASH \u00b7 ${spec.label}  +${gain}`, 'good');
       }
       this.pushHud();
       return true;
@@ -549,6 +585,13 @@ export class Game {
     this.audio.thud();
     this.breakCombo();
     return true;
+  }
+
+  // Keeps the single most valuable throw of the round for the front page.
+  noteThrow(gain, label) {
+    if (gain <= this.stats.bestThrow) return;
+    this.stats.bestThrow = gain;
+    this.stats.bestThrowLabel = label;
   }
 
   comboMult() { return 1 + Math.floor(this.combo / 2); }
@@ -652,6 +695,8 @@ export class Game {
       papersLeft: this.papersLeft,
       lives: Math.max(0, this.lives),
       bestCombo: this.bestCombo,
+      bestThrow: s.bestThrow,
+      bestThrowLabel: s.bestThrowLabel,
       subscribersKept: Math.max(0, kept),
       subscriberTotal: this.subscriberTotal,
       headline: headline({ ...s, perfect, fired, kept, total: this.subscriberTotal, day: this.day }),
@@ -710,7 +755,23 @@ export class Game {
     const targetPos = new THREE.Vector3(p.x * 0.72, height + p.y * 0.5, p.z + back);
     const targetLook = new THREE.Vector3(p.x * 0.85, 1.5 + p.y * 0.8, p.z - 13);
 
-    const l = this.state === 'crashed' ? 3.2 : 7.5;
+    // Swing toward the paper. The vertical component is deliberately weaker
+    // than the horizontal one -- panning across the street reads well, but
+    // following the arc up into the sky would hide the road you are riding on.
+    const fw = this.focus.w;
+    if (fw > 0.002) {
+      const fp = this.focus.point;
+      targetLook.x = lerp(targetLook.x, fp.x, fw * 0.62);
+      targetLook.y = lerp(targetLook.y, fp.y, fw * 0.3);
+      targetLook.z = lerp(targetLook.z, fp.z, fw * 0.62);
+      // Drift away from the target side so the building opens up in frame.
+      const dir = fp.x > p.x ? 1 : -1;
+      targetPos.x -= dir * 1.8 * fw;
+      targetPos.y += 0.9 * fw;
+      targetPos.z += 1.6 * fw;
+    }
+
+    const l = this.state === 'crashed' ? 3.2 : 7.5 + fw * 4;
     this.camPos.x = damp(this.camPos.x, targetPos.x, l, dt);
     this.camPos.y = damp(this.camPos.y, targetPos.y, l, dt);
     this.camPos.z = damp(this.camPos.z, targetPos.z, l * 1.7, dt);
@@ -728,7 +789,7 @@ export class Game {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     this.camera.rotation.z += p.lean * 0.16;
-    const fov = 62 + clamp((p.speed - BASE_SPEED) * 0.75, -4, 9);
+    const fov = 62 + clamp((p.speed - BASE_SPEED) * 0.75, -4, 9) - fw * 5;
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = damp(this.camera.fov, fov, 4, dt);
       this.camera.updateProjectionMatrix();
@@ -775,6 +836,7 @@ function headline(s) {
     if (s.cancelled > 2) return 'PAPERBOY FIRED AFTER SUBSCRIBER REVOLT';
     return 'ROUTE ENDS IN THE HEDGE; PAPERBOY OUT OF LIVES';
   }
+  if (s.mansionBoxes >= 2) return 'PAPERBOY THREADS THE BIG HOUSE ON THE HILL, TWICE';
   if (s.perfect && s.bullseyes >= 8) return 'FLAWLESS ROUTE: EVERY BOX HIT DEAD CENTER';
   if (s.perfect) return 'PERFECT MORNING ON THE PAPER ROUTE';
   if (s.cancelled >= 3) return `${s.cancelled} SUBSCRIBERS CANCEL AFTER WINDOW SPREE`;

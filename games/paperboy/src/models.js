@@ -26,6 +26,8 @@ const PLANE = new THREE.PlaneGeometry(1, 1);
 const CYL = new THREE.CylinderGeometry(0.5, 0.5, 1, 10);
 const CYL_LOW = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
 const CONE = new THREE.ConeGeometry(0.5, 1, 8);
+// Four-sided cone, used rotated 45 degrees as a hip roof.
+const CONE4 = new THREE.ConeGeometry(0.5, 1, 4);
 const SPHERE = new THREE.SphereGeometry(0.5, 8, 6);
 const ICO = new THREE.IcosahedronGeometry(0.5, 0);
 const TORUS = new THREE.TorusGeometry(0.36, 0.07, 5, 12);
@@ -73,7 +75,7 @@ function wedgeGeometry() {
 const GABLE = gableGeometry();
 const WEDGE = wedgeGeometry();
 
-export const GEO = { UNIT_BOX, PLANE, CYL, CYL_LOW, CONE, SPHERE, ICO, TORUS, GABLE, WEDGE };
+export const GEO = { UNIT_BOX, PLANE, CYL, CYL_LOW, CONE, CONE4, SPHERE, ICO, TORUS, GABLE, WEDGE };
 
 // ---------------------------------------------------------------- materials
 
@@ -173,6 +175,44 @@ export function makeMaterials(T) {
     banner: null, // filled in by makeBanner
   };
   M.carTints = carTints;
+
+  // A unit box's UVs run 0..1 on every face, so one shared material stretches
+  // a single texture tile across an entire wall -- fine on a garden shed,
+  // absurd on a three-storey brick facade. These factories hand back a variant
+  // whose repeat matches the surface it is going on, cached so the material
+  // count stays in the dozens.
+  const tile = (tex, rx, ry) => {
+    const t = tex.clone();
+    t.repeat.set(rx, ry);
+    t.needsUpdate = true;
+    return t;
+  };
+  const cache = {};
+  const cached = (key, make) => (cache[key] || (cache[key] = make()));
+  const steps = (v, per) => Math.max(1, Math.round(v / per));
+
+  // 4 bricks and 8 courses per tile; aim for half-unit bricks.
+  M.brickFor = (w, h) => {
+    const rx = steps(w, 2.0);
+    const ry = steps(h, 1.6);
+    return cached(`b${rx}_${ry}`, () => lam({ map: tile(T.brick, rx, ry) }));
+  };
+  // 8 laps per tile; aim for laps a touch under a fifth of a unit.
+  M.sidingFor = (base, w, h) => {
+    const rx = steps(w, 4.0);
+    const ry = steps(h, 1.45);
+    const hex = base.color.getHexString();
+    return cached(`s${hex}_${rx}_${ry}`, () =>
+      lam({ map: tile(T.siding, rx, ry), color: base.color.clone() }));
+  };
+  // 4 tabs and 8 rows per tile.
+  M.roofFor = (base, w, h) => {
+    const rx = steps(w, 2.2);
+    const ry = steps(h, 2.0);
+    const hex = base.color.getHexString();
+    return cached(`r${hex}_${rx}_${ry}`, () =>
+      lam({ map: tile(T.shingle, rx, ry), color: base.color.clone() }));
+  };
   return M;
 }
 
@@ -243,33 +283,140 @@ export function makeGround(M) {
   return g;
 }
 
-// ---------------------------------------------------------------- house
+// ---------------------------------------------------------------- buildings
 
-export function makeHouse(M, rng) {
+// Four kinds of address on the route. Setback drives how long the porch throw
+// is, the curbside box width drives how hard the bullseye is, and the payouts
+// follow from both -- a mansion sits far back behind a narrow stone box and
+// pays accordingly, an apartment block has a fat cluster of mailboxes and does
+// not.
+export const HOUSE_SPEC = {
+  single: {
+    frontX: 11.6, depth: 7, width: 11, wall: 3.6, spacing: 26, chevY: 6.5,
+    porch: 250, mail: 500, window: 150, mailW: 0.8,
+    porchBox: [1.7, 1.3, 2.7], label: 'HOUSE',
+  },
+  townhome: {
+    frontX: 10.2, depth: 6, width: 9.9, wall: 6.4, spacing: 9.9, chevY: 8.6,
+    porch: 200, mail: 400, window: 125, mailW: 0.6,
+    porchBox: [1.4, 1.4, 2.0], label: 'ROW HOUSE',
+  },
+  apartment: {
+    frontX: 12.8, depth: 8.5, width: 17, wall: 9.2, spacing: 36, chevY: 11.6,
+    porch: 300, mail: 450, window: 100, mailW: 1.95,
+    porchBox: [2.2, 1.5, 3.2], label: 'APARTMENTS',
+  },
+  mansion: {
+    frontX: 15.8, depth: 10, width: 17, wall: 7.2, spacing: 40, chevY: 10.8,
+    porch: 450, mail: 750, window: 300, mailW: 0.5,
+    porchBox: [2.4, 1.6, 4.0], label: 'MANSION',
+  },
+};
+
+export const HOUSE_TYPES = Object.keys(HOUSE_SPEC);
+
+// -- shared fittings -------------------------------------------------------
+
+function addWindow(g, M, windows, y, z, w, h) {
+  const win = plane(M.window, w, h, 0.06, y, z);
+  win.rotation.y = -Math.PI / 2;
+  g.add(win);
+  g.add(bx(M.trim, 0.06, h + 0.2, w + 0.22, 0.02, y, z));
+  windows.push(win);
+  return win;
+}
+
+// Decoration only, on the gable ends of the wide buildings -- you approach
+// those corner-on, and a blank three-storey slab looks unfinished. They are
+// deliberately kept out of the smashable list; only the street face counts.
+function addSideWindows(g, M, halfW, xs, ys, w, h) {
+  for (const s of [-1, 1]) {
+    for (const x of xs) {
+      for (const y of ys) {
+        const win = plane(M.window, w, h, x, y, s * (halfW + 0.05));
+        if (s < 0) win.rotation.y = Math.PI;
+        g.add(win);
+        g.add(bx(M.trim, w + 0.22, h + 0.2, 0.06, x, y, s * (halfW + 0.02)));
+      }
+    }
+  }
+}
+
+// Every building keeps a box at the curb, whatever its architecture would
+// really have -- the whole risk/reward of riding the sidewalk depends on it.
+function addMailbox(g, M, spec, rng) {
+  const mbX = -(spec.frontX - LAYOUT.mailboxX);
+  const out = {};
+  if (spec.mailW > 1.4) {
+    // Apartment: a bank of cluster boxes on a stand.
+    out.post = bx(M.metalDark, 0.5, 1.0, 1.9, mbX, 0.5, 0);
+    g.add(out.post);
+    out.boxMesh = bx(M.mailbox, 0.6, 0.72, spec.mailW, mbX, 1.34, 0);
+    g.add(out.boxMesh);
+    for (let i = -1; i <= 1; i++) {
+      g.add(bx(M.metalDark, 0.04, 0.6, 0.05, mbX - 0.31, 1.34, i * 0.62));
+    }
+    out.flag = plane(M.flagRed, 0.16, 0.34, mbX + 0.32, 1.62, spec.mailW / 2 - 0.2);
+  } else if (spec.mailW < 0.55) {
+    // Mansion: a slim box set into a stone pillar.
+    g.add(bx(M.brickFor(0.9, 1.5), 0.7, 1.5, 0.9, mbX, 0.75, 0));
+    out.post = bx(M.brickFor(0.9, 0.2), 0.86, 0.18, 1.06, mbX, 1.58, 0);
+    g.add(out.post);
+    out.boxMesh = bx(M.mailbox, 0.5, 0.36, spec.mailW, mbX - 0.12, 1.28, 0);
+    g.add(out.boxMesh);
+    out.flag = plane(M.flagRed, 0.14, 0.3, mbX - 0.36, 1.5, 0.2);
+  } else {
+    out.post = bx(M.postWood, 0.14, 1.0, 0.14, mbX, 0.5, 0);
+    g.add(out.post);
+    out.boxMesh = bx(M.mailbox, 0.78, 0.44, spec.mailW, mbX, 1.16, 0);
+    g.add(out.boxMesh);
+    out.flag = plane(M.flagRed, 0.16, 0.42, mbX + 0.3, 1.42, 0.24);
+  }
+  g.add(out.flag);
+  return out;
+}
+
+function addPorchLight(g, M, x, y, z) {
+  const bulb = bx(M.lightWhite, 0.18, 0.26, 0.18, x, y, z);
+  g.add(bulb);
+  const halo = plane(M.porchGlow, 1.7, 1.7, x + 0.2, y, z);
+  halo.renderOrder = 3;
+  g.add(halo);
+  return { bulb, halo };
+}
+
+function addChevron(g, M, y) {
+  const chev = plane(M.chevron, 1.1, 1.1, -1.2, y, 0);
+  chev.renderOrder = 4;
+  g.add(chev);
+  return chev;
+}
+
+function addWalkway(g, M, spec, width) {
+  const mbX = -(spec.frontX - LAYOUT.mailboxX);
+  const len = Math.abs(mbX) - 1.5;
+  if (len > 0.4) g.add(bx(M.walkway, len, 0.05, width, (mbX - 1.4) / 2, 0.16, 0));
+}
+
+// -- single family ---------------------------------------------------------
+
+function buildSingle(M, rng, spec) {
   const g = new THREE.Group();
-  const w = LAYOUT.houseWidth;
-  const d = LAYOUT.houseDepth;
+  const w = spec.width;
+  const d = spec.depth;
   const wallH = range(rng, 3.2, 3.9);
-  const siding = pick(rng, M.siding);
-  const roofMat = pick(rng, M.roof);
-  const stone = rng() > 0.65;
+  const siding = M.sidingFor(pick(rng, M.siding), w, wallH);
 
-  // Body sits with its front face at local x = 0, extending to x = +d.
   g.add(bx(siding, d, wallH, w, d / 2, wallH / 2, 0));
-  if (stone) g.add(bx(M.brick, 0.12, 1.1, w, -0.05, 0.55, 0));
+  if (rng() > 0.65) g.add(bx(M.brickFor(w, 1.1), 0.12, 1.1, w, -0.05, 0.55, 0));
 
-  const roof = new THREE.Mesh(GABLE, roofMat);
+  const roof = new THREE.Mesh(GABLE, M.roofFor(pick(rng, M.roof), w + 0.8, d + 0.7));
   roof.scale.set(d + 0.7, range(rng, 1.9, 2.6), w + 0.8);
   roof.position.set(-0.35, wallH, 0);
   g.add(roof);
-  // Fascia board under the eaves.
   g.add(bx(M.trim, d + 0.7, 0.16, w + 0.8, d / 2 - 0.35, wallH + 0.02, 0));
+  if (rng() > 0.5) g.add(bx(M.brickFor(0.7, 1.5), 0.7, 1.5, 0.7, d * 0.62, wallH + 1.4, w * 0.28));
 
-  if (rng() > 0.5) {
-    g.add(bx(M.brick, 0.7, 1.5, 0.7, d * 0.62, wallH + 1.4, w * 0.28));
-  }
-
-  // Porch: floor, roof, posts, door, and the doormat that is the delivery zone.
   const porchD = 1.7;
   const porchW = 4.4;
   g.add(bx(M.trim, porchD, 0.42, porchW, -porchD / 2, 0.21, 0));
@@ -277,59 +424,184 @@ export function makeHouse(M, rng) {
   for (const s of [-1, 1]) {
     g.add(bx(M.trim, 0.16, 2.3, 0.16, -porchD + 0.2, 1.57, s * (porchW / 2 - 0.25)));
   }
-  const doorMat = pick(rng, M.door);
-  g.add(bx(doorMat, 0.1, 1.9, 0.95, 0.02, 1.37, 0));
+  g.add(bx(pick(rng, M.door), 0.1, 1.9, 0.95, 0.02, 1.37, 0));
 
   const mat = bx(M.walkway, 1.2, 0.06, 2.2, -0.75, 0.45, 0);
   g.add(mat);
 
-  // Porch light + its glow card. Both toggle with subscriber state.
-  const bulb = bx(M.lightWhite, 0.18, 0.26, 0.18, 0.12, 2.15, 0.85);
-  g.add(bulb);
-  const halo = plane(M.porchGlow, 1.7, 1.7, 0.3, 2.15, 0.85);
-  halo.renderOrder = 3;
-  g.add(halo);
-
-  // Front windows -- smashable, and the mesh list is what the game hit-tests.
   const windows = [];
-  for (const o of [-3.4, 3.4]) {
-    const win = plane(M.window, 1.7, 1.35, 0.06, 1.95, o);
-    win.rotation.y = -Math.PI / 2;
-    g.add(win);
-    g.add(bx(M.trim, 0.06, 1.55, 1.9, 0.02, 1.95, o));
-    windows.push(win);
-  }
-  // Gable window, higher and harder to reach.
-  const gw = plane(M.window, 1.1, 0.9, 0.06, wallH + 0.85, 0);
-  gw.rotation.y = -Math.PI / 2;
-  g.add(gw);
-  windows.push(gw);
+  for (const o of [-3.4, 3.4]) addWindow(g, M, windows, 1.95, o, 1.7, 1.35);
+  addWindow(g, M, windows, wallH + 0.85, 0, 1.1, 0.9);
 
-  // Mailbox out at the lawn edge, local x is negative (toward the street).
-  const mbX = -(LAYOUT.houseFrontX - LAYOUT.mailboxX);
-  const post = bx(M.postWood, 0.14, 1.0, 0.14, mbX, 0.5, 0);
-  g.add(post);
-  const boxMesh = bx(M.mailbox, 0.78, 0.44, 0.42, mbX, 1.16, 0);
-  g.add(boxMesh);
-  const flag = plane(M.flagRed, 0.16, 0.42, mbX + 0.3, 1.42, 0.24);
-  g.add(flag);
-
-  // Walkway from mailbox to porch.
-  g.add(bx(M.walkway, Math.abs(mbX) - 1.6, 0.05, 1.1, (mbX - 1.5) / 2, 0.16, 0));
-
-  // Floating chevron that marks a pending subscriber.
-  const chev = plane(M.chevron, 1.1, 1.1, -1.2, 4.6, 0);
-  chev.renderOrder = 4;
-  g.add(chev);
-
-  // Yard dressing.
   if (rng() > 0.45) {
-    const hedgeZ = (rng() > 0.5 ? 1 : -1) * range(rng, 3.2, 4.6);
-    g.add(bx(M.hedge, 1.0, 0.8, 2.4, -0.2, 0.55, hedgeZ));
+    g.add(bx(M.hedge, 1.0, 0.8, 2.4, -0.2, 0.55, (rng() > 0.5 ? 1 : -1) * range(rng, 3.2, 4.6)));
+  }
+  return { g, mat, windows, light: addPorchLight(g, M, 0.12, 2.15, 0.85) };
+}
+
+// -- row house -------------------------------------------------------------
+
+function buildTownhome(M, rng, spec) {
+  const g = new THREE.Group();
+  const w = spec.width;
+  const d = spec.depth;
+  const wallH = spec.wall;
+  const brickFront = rng() > 0.45;
+  const siding = M.sidingFor(pick(rng, M.siding), w, wallH);
+
+  g.add(bx(siding, d, wallH, w, d / 2, wallH / 2, 0));
+  // Facade only on the street face, so the shared walls stay plain.
+  g.add(bx(brickFront ? M.brickFor(w, wallH) : siding, 0.14, wallH, w - 0.12, -0.06, wallH / 2, 0));
+  // Cornice and a low parapet instead of a pitched roof.
+  g.add(bx(M.trim, d + 0.5, 0.3, w, (d - 0.5) / 2 - 0.15, wallH + 0.15, 0));
+  g.add(bx(M.roofFor(pick(rng, M.roof), w, d), d, 0.5, w - 0.3, d / 2, wallH + 0.55, 0));
+  // Party walls, so a row reads as separate addresses.
+  for (const s of [-1, 1]) g.add(bx(M.trim, d, 0.34, 0.22, d / 2, wallH + 1.0, s * w / 2));
+
+  // Stoop: three steps up to a small landing.
+  for (let i = 0; i < 3; i++) {
+    g.add(bx(M.walkway, 0.42, 0.26, 2.3, -1.55 + i * 0.42, 0.13 + i * 0.26, 0));
+  }
+  g.add(bx(M.trim, 0.62, 0.16, 2.5, -0.3, 0.86, 0));
+  const mat = bx(M.walkway, 0.55, 0.06, 1.5, -0.32, 0.97, 0);
+  g.add(mat);
+  g.add(bx(pick(rng, M.door), 0.1, 2.1, 1.0, 0.02, 1.98, 0));
+  // Iron railings either side of the steps.
+  for (const s of [-1, 1]) {
+    g.add(bx(M.metalDark, 1.9, 0.07, 0.07, -0.85, 1.15, s * 1.2));
+    g.add(bx(M.metalDark, 0.07, 0.9, 0.07, -1.7, 0.6, s * 1.2));
   }
 
-  const anchors = { boxMesh, mat, windows, flag, bulb, halo, chev, post };
-  return { group: g, anchors };
+  const windows = [];
+  addWindow(g, M, windows, 2.1, 2.9, 1.3, 1.6);          // ground, beside the door
+  addWindow(g, M, windows, 4.6, -2.4, 1.2, 1.7);         // upper pair
+  addWindow(g, M, windows, 4.6, 2.4, 1.2, 1.7);
+
+  return { g, mat, windows, light: addPorchLight(g, M, 0.12, 2.9, 0.72) };
+}
+
+// -- apartment block -------------------------------------------------------
+
+function buildApartment(M, rng, spec) {
+  const g = new THREE.Group();
+  const w = spec.width;
+  const d = spec.depth;
+  const wallH = spec.wall;
+  const body = rng() > 0.5 ? M.brickFor(w, wallH) : M.sidingFor(pick(rng, M.siding), w, wallH);
+
+  g.add(bx(body, d, wallH, w, d / 2, wallH / 2, 0));
+  g.add(bx(M.trim, d + 0.4, 0.4, w + 0.4, d / 2 - 0.2, wallH + 0.2, 0));   // parapet
+  g.add(bx(M.metalDark, 1.6, 0.7, 2.2, d * 0.55, wallH + 0.75, w * 0.24)); // roof plant
+  g.add(bx(M.trim, 0.16, wallH, w, -0.08, wallH / 2, 0));                  // pilaster strip
+
+  // Recessed entrance under a flat canopy.
+  g.add(bx(M.trim, 1.9, 0.24, 5.0, -0.95, 3.3, 0));
+  for (const s of [-1, 1]) g.add(bx(M.chrome, 0.14, 3.2, 0.14, -1.8, 1.6, s * 2.2));
+  g.add(bx(M.walkway, 0.5, 0.22, 4.6, -0.25, 0.11, 0));
+  g.add(bx(M.carGlass, 0.1, 2.4, 2.4, 0.02, 1.4, 0));
+  g.add(bx(M.chrome, 0.14, 2.5, 0.16, -0.03, 1.45, 0));
+  const mat = bx(M.walkway, 1.1, 0.06, 2.6, -0.9, 0.25, 0);
+  g.add(mat);
+
+  // Window grid, skipping the bay the entrance occupies.
+  const windows = [];
+  for (const y of [2.4, 5.2, 7.7]) {
+    for (const z of [-6.4, -2.2, 2.2, 6.4]) {
+      if (y < 3 && Math.abs(z) < 3) continue;
+      addWindow(g, M, windows, y, z, 1.4, 1.5);
+    }
+  }
+  addSideWindows(g, M, w / 2, [2.4, 6.0], [2.4, 5.2, 7.7], 1.3, 1.4);
+
+  // A couple of balconies to break up the slab.
+  for (const z of [-6.4, 6.4]) {
+    g.add(bx(M.chrome, 1.0, 0.12, 2.2, -0.5, 4.5, z));
+    g.add(bx(M.metalDark, 1.0, 0.6, 0.08, -0.5, 4.8, z + 1.05));
+  }
+
+  return { g, mat, windows, light: addPorchLight(g, M, -1.6, 3.05, 1.4) };
+}
+
+// -- mansion ---------------------------------------------------------------
+
+function buildMansion(M, rng, spec) {
+  const g = new THREE.Group();
+  const w = spec.width;
+  const d = spec.depth;
+  const wallH = spec.wall;
+  const body = rng() > 0.5 ? M.brickFor(w, wallH) : M.sidingFor(pick(rng, M.siding), w, wallH);
+
+  g.add(bx(body, d, wallH, w, d / 2, wallH / 2, 0));
+  g.add(bx(M.trim, d + 0.3, 0.3, w + 0.3, d / 2 - 0.15, wallH + 0.15, 0));
+
+  // Hip roof: a four-sided cone turned so its faces square up with the walls.
+  const roof = new THREE.Mesh(CONE4, M.roofFor(pick(rng, M.roof), w, d));
+  roof.rotation.y = Math.PI / 4;
+  roof.scale.set((d + 0.8) * 1.414, 2.5, (w + 0.8) * 1.414);
+  roof.position.set(d / 2, wallH + 0.3, 0);
+  g.add(roof);
+  for (const s of [-1, 1]) g.add(bx(M.brickFor(0.9, 1.8), 0.9, 1.8, 0.9, d * 0.6, wallH + 1.6, s * w * 0.3));
+
+  // Two-storey portico across the middle of the facade.
+  const porticoD = 2.6;
+  g.add(bx(M.trim, porticoD, 0.5, 6.4, -porticoD / 2, 0.25, 0));
+  for (let i = 0; i < 3; i++) {
+    g.add(bx(M.trim, 0.34, 0.2, 7.2, -porticoD - 0.3 + i * 0.32, 0.1 + i * 0.18, 0));
+  }
+  for (const z of [-2.7, -0.9, 0.9, 2.7]) {
+    g.add(cyl(M.trim, 0.24, 5.4, -porticoD + 0.45, 3.2, z));
+    g.add(bx(M.trim, 0.66, 0.18, 0.66, -porticoD + 0.45, 0.58, z));
+    g.add(bx(M.trim, 0.66, 0.18, 0.66, -porticoD + 0.45, 5.9, z));
+  }
+  g.add(bx(M.trim, porticoD + 0.7, 0.44, 7.0, -porticoD / 2, 6.15, 0));
+  const ped = new THREE.Mesh(GABLE, M.trim);
+  ped.scale.set(porticoD + 0.7, 1.5, 7.0);
+  ped.position.set(-porticoD - 0.35, 6.37, 0);
+  ped.rotation.y = 0;
+  g.add(ped);
+
+  const mat = bx(M.walkway, 1.4, 0.06, 3.4, -1.0, 0.53, 0);
+  g.add(mat);
+  for (const s of [-1, 1]) g.add(bx(M.door[3], 0.1, 2.6, 0.8, 0.02, 1.85, s * 0.45));
+  g.add(bx(M.chrome, 0.14, 2.7, 0.12, -0.02, 1.85, 0));
+
+  const windows = [];
+  for (const y of [2.2, 5.1]) {
+    for (const z of [-6.4, -3.9, 3.9, 6.4]) addWindow(g, M, windows, y, z, 1.5, 1.9);
+  }
+
+  addSideWindows(g, M, w / 2, [3.2, 6.8], [2.2, 5.1], 1.4, 1.7);
+
+  // Grounds: clipped hedges and a gravel sweep.
+  g.add(bx(M.driveway, Math.abs(-(spec.frontX - LAYOUT.mailboxX)) - 1.2, 0.05, 5.4,
+    (-(spec.frontX - LAYOUT.mailboxX) - 1.1) / 2, 0.15, 0));
+  for (const s of [-1, 1]) {
+    g.add(bx(M.hedge, 3.4, 1.0, 0.9, -1.9, 0.6, s * 4.2));
+    g.add(bx(M.hedge, 0.9, 1.3, 3.0, -3.6, 0.75, s * 5.4));
+  }
+  return { g, mat, windows, light: addPorchLight(g, M, -2.2, 3.4, 1.7) };
+}
+
+const BUILDERS = {
+  single: buildSingle,
+  townhome: buildTownhome,
+  apartment: buildApartment,
+  mansion: buildMansion,
+};
+
+export function makeHouse(M, rng, type) {
+  const spec = HOUSE_SPEC[type] || HOUSE_SPEC.single;
+  const built = BUILDERS[type in BUILDERS ? type : 'single'](M, rng, spec);
+  const g = built.g;
+  const mb = addMailbox(g, M, spec, rng);
+  addWalkway(g, M, spec, type === 'mansion' ? 3.0 : 1.1);
+  const chev = addChevron(g, M, spec.chevY);
+  const anchors = {
+    boxMesh: mb.boxMesh, flag: mb.flag, post: mb.post,
+    mat: built.mat, windows: built.windows,
+    bulb: built.light.bulb, halo: built.light.halo, chev,
+  };
+  return { group: g, anchors, type, spec };
 }
 
 // ---------------------------------------------------------------- scenery

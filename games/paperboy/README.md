@@ -34,8 +34,35 @@ content-security policy.
 | `E` | Throw right |
 | `Space` | Throw at the nearest target on either side |
 | Click | Throw toward the half of the screen you clicked |
-| `P` / `Esc` | Pause |
+| `1` `2` `3` | Pick a shift on the select screen |
+| `H` | Route briefing |
+| `P` | Pause &middot; `Esc` backs out of a menu |
 | `M` | Mute |
+
+## Screens
+
+Title → shift select → day card → the route → the front page, and back round. `H`
+opens a route briefing from the title with the controls, a legend for what the
+coloured reticles mean, and the payout table. Best score per shift is kept in
+`localStorage` where the browser allows it, shown on the title, on the shift
+cards and on the front page; a sandbox that refuses storage just means no
+record is kept, which is not worth taking the page down for.
+
+## Shifts
+
+Difficulty is not a single multiplier. What actually makes the street readable
+is how fast things move, so that is the main thing a shift changes:
+
+| | Cars | Dogs | Hazards | Bike | Bikes | Papers | Score |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Sunday Round | ×0.60 | ×0.65 | ×0.72 | 13.5 | 5 | 22 | ×0.8 |
+| Weekday Route | ×1.00 | ×1.00 | ×1.00 | 16.0 | 3 | 16 | ×1.0 |
+| Rush Hour | ×1.45 | ×1.30 | ×1.30 | 19.0 | 2 | 13 | ×1.5 |
+
+Measured end to end, that is average traffic moving at 5.5 units/second on the
+easy shift against 14.5 on the hard one, dogs chasing at 6.2 against 12.4, and
+43 solid obstacles on the route against 70. Score is scaled so the three
+leaderboards mean something next to each other.
 
 Subscribers are the addresses with a lit porch, a raised mailbox flag, and a
 chevron floating above the roof. Land a paper on the doormat for the base
@@ -71,6 +98,22 @@ The camera pans to follow each paper through its arc and holds on the impact
 long enough to see where it landed, then returns. If you would rather it stayed
 locked behind the bike, switch Camera to Fixed on the deck.
 
+## Traffic
+
+The street is laid out as a sequence of recognisable patterns rather than one
+car every N units, because evenly spaced obstacles read as wallpaper. A block
+arrives as a convoy nose to tail with one gap you can commit to, a school bus
+coasting to the kerb with its brake lights on and its stop arm out, a sedan
+drifting across the centre line as you close on it, or a pickup reversing out
+of a driveway across the sidewalk once you are near enough to see it happen.
+The generator will not run the same pattern twice in a row.
+
+Five body plans — sedan, taxi, pickup, van and school bus — carry their own
+length, speed and collision box, so a bus genuinely takes up more of the block
+than a sedan. Brake lights swap to a hot emissive material whenever a vehicle
+is actually slowing, which is the only cue you get that a bus is about to stop
+in front of you.
+
 ## How the N64 look is done
 
 The point of reference is the console's actual output path, not a generic
@@ -97,6 +140,14 @@ The rest follows from the budget: flat-shaded Lambert materials with a single
 key light and a hemisphere bounce, no shadow maps (entities get blob shadow
 cards instead), 64-pixel canvas textures with mipmaps, and alpha-tested
 foliage cards.
+
+Depth comes mostly from the street furniture rather than the buildings.
+Telephone poles march down both verges just outside the play area, each
+carrying a fixed-length span of wire toward where the next one will stand — so
+the streamer can place them independently and the line still looks continuous.
+Junctions get a painted crossing and a pair of stop signs, the kerb gets storm
+drains, and the front gardens get picket fences, flowerbeds and the occasional
+basketball hoop.
 
 ## Code layout
 

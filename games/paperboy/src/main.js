@@ -1,4 +1,4 @@
-import { Game } from './game.js';
+import { Game, DIFFICULTY, DIFFICULTY_ORDER } from './game.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -32,9 +32,9 @@ const ui = {
   setSubs(done, total) { $('subs').textContent = `${done}/${total}`; },
   setProgress(t) { $('route').style.width = `${(t * 100).toFixed(1)}%`; },
 
-  setLives(n) {
+  setLives(n, max) {
     const el = $('lives');
-    const total = Math.min(6, Math.max(3, n));
+    const total = Math.min(6, Math.max(max || 3, n));
     let html = '';
     for (let i = 0; i < total; i++) {
       html += BIKE_SVG.replace('<svg ', `<svg class="${i < n ? '' : 'spent'}" `);
@@ -72,10 +72,52 @@ const ui = {
   },
 
   setState(state) {
-    $('hud').classList.toggle('on', state !== 'title');
+    const menu = state === 'title' || state === 'difficulty' || state === 'howto';
+    $('hud').classList.toggle('on', !menu && state !== 'daycard');
     $('ov-title').classList.toggle('on', state === 'title');
+    $('ov-difficulty').classList.toggle('on', state === 'difficulty');
+    $('ov-howto').classList.toggle('on', state === 'howto');
+    $('ov-daycard').classList.toggle('on', state === 'daycard');
     $('ov-results').classList.toggle('on', state === 'results' || state === 'gameover');
     $('ov-pause').classList.toggle('on', state === 'paused');
+  },
+
+  // Three shift cards, each showing what it actually changes and your best
+  // score on it.
+  renderShifts(current, bests) {
+    const tint = { easy: '#7fc98a', normal: '#f2a65a', hard: '#e0574a' };
+    $('diff-cards').innerHTML = DIFFICULTY_ORDER.map((id, i) => {
+      const d = DIFFICULTY[id];
+      const best = bests[id];
+      return `<button class="card" type="button" data-diff="${id}"
+          style="--shift:${tint[id]}" aria-pressed="${id === current}">
+        <span class="card-key">${i + 1}</span>
+        <h3>${d.name}</h3>
+        <p>${d.blurb}</p>
+        <ul>${d.detail.map((t) => `<li>${t}</li>`).join('')}</ul>
+        <span class="card-best">${best ? `Best ${pad6(best)}` : 'No round filed'}</span>
+      </button>`;
+    }).join('');
+  },
+
+  showDayCard(d) {
+    $('ov-daycard').innerHTML = `
+      <div class="daycard">
+        <div class="eyebrow">${d.difficulty}</div>
+        <div class="big">Day ${d.day}</div>
+        <div class="street">${d.street}</div>
+        <div class="facts">
+          <span><b>${d.subscribers}</b> subscribers</span>
+          <span><b>${d.papers}</b> papers</span>
+          <span><b>${d.lives}</b> bikes</span>
+        </div>
+      </div>`;
+  },
+
+  setBestLine(best) {
+    $('best-line').innerHTML = best
+      ? `Best on this shift <b>${pad6(best)}</b>`
+      : '&nbsp;';
   },
 
   showResults(r) {
@@ -122,7 +164,7 @@ const ui = {
         <div class="masthead">The West Elm Herald</div>
         <div class="dateline">
           <span>Day ${r.day} &middot; Late Edition</span>
-          <span>Route 14</span>
+          <span>${r.difficulty || 'Weekday Route'}</span>
           <span>Price 35&cent;</span>
         </div>
         <h2 class="headline">${r.headline}</h2>
@@ -140,7 +182,10 @@ const ui = {
               <div class="label">Total score</div>
               <div class="big">${pad6(r.score)}</div>
             </div>
-            <div class="stamp">${stamp}</div>
+            <div class="stamp">${r.newBest ? 'New record' : stamp}</div>
+            ${r.best ? `<div class="ledger bonus"><h3>Best on ${r.difficulty || 'this shift'}</h3>
+              <table><tr><td>${r.newBest ? 'Set this round' : 'Standing record'}</td>
+              <td>${pad6(r.best)}</td></tr></table></div>` : ''}
             ${bonuses.length ? `<div class="ledger bonus"><h3>End-of-route bonus</h3><table>${bonuses
               .map(([k, v]) => `<tr><td>${k}</td><td>+${v}</td></tr>`).join('')}</table></div>` : ''}
           </div>
@@ -168,6 +213,7 @@ window.__game = game;   // handy from the console, and how the test harness peek
 ui.setLives(3);
 ui.setCombo(0);
 game.startTitle();
+ui.setBestLine(game.loadBests()[game.difficulty]);
 ui.setState('title');
 
 // ------------------------------------------------------------------- input
@@ -185,10 +231,40 @@ function beginRun(day) {
   game.startRun(day);
 }
 
+function showShifts() {
+  game.state = 'difficulty';
+  ui.renderShifts(game.difficulty, game.loadBests());
+  ui.setState('difficulty');
+}
+
+function showTitle() {
+  game.state = 'title';
+  ui.setBestLine(game.loadBests()[game.difficulty]);
+  ui.setState('title');
+}
+
+function chooseShift(id) {
+  game.setDifficulty(id);
+  $('difficulty').value = id;
+  beginRun(1);
+}
+
+// Space is the one key that always moves you forward, whatever screen you are
+// looking at.
 function advance() {
-  if (game.state === 'title') beginRun(1);
-  else if (game.state === 'results') beginRun(game.day + 1);
-  else if (game.state === 'gameover') beginRun(1);
+  switch (game.state) {
+    case 'title': showShifts(); break;
+    case 'difficulty': chooseShift(game.difficulty); break;
+    case 'howto': showTitle(); break;
+    case 'results': beginRun(game.day + 1); break;
+    case 'gameover': showShifts(); break;
+    default: break;
+  }
+}
+
+function back() {
+  if (game.state === 'difficulty' || game.state === 'howto') { showTitle(); return true; }
+  return false;
 }
 
 function togglePause() {
@@ -230,15 +306,32 @@ window.addEventListener('keydown', (e) => {
     case 'KeyE':
       if (game.state === 'play') game.input.throwR = true;
       break;
+    case 'Digit1':
+    case 'Digit2':
+    case 'Digit3':
+      if (game.state === 'difficulty') chooseShift(DIFFICULTY_ORDER[+e.code.slice(-1) - 1]);
+      break;
+    case 'KeyH':
+      if (game.state === 'title' || game.state === 'difficulty') {
+        game.state = 'howto';
+        ui.setState('howto');
+      } else if (game.state === 'howto') showTitle();
+      break;
     case 'KeyP':
-    case 'Escape':
       togglePause();
+      break;
+    case 'Escape':
+      if (!back()) togglePause();
       break;
     case 'KeyM':
       toggleSound();
       break;
     case 'KeyR':
-      if (game.state !== 'play') { game.lives = 3; game.score = 0; beginRun(1); }
+      if (game.state !== 'play' && game.state !== 'daycard') {
+        game.lives = null;
+        game.score = 0;
+        showShifts();
+      }
       break;
     default:
       break;
@@ -263,6 +356,9 @@ document.addEventListener('visibilitychange', () => {
 screenEl.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.pad') || e.target.closest('.tbtn')) return;
   screenEl.focus({ preventScroll: true });
+  // Cards and links on the menu screens handle their own clicks.
+  if (e.target.closest('.card') || e.target.closest('.linkish')) return;
+  if (game.state === 'daycard') return;
   if (game.state !== 'play') { advance(); return; }
   const r = screenEl.getBoundingClientRect();
   if (e.clientX - r.left < r.width / 2) game.input.throwL = true;
@@ -276,7 +372,7 @@ if (window.matchMedia('(pointer: coarse)').matches) {
   usingTouch = true;
   $('touch').classList.add('on');
   document.querySelector('.cab').classList.add('has-touch');
-  $('start-prompt').textContent = 'Tap to ride';
+  $('start-prompt').textContent = 'Tap to start';
 }
 
 const pad = $('pad');
@@ -329,6 +425,24 @@ function toggleSound() {
 }
 $('sound').addEventListener('click', toggleSound);
 
+$('diff-cards').addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (card) chooseShift(card.dataset.diff);
+});
+
+$('howto-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  game.state = 'howto';
+  ui.setState('howto');
+});
+
+$('difficulty').addEventListener('change', (e) => {
+  game.setDifficulty(e.target.value);
+  if (game.state === 'title') ui.setBestLine(game.loadBests()[game.difficulty]);
+  if (game.state === 'difficulty') ui.renderShifts(game.difficulty, game.loadBests());
+  screenEl.focus({ preventScroll: true });
+});
+
 $('camera').addEventListener('change', (e) => {
   game.cameraDynamic = e.target.value === 'dynamic';
   screenEl.focus({ preventScroll: true });
@@ -340,9 +454,9 @@ $('quality').addEventListener('change', (e) => {
 });
 
 $('restart').addEventListener('click', () => {
-  game.lives = 3;
+  game.lives = null;
   game.score = 0;
-  beginRun(1);
+  showShifts();
   screenEl.focus({ preventScroll: true });
 });
 

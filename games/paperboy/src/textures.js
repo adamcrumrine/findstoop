@@ -350,6 +350,53 @@ function water() {
   return c;
 }
 
+function crosswalk() {
+  const c = cv(64);
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 64, 64);
+  x.fillStyle = 'rgba(232,232,228,0.9)';
+  for (let i = 2; i < 64; i += 12) x.fillRect(i, 2, 7, 60);
+  return c;
+}
+
+function bird() {
+  const c = cv(32, 16);
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 32, 16);
+  x.strokeStyle = 'rgba(38,42,52,0.85)';
+  x.lineWidth = 2.4;
+  x.lineCap = 'round';
+  x.beginPath();
+  x.moveTo(3, 5);
+  x.quadraticCurveTo(9, 12, 16, 6);
+  x.quadraticCurveTo(23, 12, 29, 5);
+  x.stroke();
+  return c;
+}
+
+function stopFace() {
+  const c = cv(64);
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 64, 64);
+  x.fillStyle = '#b8302a';
+  x.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    x[i ? 'lineTo' : 'moveTo'](32 + Math.cos(a) * 31, 32 + Math.sin(a) * 31);
+  }
+  x.closePath();
+  x.fill();
+  x.strokeStyle = '#f0ece2';
+  x.lineWidth = 3;
+  x.stroke();
+  x.fillStyle = '#f0ece2';
+  x.font = 'bold 21px sans-serif';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText('STOP', 32, 34);
+  return c;
+}
+
 function sky() {
   // The dome is a full sphere, so v = 0.5 is the horizon line. The amber band
   // has to sit right on it or the sunrise ends up buried under the ground.
@@ -388,11 +435,15 @@ export function makeTextures() {
     cloud: finish(cloud(), 1, 1),
     glow: finish(glow(), 1, 1),
     sunDisc: finish(sunDisc(), 1, 1),
+    crosswalk: finish(crosswalk(), 1, 1),
+    bird: finish(bird(), 1, 1),
+    stopFace: finish(stopFace(), 1, 1),
     water: finish(water(), 1, 1),
     sky: finish(sky(), 1, 1),
   };
   // Sprites and cards must not tile across their own edges.
-  for (const k of ['window', 'windowBroken', 'door', 'leaves', 'blob', 'ring', 'chevron', 'cloud', 'glow', 'sunDisc', 'water', 'newsprint', 'sky']) {
+  for (const k of ['window', 'windowBroken', 'door', 'leaves', 'blob', 'ring', 'chevron',
+    'cloud', 'glow', 'sunDisc', 'water', 'newsprint', 'sky', 'bird', 'stopFace']) {
     t[k].wrapS = t[k].wrapT = THREE.ClampToEdgeWrapping;
     t[k].needsUpdate = true;
   }

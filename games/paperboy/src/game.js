@@ -10,13 +10,42 @@ import { clamp, lerp, damp, mulberry32, range } from './util.js';
 
 const GRAV = 26;
 const THROW_SPEED = 27;
-const BASE_SPEED = 16;
-const MAX_SPEED = 25;
-const MIN_SPEED = 9;
 const LATERAL = 9.2;
 const PLAYER_R = 0.55;
-const START_PAPERS = 16;
-const MAX_PAPERS = 30;
+const MAX_PAPERS = 34;
+
+// Difficulty is not a single number. Slowing the traffic and the dogs is what
+// actually makes the street readable, so that is what the easy setting does;
+// the harder settings speed the same things up and hand you fewer papers and
+// fewer bikes to spend. Score is scaled to keep the leaderboards honest.
+export const DIFFICULTY = {
+  easy: {
+    id: 'easy',
+    name: 'Sunday Round',
+    blurb: 'Traffic crawls, the dogs are half-hearted and you ride with five bikes and a full satchel.',
+    detail: ['Cars 40% slower', 'Dogs 35% slower', 'Five bikes, 22 papers', 'Score ×0.8'],
+    carSpeed: 0.6, dogSpeed: 0.65, hazard: 0.72, traffic: 0.75,
+    bikeSpeed: 13.5, lives: 5, papers: 22, scoreMul: 0.8,
+  },
+  normal: {
+    id: 'normal',
+    name: 'Weekday Route',
+    blurb: 'The route as it is meant to be ridden. Real traffic, real dogs, three bikes.',
+    detail: ['Standard traffic', 'Standard dogs', 'Three bikes, 16 papers', 'Score ×1.0'],
+    carSpeed: 1, dogSpeed: 1, hazard: 1, traffic: 1,
+    bikeSpeed: 16, lives: 3, papers: 16, scoreMul: 1,
+  },
+  hard: {
+    id: 'hard',
+    name: 'Rush Hour',
+    blurb: 'Everyone is late for work. The street is faster, busier and far less forgiving.',
+    detail: ['Cars 45% faster', 'Dogs 30% faster', 'Two bikes, 13 papers', 'Score ×1.5'],
+    carSpeed: 1.45, dogSpeed: 1.3, hazard: 1.3, traffic: 1.35,
+    bikeSpeed: 19, lives: 2, papers: 13, scoreMul: 1.5,
+  },
+};
+
+export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
 
 export class Game {
   constructor(canvas, ui) {
@@ -27,6 +56,8 @@ export class Game {
     this.time = 0;
     this.day = 1;
     this.quality = 270;
+    this.difficulty = 'normal';
+    this.diff = DIFFICULTY.normal;
 
     this.renderer = new THREE.WebGLRenderer({
       canvas, antialias: false, alpha: false, powerPreference: 'high-performance',
@@ -85,7 +116,7 @@ export class Game {
     this.throwCooldown = 0;
 
     this.p = {
-      x: 0, y: 0, z: 0, speed: BASE_SPEED, vy: 0, air: false,
+      x: 0, y: 0, z: 0, speed: 16, vy: 0, air: false,
       lean: 0, leanV: 0, yaw: 0, crankAngle: 0, airTime: 0,
     };
     this.reduceMotion = typeof window.matchMedia === 'function'
@@ -120,6 +151,35 @@ export class Game {
     this.resize();
   }
 
+  setDifficulty(id) {
+    if (!DIFFICULTY[id]) return;
+    this.difficulty = id;
+    this.diff = DIFFICULTY[id];
+  }
+
+  // Best score per difficulty, kept in localStorage where it is available.
+  // Sandboxed frames can refuse it, and a missing high score is not worth
+  // taking the page down for.
+  loadBests() {
+    try {
+      const raw = window.localStorage.getItem('paperboy64.best');
+      return raw ? JSON.parse(raw) : {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  recordBest(score) {
+    const bests = this.loadBests();
+    const prev = bests[this.difficulty] || 0;
+    if (score <= prev) return false;
+    bests[this.difficulty] = score;
+    try {
+      window.localStorage.setItem('paperboy64.best', JSON.stringify(bests));
+    } catch (err) { /* not fatal */ }
+    return true;
+  }
+
   startTitle() {
     this.state = 'title';
     this.day = 1;
@@ -130,14 +190,17 @@ export class Game {
   }
 
   resetRun(silent) {
-    const info = this.world.build(this.day);
+    const info = this.world.build(this.day, this.diff);
     this.subscriberTotal = info.subscriberTotal;
     this.finishZ = info.finishZ;
     Object.assign(this.p, {
-      x: 0, y: 0, z: 0, speed: BASE_SPEED, vy: 0, air: false,
+      // Start on the right-hand sidewalk rather than straddling the centre
+      // line -- it is where you want to be riding, and it puts the kerb-hugging
+      // bullseye lane under the player from the first house.
+      x: 5.4, y: 0, z: 0, speed: this.diff.bikeSpeed, vy: 0, air: false,
       lean: 0, leanV: 0, crankAngle: 0, airTime: 0,
     });
-    this.papersLeft = START_PAPERS;
+    this.papersLeft = this.diff.papers;
     this.combo = 0;
     this.bestCombo = 0;
     this.invuln = 0;
@@ -149,7 +212,7 @@ export class Game {
     };
     if (!silent) {
       this.score = this.score || 0;
-      this.lives = this.lives == null ? 3 : this.lives;
+      this.lives = this.lives == null ? this.diff.lives : this.lives;
     }
     for (const p of this.papers) { p.alive = false; p.targetHouse = null; p.mesh.visible = false; }
     this.pushHud();
@@ -157,19 +220,27 @@ export class Game {
 
   startRun(day) {
     this.day = day;
-    if (day === 1) { this.score = 0; this.lives = 3; }
+    if (day === 1) { this.score = 0; this.lives = this.diff.lives; }
     this.resetRun(false);
-    this.state = 'play';
+    // A beat on the start line before the clock starts: the day, the street,
+    // how many subscribers are waiting and which shift you picked.
+    this.state = 'daycard';
+    this.cardTimer = 2.1;
     // Day one teaches the two verbs; after that the player knows them.
     this.hints = day === 1 ? [
       { z: -30, text: 'SPACE THROWS AT THE LIT PORCH', kind: 'good' },
       { z: -118, text: 'HUG THE CURB FOR MAILBOX SHOTS', kind: 'gold' },
     ] : [];
-    this.ui.setState('play');
+    this.ui.showDayCard({
+      day,
+      street: 'West Elm Street',
+      subscribers: this.subscriberTotal,
+      difficulty: this.diff.name,
+      papers: this.papersLeft,
+      lives: this.lives,
+    });
+    this.ui.setState('daycard');
     this.ui.setDay(day);
-    this.audio.start();
-    this.audio.setTempoScale(1 + (day - 1) * 0.03);
-    this.audio.startMusic();
     this.pushHud();
   }
 
@@ -179,7 +250,7 @@ export class Game {
       : 0;
     this.ui.setScore(this.score || 0);
     this.ui.setPapers(this.papersLeft || 0);
-    this.ui.setLives(this.lives == null ? 3 : this.lives);
+    this.ui.setLives(this.lives == null ? this.diff.lives : this.lives, this.diff.lives);
     this.ui.setSubs(done, this.subscriberTotal || 0);
     this.ui.setCombo(this.combo || 0);
   }
@@ -188,7 +259,8 @@ export class Game {
 
   update(dt) {
     this.time += dt;
-    if (this.state === 'title') this.updateTitle(dt);
+    if (this.state === 'title' || this.state === 'difficulty' || this.state === 'howto') this.updateTitle(dt);
+    else if (this.state === 'daycard') this.updateDayCard(dt);
     else if (this.state === 'play' || this.state === 'crashed') this.updatePlay(dt);
     else if (this.state === 'results' || this.state === 'gameover') this.updateCoast(dt);
     this.updatePapers(dt);
@@ -206,6 +278,24 @@ export class Game {
     p.lean = damp(p.lean, 0, 4, dt);
     this.world.update(dt, p, this.time);
     this.updateReticles(false);
+  }
+
+  // Held on the start line with the camera easing in, then away we go.
+  updateDayCard(dt) {
+    this.cardTimer -= dt;
+    this.p.speed = damp(this.p.speed, 0.8, 3, dt);
+    this.p.z -= this.p.speed * dt;
+    this.world.update(dt, this.p, this.time);
+    this.updateReticles(false);
+    if (this.cardTimer <= 0) {
+      this.state = 'play';
+      this.p.speed = this.diff.bikeSpeed * 0.75;
+      this.invuln = 1.2;   // a beat of grace before the street can hurt you
+      this.ui.setState('play');
+      this.audio.start();
+      this.audio.setTempoScale(1 + (this.day - 1) * 0.03);
+      this.audio.startMusic();
+    }
   }
 
   updateTitle(dt) {
@@ -227,7 +317,8 @@ export class Game {
       p.z -= p.speed * dt;
       if (this.crashTimer <= 0) this.recover();
     } else {
-      const targetSpeed = BASE_SPEED + this.input.throttle * (this.input.throttle > 0 ? MAX_SPEED - BASE_SPEED : BASE_SPEED - MIN_SPEED)
+      const base = this.diff.bikeSpeed;
+      const targetSpeed = base + this.input.throttle * (this.input.throttle > 0 ? base * 0.56 : base * 0.44)
         + (this.day - 1) * 0.7;
       p.speed = damp(p.speed, targetSpeed, 2.6, dt);
       p.z -= p.speed * dt;
@@ -604,7 +695,7 @@ export class Game {
   }
 
   addScore(n) {
-    this.score = (this.score || 0) + n;
+    this.score = (this.score || 0) + Math.round(n * this.diff.scoreMul);
     this.ui.setScore(this.score);
   }
 
@@ -636,7 +727,7 @@ export class Game {
     if (this.lives <= 0) { this.gameOver(); return; }
     this.state = 'play';
     this.ui.setState('play');
-    this.p.speed = BASE_SPEED * 0.7;
+    this.p.speed = this.diff.bikeSpeed * 0.7;
     this.p.x = clamp(this.p.x, -6.5, 6.5);
     this.invuln = 2.0;
   }
@@ -664,7 +755,10 @@ export class Game {
     this.addScore(bonus);
     this.audio.fanfare();
     this.audio.stopMusic();
-    this.ui.showResults(this.buildReport(bonus, perfect));
+    const report = this.buildReport(bonus, perfect);
+    report.newBest = this.recordBest(this.score);
+    report.best = this.loadBests()[this.difficulty] || this.score;
+    this.ui.showResults(report);
     this.ui.setState('results');
   }
 
@@ -672,7 +766,10 @@ export class Game {
     this.state = 'gameover';
     this.audio.gameOver();
     this.audio.stopMusic();
-    this.ui.showResults(this.buildReport(0, false, true));
+    const report = this.buildReport(0, false, true);
+    report.newBest = this.recordBest(this.score);
+    report.best = this.loadBests()[this.difficulty] || this.score;
+    this.ui.showResults(report);
     this.ui.setState('gameover');
   }
 
@@ -682,6 +779,7 @@ export class Game {
     return {
       day: this.day,
       score: this.score,
+      difficulty: this.diff.name,
       bonus,
       perfect,
       fired,
@@ -738,7 +836,7 @@ export class Game {
     }
 
     for (const arm of r.arms) arm.rotation.x = damp(arm.rotation.x, 0, 12, dt);
-    r.torso.rotation.x = -0.42 + Math.sin(p.crankAngle * 2) * 0.03 + (p.speed - BASE_SPEED) * -0.012;
+    r.torso.rotation.x = -0.42 + Math.sin(p.crankAngle * 2) * 0.03 + (p.speed - this.diff.bikeSpeed) * -0.012;
 
     const blink = this.invuln > 0 && Math.floor(this.time * 14) % 2 === 0;
     r.root.visible = !blink;
@@ -750,7 +848,7 @@ export class Game {
 
   updateCamera(dt) {
     const p = this.p;
-    const back = 8.2 + (p.speed - BASE_SPEED) * 0.13;
+    const back = 8.2 + (p.speed - this.diff.bikeSpeed) * 0.13;
     const height = 3.5 + p.y * 0.55;
     const targetPos = new THREE.Vector3(p.x * 0.72, height + p.y * 0.5, p.z + back);
     const targetLook = new THREE.Vector3(p.x * 0.85, 1.5 + p.y * 0.8, p.z - 13);
@@ -789,7 +887,7 @@ export class Game {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     this.camera.rotation.z += p.lean * 0.16;
-    const fov = 62 + clamp((p.speed - BASE_SPEED) * 0.75, -4, 9) - fw * 5;
+    const fov = 62 + clamp((p.speed - this.diff.bikeSpeed) * 0.75, -4, 9) - fw * 5;
     if (Math.abs(this.camera.fov - fov) > 0.01) {
       this.camera.fov = damp(this.camera.fov, fov, 4, dt);
       this.camera.updateProjectionMatrix();

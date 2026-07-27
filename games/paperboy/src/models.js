@@ -104,6 +104,18 @@ export function makeMaterials(T) {
     window: lam({ map: T.window }),
     windowBroken: lam({ map: T.windowBroken }),
 
+    poleWood: lam({ color: 0x6a5a49 }),
+    wire: lam({ color: 0x25272e }),
+    fence: lam({ color: 0xe7e3d6 }),
+    soil: lam({ color: 0x4b3a2c }),
+    flower: ['#d8586a', '#e8b23a', '#c46fc0', '#e8e4d8'].map((c) => lam({ color: new THREE.Color(c) })),
+    crosswalk: new THREE.MeshBasicMaterial({
+      map: T.crosswalk, transparent: true, depthWrite: false, fog: true,
+    }),
+    stopFace: lam({ map: T.stopFace, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }),
+    bird: new THREE.MeshBasicMaterial({
+      map: T.bird, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
+    }),
     trunk: lam({ color: 0x6d5340 }),
     canopy: ['#4f7c43', '#3f6b3d', '#5f8a48'].map((c) => lam({ color: new THREE.Color(c) })),
     foliage: lam({ map: T.leaves, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }),
@@ -111,6 +123,11 @@ export function makeMaterials(T) {
 
     carBody: carTints.map((c) => lam({ color: new THREE.Color(c) })),
     carGlass: lam({ color: 0x27384a }),
+    busBody: lam({ color: 0xe8b220 }),
+    busTrim: lam({ color: 0x2c3038 }),
+    taxiBody: lam({ color: 0xf0c33a }),
+    taxiCheck: lam({ color: 0x2c3038 }),
+    brakeHot: lam({ color: 0xff5a4a, emissive: 0xd8241a, emissiveIntensity: 1.6 }),
     tire: lam({ color: 0x1b1c22 }),
     chrome: lam({ color: 0xb9bec7 }),
     lightWhite: lam({ color: 0xfff1cf, emissive: 0xffd98a, emissiveIntensity: 0.9 }),
@@ -674,25 +691,107 @@ export function makeLamp(M) {
   return g;
 }
 
-export function makeCar(M, rng) {
-  const g = new THREE.Group();
-  const body = pick(rng, M.carBody);
-  const len = range(rng, 3.9, 4.6);
-  g.add(bx(body, 1.85, 0.62, len, 0, 0.62, 0));
-  g.add(bx(body, 1.66, 0.56, len * 0.46, 0, 1.14, len * 0.02));
-  g.add(bx(M.carGlass, 1.7, 0.4, len * 0.44, 0, 1.2, len * 0.02));
-  g.add(bx(M.chrome, 1.9, 0.14, 0.22, 0, 0.55, -len / 2 - 0.02));
-  g.add(bx(M.chrome, 1.9, 0.14, 0.22, 0, 0.55, len / 2 + 0.02));
+// ---------------------------------------------------------------- vehicles
+
+// Body plans, in world units. `rz` is the half-length used for collision, so
+// a bus genuinely takes up more of the block than a sedan does.
+export const VEHICLES = {
+  sedan: { len: 4.3, halfW: 1.0, rz: 2.4, speed: 1.0 },
+  taxi: { len: 4.3, halfW: 1.0, rz: 2.4, speed: 1.1 },
+  pickup: { len: 4.9, halfW: 1.05, rz: 2.7, speed: 0.95 },
+  van: { len: 5.1, halfW: 1.05, rz: 2.8, speed: 0.85 },
+  bus: { len: 8.2, halfW: 1.2, rz: 4.4, speed: 0.62 },
+};
+
+export const VEHICLE_KINDS = Object.keys(VEHICLES);
+
+function wheels(g, M, len, halfW, r) {
+  const out = [];
   for (const sx of [-1, 1]) {
-    g.add(bx(M.lightWhite, 0.42, 0.2, 0.1, sx * 0.6, 0.78, -len / 2 - 0.03));
-    g.add(bx(M.lightRed, 0.42, 0.2, 0.1, sx * 0.6, 0.78, len / 2 + 0.03));
     for (const sz of [-1, 1]) {
-      const wheel = cyl(M.tire, 0.34, 0.26, sx * 0.92, 0.34, sz * len * 0.31, 8);
-      wheel.rotation.z = Math.PI / 2;
-      g.add(wheel);
+      const w = cyl(M.tire, r, 0.26, sx * (halfW - 0.1), r, sz * len * 0.31, 8);
+      w.rotation.z = Math.PI / 2;
+      g.add(w);
+      out.push(w);
     }
   }
-  return g;
+  return out;
+}
+
+// Head and tail lamps. The tail meshes come back so the driving code can
+// swap them to a bright material when the vehicle is slowing.
+function lamps(g, M, len, halfW, y) {
+  const brake = [];
+  for (const sx of [-1, 1]) {
+    g.add(bx(M.lightWhite, 0.42, 0.2, 0.1, sx * (halfW - 0.4), y, -len / 2 - 0.03));
+    const tail = bx(M.lightRed, 0.42, 0.2, 0.1, sx * (halfW - 0.4), y, len / 2 + 0.03);
+    g.add(tail);
+    brake.push(tail);
+  }
+  return brake;
+}
+
+export function makeVehicle(M, rng, kind) {
+  const spec = VEHICLES[kind] || VEHICLES.sedan;
+  const g = new THREE.Group();
+  const len = spec.len;
+  const halfW = spec.halfW;
+  let brake = [];
+
+  if (kind === 'bus') {
+    const body = M.busBody;
+    g.add(bx(body, halfW * 2, 1.9, len, 0, 1.25, 0));
+    g.add(bx(M.busTrim, halfW * 2 + 0.04, 0.16, len, 0, 0.5, 0));
+    g.add(bx(M.carGlass, halfW * 2 + 0.02, 0.62, len * 0.82, 0, 1.72, 0.1));
+    g.add(bx(M.carGlass, halfW * 2 - 0.2, 0.72, 0.1, 0, 1.6, -len / 2 - 0.02));
+    g.add(bx(M.metalDark, 0.9, 0.16, 0.9, 0, 2.24, len * 0.2));   // roof hatch
+    g.add(bx(M.chrome, halfW * 2, 0.18, 0.2, 0, 0.62, -len / 2 - 0.04));
+    // Stop arm and the door, so it reads as a school bus even at 240p.
+    g.add(bx(M.hydrant, 0.1, 0.5, 0.5, -halfW - 0.06, 1.3, 0.4));
+    brake = lamps(g, M, len, halfW, 0.9);
+    for (const sz of [-0.34, 0.2, 0.36]) {
+      for (const sx of [-1, 1]) {
+        const w = cyl(M.tire, 0.42, 0.3, sx * (halfW - 0.08), 0.42, sz * len, 8);
+        w.rotation.z = Math.PI / 2;
+        g.add(w);
+      }
+    }
+    return { group: g, brake, spec, kind };
+  }
+
+  const body = kind === 'taxi' ? M.taxiBody : pick(rng, M.carBody);
+  g.add(bx(body, halfW * 2, 0.62, len, 0, 0.62, 0));
+
+  if (kind === 'pickup') {
+    g.add(bx(body, halfW * 2 - 0.16, 0.6, len * 0.34, 0, 1.16, -len * 0.16));
+    g.add(bx(M.carGlass, halfW * 2 - 0.1, 0.42, len * 0.32, 0, 1.22, -len * 0.16));
+    // Open bed with low side walls.
+    for (const sx of [-1, 1]) {
+      g.add(bx(body, 0.14, 0.44, len * 0.42, sx * (halfW - 0.07), 1.12, len * 0.22));
+    }
+    g.add(bx(body, halfW * 2, 0.44, 0.14, 0, 1.12, len / 2 - 0.07));
+    if (rng() > 0.5) g.add(bx(M.postWood, 0.6, 0.5, 1.2, 0, 1.15, len * 0.2));
+  } else if (kind === 'van') {
+    g.add(bx(body, halfW * 2, 1.34, len * 0.76, 0, 1.5, len * 0.1));
+    g.add(bx(M.carGlass, halfW * 2 - 0.06, 0.5, 0.1, 0, 1.72, -len * 0.28));
+    for (const sx of [-1, 1]) {
+      g.add(bx(M.carGlass, 0.06, 0.44, len * 0.3, sx * halfW, 1.74, -len * 0.06));
+    }
+    g.add(bx(M.trim, halfW * 2 - 0.2, 0.5, 0.08, 0, 1.4, len * 0.48));
+  } else {
+    g.add(bx(body, halfW * 2 - 0.2, 0.56, len * 0.46, 0, 1.14, len * 0.02));
+    g.add(bx(M.carGlass, halfW * 2 - 0.16, 0.4, len * 0.44, 0, 1.2, len * 0.02));
+    if (kind === 'taxi') {
+      g.add(bx(M.trim, 0.5, 0.22, 0.9, 0, 1.53, len * 0.02));
+      g.add(bx(M.taxiCheck, halfW * 2 + 0.02, 0.16, len * 0.7, 0, 0.66, 0));
+    }
+  }
+
+  g.add(bx(M.chrome, halfW * 2, 0.14, 0.22, 0, 0.55, -len / 2 - 0.02));
+  g.add(bx(M.chrome, halfW * 2, 0.14, 0.22, 0, 0.55, len / 2 + 0.02));
+  brake = lamps(g, M, len, halfW, 0.78);
+  wheels(g, M, len, halfW, 0.34);
+  return { group: g, brake, spec, kind };
 }
 
 export function makeDog(M, rng) {
@@ -721,6 +820,100 @@ export function makeDog(M, rng) {
   const tail = bx(fur, 0.1, 0.1, 0.4, 0, 0.68, 0.5);
   g.add(tail);
   return { group: g, legs, head, tail, body };
+}
+
+// ------------------------------------------------------- street furniture
+
+// Poles carry a fixed-length span of wire toward the next pole, so the world
+// streamer can place them independently and the line still looks continuous.
+export const POLE_SPAN = 34;
+
+export function makePole(M) {
+  const g = new THREE.Group();
+  g.add(cyl(M.poleWood, 0.17, 7.4, 0, 3.7, 0));
+  for (const y of [6.5, 5.9]) {
+    g.add(bx(M.poleWood, 0.12, 0.12, 2.0, 0, y, 0));
+    for (const s of [-1, 1]) g.add(bx(M.chrome, 0.08, 0.22, 0.08, 0, y + 0.16, s * 0.8));
+  }
+  // Each span is a shallow catenary faked with two tilted bars meeting at the
+  // low point, running toward where the next pole will stand.
+  const half = POLE_SPAN / 2;
+  const sag = 0.9;
+  const tilt = Math.atan2(sag, half);
+  const barLen = Math.hypot(half, sag);
+  for (const y of [6.66, 6.06]) {
+    const a = bx(M.wire, 0.05, 0.05, barLen, 0, y - sag / 2, -half / 2);
+    a.rotation.x = -tilt;
+    g.add(a);
+    const b = bx(M.wire, 0.05, 0.05, barLen, 0, y - sag / 2, -half * 1.5);
+    b.rotation.x = tilt;
+    g.add(b);
+  }
+  return g;
+}
+
+export function makeStopSign(M) {
+  const g = new THREE.Group();
+  g.add(cyl(M.metalDark, 0.055, 2.5, 0, 1.25, 0));
+  const face = plane(M.stopFace, 0.82, 0.82, 0, 2.3, 0);
+  g.add(face);
+  const back = plane(M.stopFace, 0.82, 0.82, 0, 2.3, -0.02);
+  back.rotation.y = Math.PI;
+  g.add(back);
+  return g;
+}
+
+export function makeCrosswalk(M) {
+  const g = new THREE.Group();
+  const m = plane(M.crosswalk, LAYOUT.roadHalf * 2 - 0.6, 2.6, 0, 0.04, 0);
+  m.rotation.x = -Math.PI / 2;
+  g.add(m);
+  return g;
+}
+
+export function makeFence(M, rng) {
+  const g = new THREE.Group();
+  const len = 5.2;
+  for (const y of [0.42, 0.86]) g.add(bx(M.fence, 0.06, 0.08, len, 0, y, 0));
+  for (let i = 0; i < 11; i++) {
+    const z = -len / 2 + 0.24 + i * (len - 0.48) / 10;
+    g.add(bx(M.fence, 0.08, 1.06, 0.14, 0, 0.53, z));
+    g.add(bx(M.fence, 0.08, 0.12, 0.1, 0, 1.1, z));
+  }
+  return g;
+}
+
+export function makeFlowerbed(M, rng) {
+  const g = new THREE.Group();
+  g.add(bx(M.soil, 1.1, 0.16, 2.6, 0, 0.08, 0));
+  const beds = M.flower;
+  for (let i = 0; i < 10; i++) {
+    const f = new THREE.Mesh(SPHERE, beds[Math.floor(rng() * beds.length)]);
+    f.scale.setScalar(range(rng, 0.16, 0.26));
+    f.position.set(range(rng, -0.35, 0.35), range(rng, 0.2, 0.34), range(rng, -1.1, 1.1));
+    g.add(f);
+  }
+  return g;
+}
+
+export function makeHoop(M) {
+  const g = new THREE.Group();
+  g.add(cyl(M.metalDark, 0.08, 3.3, 0, 1.65, 0));
+  g.add(bx(M.metalDark, 0.5, 0.08, 0.08, -0.25, 3.2, 0));
+  g.add(bx(M.trim, 0.08, 0.9, 1.3, -0.52, 3.05, 0));
+  const rim = new THREE.Mesh(TORUS, M.hydrant);
+  rim.scale.setScalar(0.62);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(-0.68, 2.72, 0);
+  g.add(rim);
+  return g;
+}
+
+export function makeDrain(M) {
+  const g = new THREE.Group();
+  g.add(bx(M.metalDark, 0.5, 0.1, 1.1, 0, 0.06, 0));
+  for (let i = -2; i <= 2; i++) g.add(bx(M.curb, 0.42, 0.06, 0.09, 0, 0.12, i * 0.19));
+  return g;
 }
 
 export function makeRamp(M) {

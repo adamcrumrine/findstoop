@@ -4,8 +4,11 @@
 
 import * as THREE from 'three';
 import * as MODELS from './models.js';
-import { LAYOUT, HOUSE_SPEC } from './models.js';
-import { mulberry32, range, pick, clamp, box } from './util.js';
+import { LAYOUT, HOUSE_SPEC, VEHICLE_KINDS, POLE_SPAN } from './models.js';
+import { mulberry32, range, pick, clamp, damp, box } from './util.js';
+
+// Where a bus comes to rest when it pulls in.
+const LANE_KERB = 3.1;
 
 // Past ~150 units the exponential fog has swallowed everything, so there is
 // nothing to gain by streaming in geometry further out than that.
@@ -71,9 +74,19 @@ export class World {
       ramp: new Pool(() => ({ group: MODELS.makeRamp(M) }), 3),
       sprinkler: new Pool(() => MODELS.makeSprinkler(M), 3),
       bundle: new Pool(() => ({ group: MODELS.makeBundle(M) }), 4),
-      car: new Pool(() => ({ group: MODELS.makeCar(M, r) }), 9),
       dog: new Pool(() => MODELS.makeDog(M, r), 4),
+      pole: new Pool(() => ({ group: MODELS.makePole(M) }), 6),
+      stopsign: new Pool(() => ({ group: MODELS.makeStopSign(M) }), 3),
+      crosswalk: new Pool(() => ({ group: MODELS.makeCrosswalk(M) }), 3),
+      fence: new Pool(() => ({ group: MODELS.makeFence(M, r) }), 5),
+      flowerbed: new Pool(() => ({ group: MODELS.makeFlowerbed(M, r) }), 5),
+      hoop: new Pool(() => ({ group: MODELS.makeHoop(M) }), 3),
+      drain: new Pool(() => ({ group: MODELS.makeDrain(M) }), 4),
     };
+    for (const kind of VEHICLE_KINDS) {
+      this.pools['car_' + kind] = new Pool(
+        () => MODELS.makeVehicle(M, r, kind), kind === 'sedan' ? 6 : kind === 'bus' ? 2 : 3);
+    }
 
     this.shadowPool = new Pool(() => MODELS.shadowPlane(M, 1), 14);
 
@@ -87,12 +100,16 @@ export class World {
 
   // ------------------------------------------------------------- generation
 
-  build(day) {
+  build(day, preset) {
     this.release();
     const rng = mulberry32(0x9e37 + day * 7919);
     this.rng = rng;
     const ents = [];
     const diff = Math.min(1, (day - 1) / 6);
+    // D is the chosen difficulty preset; `diff` is the within-run ramp that
+    // stacks on top of it as the days go by.
+    const D = preset || { carSpeed: 1, dogSpeed: 1, hazard: 1, traffic: 1 };
+    this.preset = D;
 
     // Addresses, walking down the street. Each building type sets its own
     // spacing, so a row of townhomes arrives as a tight burst and a mansion
@@ -146,8 +163,10 @@ export class World {
     this.finishZ = routeEnd - 56;
     this.routeStart = FIRST_HOUSE_Z + 30;
 
-    // Street furniture and hazards between the houses.
-    for (let z = -22; z > this.finishZ + 12; z -= range(rng, 5, 11)) {
+    // Street furniture and hazards between the houses. The first stretch is
+    // deliberately clear: you start on the sidewalk, and a hydrant three
+    // seconds in before you have touched the controls is not difficulty.
+    for (let z = -38; z > this.finishZ + 12; z -= range(rng, 5, 11) / D.hazard) {
       const s = rng() > 0.5 ? 1 : -1;
       const roll = rng();
       if (roll < 0.15) ents.push({ kind: 'prop', type: 'hydrant', x: s * 5.2, z, r: 0.5, solid: true });
@@ -168,28 +187,130 @@ export class World {
       ents.push({ kind: 'prop', type: 'tree', x: s * range(rng, 19, 21.8), z, r: 0, solid: false });
     }
 
-    // Traffic.
-    const carGap = range(rng, 30, 42) - diff * 12;
-    for (let z = -60; z > this.finishZ + 20; z -= Math.max(16, carGap + range(rng, -8, 10))) {
-      const oncoming = rng() > 0.42;
-      ents.push({
-        kind: 'car', z,
-        x: oncoming ? -2.25 : 2.25,
-        vz: oncoming ? range(rng, 11, 16) + diff * 5 : -(range(rng, 6, 10) + diff * 3),
-        r: 1.05, rz: 2.4, solid: true,
-      });
+    // Traffic. Rather than one car every N units, the street is laid out as a
+    // sequence of recognisable patterns, so a block reads as "convoy coming
+    // through" or "bus pulling up" instead of as evenly spaced obstacles.
+    const LANE = 2.25;
+    const carSpeed = (base) => base * D.carSpeed * (1 + diff * 0.35);
+    const addCar = (o) => {
+      const vehicle = o.vehicle || pick(rng, ['sedan', 'sedan', 'sedan', 'taxi', 'pickup', 'van']);
+      ents.push(Object.assign({
+        kind: 'car', vehicle, solid: true, pattern: 'cruise',
+        r: 1.05, rz: 2.4,
+      }, o, { vehicle }));
+    };
+
+    let tz = -58;
+    let lastPattern = '';
+    while (tz > this.finishZ + 24) {
+      let roll = rng();
+      // Never run the same pattern twice in a row -- repetition is what made
+      // the old single-car loop feel like wallpaper.
+      if (lastPattern === 'convoy' && roll > 0.55) roll = rng() * 0.5;
+      let pattern = 'single';
+      if (roll > 0.86) pattern = 'bus';
+      else if (roll > 0.72) pattern = 'backout';
+      else if (roll > 0.58) pattern = 'laneChange';
+      else if (roll > 0.36) pattern = 'convoy';
+      lastPattern = pattern;
+
+      if (pattern === 'convoy') {
+        // A line of vehicles nose to tail in one lane, with a gap you can slip
+        // through if you commit early.
+        const oncoming = rng() > 0.5;
+        const n = 2 + Math.floor(rng() * 3);
+        const speed = carSpeed(range(rng, 8, 12));
+        const gap = range(rng, 8.5, 12);
+        for (let i = 0; i < n; i++) {
+          addCar({
+            z: tz - i * gap, x: oncoming ? -LANE : LANE,
+            vz: oncoming ? speed : -speed * 0.72,
+            vehicle: i === 0 && rng() > 0.7 ? 'van' : undefined,
+          });
+        }
+        tz -= n * gap + range(rng, 26, 40);
+      } else if (pattern === 'bus') {
+        // Pulls up at the kerb, sits with its stop arm out, then moves off.
+        addCar({
+          z: tz, x: LANE, vz: -carSpeed(7), vehicle: 'bus', rz: 4.4, r: 1.25,
+          pattern: 'busStop', stopZ: tz - range(rng, 26, 44), waited: 0,
+          cruiseVz: -carSpeed(7),
+        });
+        tz -= range(rng, 58, 78);
+      } else if (pattern === 'laneChange') {
+        // Drifts across the centre line as you close on it.
+        const oncoming = rng() > 0.5;
+        const from = oncoming ? -LANE : LANE;
+        addCar({
+          z: tz, x: from, vz: oncoming ? carSpeed(11) : -carSpeed(8),
+          pattern: 'laneChange', fromX: from, toX: -from,
+          triggerZ: tz + range(rng, 18, 30), changed: 0,
+          vehicle: pick(rng, ['sedan', 'taxi', 'pickup']),
+        });
+        tz -= range(rng, 40, 58);
+      } else if (pattern === 'backout') {
+        // Reverses out of a driveway across the sidewalk once you are close.
+        const s = rng() > 0.5 ? 1 : -1;
+        addCar({
+          z: tz, x: s * 10.4, vz: 0, pattern: 'backout', side: s,
+          homeX: s * 10.4, targetX: s * LANE, phase: 0,
+          rz: 2.6, r: 1.15, vehicle: pick(rng, ['sedan', 'pickup', 'van']),
+        });
+        tz -= range(rng, 46, 66);
+      } else {
+        addCar({
+          z: tz, x: rng() > 0.45 ? -LANE : LANE,
+          vz: rng() > 0.45 ? carSpeed(range(rng, 10, 15)) : -carSpeed(range(rng, 6, 10)),
+        });
+        tz -= range(rng, 30, 46) / D.traffic;
+      }
     }
+
     // A couple of parked cars to tighten the lane.
     for (let z = -90; z > this.finishZ + 20; z -= range(rng, 70, 130)) {
       const s = rng() > 0.5 ? 1 : -1;
-      ents.push({ kind: 'car', z, x: s * 3.5, vz: 0, r: 1.05, rz: 2.4, solid: true, parked: true });
+      addCar({ z, x: s * 3.5, vz: 0, parked: true, pattern: 'parked',
+        vehicle: pick(rng, ['sedan', 'pickup', 'van', 'taxi']) });
     }
 
     // Dogs.
-    const dogCount = 3 + Math.round(diff * 5);
+    const dogCount = Math.round((3 + diff * 5) * D.hazard);
     for (let i = 0; i < dogCount; i++) {
       const z = range(rng, -110, this.finishZ + 40);
       ents.push({ kind: 'dog', z, x: (rng() > 0.5 ? 1 : -1) * range(rng, 6, 8.6), r: 0.55, solid: true, homeZ: z, chasing: false });
+    }
+
+    // ---- scenery that is there to be looked at, not ridden into ----------
+
+    // Telephone poles march down both verges just outside the play area, each
+    // carrying its span of wire toward the next.
+    for (let z = -20; z > this.finishZ - 30; z -= POLE_SPAN) {
+      for (const s of [-1, 1]) {
+        ents.push({ kind: 'prop', type: 'pole', x: s * 10.6, z, r: 0, solid: false });
+      }
+    }
+
+    // Junctions: a crossing plus stop signs on both kerbs.
+    for (let z = -96; z > this.finishZ + 30; z -= range(rng, 150, 210)) {
+      ents.push({ kind: 'prop', type: 'crosswalk', x: 0, z, r: 0, solid: false });
+      for (const s of [-1, 1]) {
+        ents.push({ kind: 'prop', type: 'stopsign', x: s * 4.95, z: z + s * 4.2, r: 0.34, solid: true });
+      }
+    }
+
+    // Kerbside storm drains.
+    for (let z = -40; z > this.finishZ + 20; z -= range(rng, 42, 70)) {
+      const s = rng() > 0.5 ? 1 : -1;
+      ents.push({ kind: 'prop', type: 'drain', x: s * 4.24, z, r: 0, solid: false });
+    }
+
+    // Front gardens: picket fences, flowerbeds and the odd basketball hoop.
+    for (let z = -34; z > this.finishZ + 20; z -= range(rng, 16, 30)) {
+      const s = rng() > 0.5 ? 1 : -1;
+      const roll = rng();
+      if (roll < 0.42) ents.push({ kind: 'prop', type: 'fence', x: s * 9.7, z, r: 0, solid: false });
+      else if (roll < 0.78) ents.push({ kind: 'prop', type: 'flowerbed', x: s * 10.2, z, r: 0, solid: false });
+      else ents.push({ kind: 'prop', type: 'hoop', x: s * 10.0, z, r: 0, solid: false });
     }
 
     ents.sort((a, b) => b.z - a.z);
@@ -211,7 +332,8 @@ export class World {
 
   poolKey(e) {
     if (e.kind === 'house') return 'house_' + e.type;
-    if (e.kind === 'car' || e.kind === 'dog') return e.kind;
+    if (e.kind === 'car') return 'car_' + e.vehicle;
+    if (e.kind === 'dog') return e.kind;
     return e.type;
   }
 
@@ -230,8 +352,12 @@ export class World {
       g.position.set(e.x, 0, e.z);
       g.rotation.y = e.vz > 0 ? Math.PI : 0;
       if (e.parked) g.rotation.y = e.x > 0 ? Math.PI : 0;
+      if (e.pattern === 'backout') g.rotation.y = -Math.PI / 2 * e.side;
+      e.yaw = g.rotation.y;
+      e.braking = false;
       e.shadow = this.shadowPool.get();
-      e.shadow.scale.set(4.2, 5.6, 1);
+      const sp = obj.spec || { len: 4.3, halfW: 1.0 };
+      e.shadow.scale.set(sp.halfW * 4.2, sp.len * 1.32, 1);
       this.scene.add(e.shadow);
     } else if (e.kind === 'dog') {
       g.position.set(e.x, 0, e.z);
@@ -251,6 +377,9 @@ export class World {
 
   deactivate(e) {
     if (!e.obj) return;
+    if (e.kind === 'car' && e.obj.brake) {
+      for (const b of e.obj.brake) b.material = this.M.lightRed;
+    }
     const g = e.obj.group;
     this.scene.remove(g);
     g.scale.set(1, 1, 1);
@@ -337,11 +466,7 @@ export class World {
 
     for (const e of this.active) {
       if (e.kind === 'car') {
-        if (e.vz !== 0) {
-          e.z += e.vz * dt;
-          e.obj.group.position.z = e.z;
-        }
-        if (e.shadow) e.shadow.position.set(e.x, 0.05, e.z);
+        this.updateCar(e, dt, player);
       } else if (e.kind === 'dog') {
         this.updateDog(e, dt, player, time);
       } else if (e.type === 'sprinkler') {
@@ -363,6 +488,60 @@ export class World {
     }
   }
 
+  // Vehicle behaviour. Each pattern is a couple of lines of state on the
+  // entity rather than a class, so a car costs nothing to stream in and out.
+  updateCar(e, dt, player) {
+    const g = e.obj.group;
+    let braking = false;
+
+    if (e.pattern === 'busStop') {
+      const dz = e.z - e.stopZ;
+      if (e.waited < 2.6 && dz < 14 && dz > -1) {
+        // Coasting to the kerb, then holding with the stop arm out.
+        e.vz = damp(e.vz, 0, 3.4, dt);
+        braking = true;
+        if (Math.abs(e.vz) < 0.6) e.waited += dt;
+      } else if (e.waited >= 2.6) {
+        e.vz = damp(e.vz, e.cruiseVz, 1.6, dt);
+      }
+      e.x = damp(e.x, LANE_KERB, 2.0, dt);
+    } else if (e.pattern === 'laneChange') {
+      if (!e.changed && player.z < e.triggerZ) e.changed = 1;
+      if (e.changed) {
+        e.x = damp(e.x, e.toX, 1.9, dt);
+        // A lazy drift of the nose sells the manoeuvre.
+        e.yaw = damp(e.yaw, (e.vz > 0 ? Math.PI : 0) + (e.toX - e.x) * 0.12, 4, dt);
+      }
+    } else if (e.pattern === 'backout') {
+      const dz = e.z - player.z;
+      if (e.phase === 0 && dz < 52) e.phase = 1;
+      if (e.phase === 1) {
+        // Reverse out across the sidewalk into the near lane.
+        e.x = damp(e.x, e.targetX, 0.85, dt);
+        braking = true;
+        e.yaw = damp(e.yaw, -Math.PI / 2 * e.side, 2.5, dt);
+        if (Math.abs(e.x - e.targetX) < 1.2) { e.phase = 2; e.vz = -6.5; }
+      } else if (e.phase === 2) {
+        // Straighten up and pull away down the street.
+        e.yaw = damp(e.yaw, 0, 2.6, dt);
+        e.vz = damp(e.vz, -11, 1.4, dt);
+      }
+    }
+
+    if (e.vz) e.z += e.vz * dt;
+    g.position.set(e.x, 0, e.z);
+    if (e.yaw != null && e.pattern !== 'parked') g.rotation.y = e.yaw;
+
+    if (e.obj.brake) {
+      const hot = braking || (e.parked && false);
+      if (hot !== e.braking) {
+        e.braking = hot;
+        for (const b of e.obj.brake) b.material = hot ? this.M.brakeHot : this.M.lightRed;
+      }
+    }
+    if (e.shadow) e.shadow.position.set(e.x, 0.05, e.z);
+  }
+
   updateDog(e, dt, player, time) {
     const dz = e.z - player.z;
     const dx = e.x - player.x;
@@ -370,7 +549,7 @@ export class World {
     if (near && !e.chasing) e.chasing = true;
     if (e.chasing) {
       const d = Math.hypot(dx, dz) || 1;
-      const spd = 9.5;
+      const spd = 9.5 * ((this.preset && this.preset.dogSpeed) || 1);
       e.x -= (dx / d) * spd * dt;
       e.z -= (dz / d) * spd * dt * 1.15;
       e.obj.group.rotation.y = Math.atan2(-dx, -dz);

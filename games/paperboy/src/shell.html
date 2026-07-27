@@ -237,6 +237,10 @@ canvas {
   padding: clamp(10px, 4.5cqh, 40px);
   font-size: 13px;
   font-size: clamp(9px, 2.6cqh, 15px);
+  /* Overlays always sit on the dark screen, so they must not inherit the room
+     text colour -- in the light theme that is near-black and anything without
+     an explicit colour disappears. */
+  color: var(--newsprint);
   background: radial-gradient(120% 100% at 50% 40%, rgba(8, 10, 14, .3), rgba(8, 10, 14, .82) 80%);
   animation: in .35s ease both;
 }
@@ -332,6 +336,204 @@ kbd {
   margin-right: .12em;
   color: var(--newsprint);
 }
+
+.title-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.6em;
+  margin-top: 1.1em;
+  font-size: .78em;
+  color: rgba(232, 228, 216, .62);
+  letter-spacing: .08em;
+}
+.title-meta b { color: var(--amber); font-weight: 700; }
+.linkish {
+  font: inherit;
+  color: rgba(232, 228, 216, .8);
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted rgba(232, 228, 216, .45);
+  padding: 0 0 .15em;
+  cursor: pointer;
+  pointer-events: auto;
+  letter-spacing: .08em;
+}
+.linkish:hover { color: var(--amber); border-bottom-color: var(--amber); }
+.linkish:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+/* Shift select ----------------------------------------------------------- */
+
+/* These two are read, not looked past, so they get a heavier backdrop than
+   the title card does -- a bus drifting by behind the payout table made the
+   numbers genuinely hard to read. */
+#ov-difficulty, #ov-howto { justify-content: center; align-items: center; text-align: center; }
+#ov-difficulty { background: radial-gradient(120% 100% at 50% 45%, rgba(8, 10, 14, .74), rgba(8, 10, 14, .93) 78%); }
+#ov-howto { background: linear-gradient(rgba(7, 9, 13, .91), rgba(7, 9, 13, .95)); }
+
+.ov-foot {
+  margin-top: 1.2em;
+  font-size: .74em;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 216, .55);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .9em;
+  margin-top: 1.4em;
+  width: min(100%, 62em);
+  pointer-events: auto;
+}
+@container (max-width: 560px) { .cards { grid-template-columns: 1fr; gap: .5em; } }
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: .45em;
+  padding: 1em .9em;
+  text-align: left;
+  font: inherit;
+  color: var(--newsprint);
+  background: rgba(12, 15, 21, .74);
+  border: 1px solid rgba(232, 228, 216, .28);
+  border-left: 3px solid var(--shift, var(--amber));
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease, border-color .15s ease;
+}
+.card:hover, .card:focus-visible {
+  background: rgba(24, 29, 38, .92);
+  border-color: rgba(232, 228, 216, .6);
+  transform: translateY(-2px);
+  outline: none;
+}
+.card[aria-pressed='true'] { background: rgba(32, 38, 50, .95); border-color: var(--shift); }
+.card-key {
+  position: absolute;
+  top: .6em;
+  right: .7em;
+  font-size: .68em;
+  font-weight: 700;
+  color: rgba(232, 228, 216, .45);
+}
+.card h3 {
+  font-family: var(--f-display);
+  font-size: 1.55em;
+  letter-spacing: .02em;
+  margin: 0;
+  color: var(--shift, var(--amber));
+}
+.card p { margin: 0; font-size: .82em; line-height: 1.5; color: rgba(232, 228, 216, .72); }
+.card ul { margin: .2em 0 0; padding: 0; list-style: none; font-size: .76em; }
+.card li { padding: .16em 0; color: rgba(232, 228, 216, .82); border-bottom: 1px dotted rgba(232, 228, 216, .18); }
+.card li:last-child { border-bottom: 0; }
+.card .card-best {
+  margin-top: .3em;
+  font-size: .72em;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--shift);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Briefing --------------------------------------------------------------- */
+
+.brief {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.4em 2.2em;
+  margin-top: 1.2em;
+  width: min(100%, 66em);
+  text-align: left;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+@container (max-width: 620px) { .brief { grid-template-columns: 1fr; } }
+.brief h3 {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: .72em;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin: 0 0 .5em;
+  padding-bottom: .3em;
+  border-bottom: 1px solid rgba(232, 228, 216, .22);
+}
+.brief h3 + * { margin-top: 0; }
+.brief-col > * + h3 { margin-top: 1.3em; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: .35em .9em; margin: 0; font-size: .82em; }
+.kv dt { white-space: nowrap; }
+.kv dd { margin: 0; color: rgba(232, 228, 216, .76); }
+.legend { list-style: none; margin: 0; padding: 0; font-size: .8em; }
+.legend li { display: flex; align-items: center; gap: .6em; padding: .22em 0; color: rgba(232, 228, 216, .78); }
+.sw { width: .9em; height: .9em; border-radius: 50%; flex: 0 0 auto; border: 2px solid currentColor; }
+.sw-amber { color: #ffd15c; }
+.sw-cream { color: var(--newsprint); }
+.sw-red { color: var(--red); }
+.sw-glow { color: #ffe6a8; background: #ffe6a8; box-shadow: 0 0 8px #ffcf6a; }
+.pay { width: 100%; border-collapse: collapse; font-size: .8em; font-variant-numeric: tabular-nums; }
+.pay th {
+  text-align: right;
+  font-weight: 700;
+  font-size: .86em;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 216, .5);
+  padding-bottom: .3em;
+}
+.pay th:first-child { text-align: left; }
+.pay td { padding: .28em 0; border-bottom: 1px dotted rgba(232, 228, 216, .2); text-align: right; }
+.pay td:first-child { text-align: left; color: rgba(232, 228, 216, .82); }
+.brief-note { font-size: .78em; line-height: 1.6; color: rgba(232, 228, 216, .66); margin: 1em 0 0; }
+
+/* Day card --------------------------------------------------------------- */
+
+#ov-daycard {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: radial-gradient(120% 100% at 50% 50%, rgba(8, 10, 14, .35), rgba(8, 10, 14, .8) 85%);
+}
+.daycard { animation: cardIn .5s cubic-bezier(.2, 1.1, .3, 1) both; }
+@keyframes cardIn { from { transform: translateY(14px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.daycard .eyebrow {
+  font-size: .76em;
+  font-weight: 700;
+  letter-spacing: .34em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.daycard .big {
+  font-family: var(--f-display);
+  font-size: 4.6em;
+  line-height: .86;
+  letter-spacing: .01em;
+  color: var(--newsprint);
+  margin: .1em 0 .05em;
+  text-shadow: 0 .03em 0 var(--red), 0 .07em .14em rgba(0, 0, 0, .8);
+}
+.daycard .street {
+  font-family: var(--f-display);
+  font-size: 1.5em;
+  letter-spacing: .06em;
+  color: rgba(232, 228, 216, .84);
+}
+.daycard .facts {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .5em 1.6em;
+  margin-top: 1.2em;
+  font-size: .8em;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 216, .6);
+}
+.daycard .facts b { color: var(--newsprint); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* Front page ------------------------------------------------------------- */
 
@@ -613,7 +815,11 @@ kbd {
       <div class="banner">Sunrise Edition &middot; Route 14 &middot; West Elm Street</div>
       <h1 class="wordmark">Paperboy<sup>64</sup></h1>
       <p class="tagline">Twenty addresses before the sun clears the rooftops &mdash; row houses, walk-ups and one very large mansion, each worth what it is worth. Land it on the porch for the money, hug the curb and thread the box for double.</p>
-      <div class="start" id="start-prompt">Press Space to ride</div>
+      <div class="start" id="start-prompt">Press Space to start</div>
+      <div class="title-meta">
+        <span id="best-line">&nbsp;</span>
+        <button class="linkish" id="howto-btn" type="button">Route briefing <kbd>H</kbd></button>
+      </div>
       <div class="keys">
         <span><kbd>A</kbd><kbd>D</kbd> <b>steer</b></span>
         <span><kbd>W</kbd><kbd>S</kbd> <b>speed</b></span>
@@ -623,6 +829,54 @@ kbd {
         <span><kbd>P</kbd> <b>pause</b></span>
       </div>
     </div>
+
+    <div class="ov" id="ov-difficulty">
+      <div class="banner">Pick your shift</div>
+      <div class="cards" id="diff-cards"></div>
+      <div class="ov-foot"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> or click &middot; <kbd>Esc</kbd> back</div>
+    </div>
+
+    <div class="ov" id="ov-howto">
+      <div class="banner">Route briefing</div>
+      <div class="brief">
+        <div class="brief-col">
+          <h3>Controls</h3>
+          <dl class="kv">
+            <dt><kbd>A</kbd><kbd>D</kbd></dt><dd>Steer across the street</dd>
+            <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>Sprint or brake</dd>
+            <dt><kbd>Space</kbd></dt><dd>Throw at the nearest target</dd>
+            <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Throw hard left or right</dd>
+            <dt><kbd>P</kbd></dt><dd>Pause &middot; <kbd>M</kbd> mute</dd>
+          </dl>
+          <h3>Reading the street</h3>
+          <ul class="legend">
+            <li><span class="sw sw-amber"></span>Amber ring &mdash; the box is in range, worth double</li>
+            <li><span class="sw sw-cream"></span>Cream ring &mdash; the doormat, the safe delivery</li>
+            <li><span class="sw sw-red"></span>Red ring &mdash; a non-subscriber's window</li>
+            <li><span class="sw sw-glow"></span>Lit porch and raised flag &mdash; they subscribe</li>
+          </ul>
+        </div>
+        <div class="brief-col">
+          <h3>What an address pays</h3>
+          <table class="pay">
+            <thead><tr><th>Building</th><th>Mat</th><th>Box</th><th>Glass</th></tr></thead>
+            <tbody>
+              <tr><td>Row house</td><td>200</td><td>400</td><td>125</td></tr>
+              <tr><td>House</td><td>250</td><td>500</td><td>150</td></tr>
+              <tr><td>Apartments</td><td>300</td><td>450</td><td>100</td></tr>
+              <tr><td>Mansion</td><td>450</td><td>750</td><td>300</td></tr>
+            </tbody>
+          </table>
+          <p class="brief-note">Ride up onto the sidewalk on a subscriber's side and your
+          lock switches from the doormat to the curbside box. Consecutive deliveries build a
+          multiplier; grass, wipeouts and sprinklers reset it. Break a subscriber's window and
+          they cancel.</p>
+        </div>
+      </div>
+      <div class="ov-foot"><kbd>Esc</kbd> or <kbd>Space</kbd> to go back</div>
+    </div>
+
+    <div class="ov" id="ov-daycard"></div>
 
     <div class="ov" id="ov-results"></div>
 
@@ -645,6 +899,13 @@ kbd {
     <span class="brand">Paperboy<span style="color:var(--red)">64</span></span>
     <span class="spacer"></span>
     <span class="fps" id="fps">&mdash;</span>
+    <label>Shift
+      <select id="difficulty">
+        <option value="easy">Sunday Round</option>
+        <option value="normal" selected>Weekday Route</option>
+        <option value="hard">Rush Hour</option>
+      </select>
+    </label>
     <label>Camera
       <select id="camera">
         <option value="dynamic" selected>Dynamic</option>

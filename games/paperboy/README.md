@@ -48,6 +48,31 @@ coloured reticles mean, and the payout table. Best score per shift is kept in
 cards and on the front page; a sandbox that refuses storage just means no
 record is kept, which is not worth taking the page down for.
 
+The shift select screen also carries the route picker, and scrolls when the
+screen is too short to hold both.
+
+## Routes
+
+The street is identical everywhere — same houses, same traffic, same throws.
+What a route changes is the sky gradient, the fog colour and density, the
+lighting, the grass and whatever sits on the horizon:
+
+| Route | What is out there |
+| --- | --- |
+| Open Country | Ridge lines, red barns with silos, hedgerows and hay bales |
+| High Country | Snow-capped peaks and pine belts running down to the road |
+| Lakeside | Still water, jetties and moored boats along the near shore |
+| Coast Road | Dunes, a fishing pier and open sea on both sides |
+| Inner Suburb | Mid-rise blocks closing in a street or two over |
+| Five Boroughs | Towers with water towers on the roofs, and a suspension bridge |
+| Paris | Zinc mansards over cream stone, and the tower off the end of the block |
+
+Backdrops live in the sky rig, which tracks the player along z, and sit between
+25 and 150 units out. At that distance the exponential fog turns them into hazy
+silhouettes — which is the register a cartridge-era game drew its horizons in
+anyway. Each is built the first time you visit it and then kept, because
+rebuilding a skyline on every route change would stall the frame.
+
 ## Shifts
 
 Difficulty is not a single multiplier. What actually makes the street readable
@@ -114,6 +139,15 @@ than a sedan. Brake lights swap to a hot emissive material whenever a vehicle
 is actually slowing, which is the only cue you get that a bus is about to stop
 in front of you.
 
+## A note on the bike wheels
+
+`THREE.TorusGeometry` is built in the XY plane with its hole along Z, so a torus
+used as-is for a bike wheel has its axle pointing straight at a chase camera —
+the wheel faces you like a coin and its spin reads as a tumble rather than a
+roll. The fix is to bake a quarter turn into the geometry (`rotateY(π/2)`) so
+the axle runs along X, which leaves the wheel almost edge-on from behind; the
+crossed spokes are there to make the rotation legible at that angle.
+
 ## How the N64 look is done
 
 The point of reference is the console's actual output path, not a generic
@@ -159,7 +193,8 @@ basketball hoop.
 | `src/post.js` | The render target and the composite shader described above. |
 | `src/game.js` | Simulation: bike physics, ballistic throws, scoring, camera. |
 | `src/audio.js` | Synthesised sound effects and the four-bar music loop. |
-| `src/main.js` | Input, HUD, and the generated front page. |
+| `src/scenes.js` | The seven routes: palettes, fog, lighting and horizon builders. |
+| `src/main.js` | Input, HUD, screens, and the generated front page. |
 | `src/shell.html` | Page markup and styles. |
 | `build.mjs` | Bundles and inlines everything. |
 

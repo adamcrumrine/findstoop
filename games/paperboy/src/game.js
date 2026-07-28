@@ -5,6 +5,7 @@ import { makeTextures } from './textures.js';
 import { N64Pass } from './post.js';
 import { World, HOUSE_COUNT } from './world.js';
 import { HOUSE_SPEC } from './models.js';
+import { SCENES, SCENE_ORDER } from './scenes.js';
 import { Audio } from './audio.js';
 import { clamp, lerp, damp, mulberry32, range } from './util.js';
 
@@ -46,6 +47,7 @@ export const DIFFICULTY = {
 };
 
 export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
+export { SCENES, SCENE_ORDER };
 
 export class Game {
   constructor(canvas, ui) {
@@ -58,6 +60,7 @@ export class Game {
     this.quality = 270;
     this.difficulty = 'normal';
     this.diff = DIFFICULTY.normal;
+    this.sceneId = 'country';
 
     this.renderer = new THREE.WebGLRenderer({
       canvas, antialias: false, alpha: false, powerPreference: 'high-performance',
@@ -74,12 +77,15 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.4, 320);
 
     // Cartridge-era lighting: one key, one sky/ground bounce, no shadow maps.
+    // Kept on the instance because each scene retunes them.
     const hemi = new THREE.HemisphereLight(0xc6d8ee, 0x6a7355, 1.35);
     this.scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xffd39a, 2.0);
     sun.position.set(-0.62, 0.5, -0.6).multiplyScalar(60);
     this.scene.add(sun);
-    this.scene.add(new THREE.AmbientLight(0x5d6478, 0.5));
+    const amb = new THREE.AmbientLight(0x5d6478, 0.5);
+    this.scene.add(amb);
+    this.lights = { hemi, sun, amb };
 
     this.T = makeTextures();
     this.M = MODELS.makeMaterials(this.T);
@@ -106,6 +112,15 @@ export class Game {
       this.papers.push({ mesh: m, alive: false });
     }
 
+    // Glass shards, thrown out of a window when it goes.
+    this.shards = [];
+    for (let i = 0; i < 22; i++) {
+      const m = MODELS.makeShard(this.M);
+      m.visible = false;
+      this.scene.add(m);
+      this.shards.push({ mesh: m, life: 0 });
+    }
+
     this.post = new N64Pass(this.renderer);
 
     this.input = {
@@ -129,6 +144,7 @@ export class Game {
     this.camPos = new THREE.Vector3(0, 4, 9);
     this.camLook = new THREE.Vector3(0, 1.4, -8);
 
+    this.setScene(this.sceneId);
     this.resize();
   }
 
@@ -150,6 +166,14 @@ export class Game {
     this.quality = q;
     this.resize();
   }
+
+  setScene(id) {
+    if (!SCENES[id]) return;
+    this.sceneId = id;
+    this.world.setScene(SCENES[id], this.T, this.lights, this.renderer, this.scene);
+  }
+
+  get scene3d() { return SCENES[this.sceneId]; }
 
   setDifficulty(id) {
     if (!DIFFICULTY[id]) return;
@@ -215,6 +239,7 @@ export class Game {
       this.lives = this.lives == null ? this.diff.lives : this.lives;
     }
     for (const p of this.papers) { p.alive = false; p.targetHouse = null; p.mesh.visible = false; }
+    for (const sh of this.shards) { sh.life = 0; sh.mesh.visible = false; }
     this.pushHud();
   }
 
@@ -233,9 +258,10 @@ export class Game {
     ] : [];
     this.ui.showDayCard({
       day,
-      street: 'West Elm Street',
+      street: SCENES[this.sceneId].name,
       subscribers: this.subscriberTotal,
       difficulty: this.diff.name,
+      scene: SCENES[this.sceneId].short,
       papers: this.papersLeft,
       lives: this.lives,
     });
@@ -264,6 +290,7 @@ export class Game {
     else if (this.state === 'play' || this.state === 'crashed') this.updatePlay(dt);
     else if (this.state === 'results' || this.state === 'gameover') this.updateCoast(dt);
     this.updatePapers(dt);
+    this.updateShards(dt);
     this.updateFocus(dt);
     this.updateRider(dt);
     this.updateCamera(dt);
@@ -575,6 +602,43 @@ export class Game {
     this.focus.timer = Math.min(this.focus.timer, 0.62);
   }
 
+  // Burst of glass out of the hole, thrown roughly back toward the street.
+  spawnShards(at, awayX) {
+    let n = 0;
+    for (const sh of this.shards) {
+      if (sh.life > 0) continue;
+      sh.life = 0.85 + Math.random() * 0.5;
+      sh.pos = at.clone();
+      sh.vel = new THREE.Vector3(
+        awayX * (1.5 + Math.random() * 3.4),
+        1.4 + Math.random() * 4.2,
+        (Math.random() - 0.5) * 4.4
+      );
+      sh.spin = new THREE.Vector3(
+        (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16);
+      sh.mesh.visible = true;
+      sh.mesh.position.copy(sh.pos);
+      sh.mesh.scale.setScalar(0.13 + Math.random() * 0.15);
+      if (++n >= 9) break;
+    }
+  }
+
+  updateShards(dt) {
+    for (const sh of this.shards) {
+      if (sh.life <= 0) continue;
+      sh.life -= dt;
+      if (sh.life <= 0) { sh.mesh.visible = false; continue; }
+      sh.vel.y -= GRAV * 0.7 * dt;
+      sh.pos.addScaledVector(sh.vel, dt);
+      if (sh.pos.y < 0.05) { sh.pos.y = 0.05; sh.vel.set(0, 0, 0); sh.spin.set(0, 0, 0); }
+      sh.mesh.position.copy(sh.pos);
+      sh.mesh.rotation.x += sh.spin.x * dt;
+      sh.mesh.rotation.y += sh.spin.y * dt;
+      sh.mesh.rotation.z += sh.spin.z * dt;
+      sh.mesh.material.opacity = Math.min(1, sh.life * 3);
+    }
+  }
+
   releaseTarget(q) {
     if (q.targetHouse) {
       q.targetHouse.incoming = Math.max(0, (q.targetHouse.incoming || 1) - 1);
@@ -653,6 +717,7 @@ export class Game {
       const broke = this.world.breakWindow(house, index);
       if (!broke) return true;
       this.audio.smash();
+      this.spawnShards(q.pos, house.side > 0 ? -1 : 1);
       if (house.subscriber && !house.delivered && !house.missed) {
         house.missed = true;
         this.world.markHouseDone(house);

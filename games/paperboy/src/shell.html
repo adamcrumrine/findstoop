@@ -367,7 +367,27 @@ kbd {
    the title card does -- a bus drifting by behind the payout table made the
    numbers genuinely hard to read. */
 #ov-difficulty, #ov-howto { justify-content: center; align-items: center; text-align: center; }
-#ov-difficulty { background: radial-gradient(120% 100% at 50% 45%, rgba(8, 10, 14, .74), rgba(8, 10, 14, .93) 78%); }
+#ov-difficulty {
+  background: radial-gradient(120% 100% at 50% 45%, rgba(8, 10, 14, .74), rgba(8, 10, 14, .93) 78%);
+  /* The picker grew a scene row, so it has to survive a short screen.
+     `safe center` centres it when it fits and falls back to aligning at the
+     start when it does not -- plain centring would push the first card off
+     the top of the scroll container where it can never be reached. */
+  justify-content: flex-start;
+  justify-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#ov-difficulty > * { flex: 0 0 auto; }
+/* Keys stay put while the cards scroll behind them. */
+#ov-difficulty .ov-foot {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  margin-top: 1em;
+  padding: .9em 0 .3em;
+  background: linear-gradient(transparent, rgba(9, 11, 16, .92) 45%);
+}
 #ov-howto { background: linear-gradient(rgba(7, 9, 13, .91), rgba(7, 9, 13, .95)); }
 
 .ov-foot {
@@ -382,7 +402,7 @@ kbd {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: .9em;
-  margin-top: 1.4em;
+  margin-top: 1.1em;
   width: min(100%, 62em);
   pointer-events: auto;
 }
@@ -436,6 +456,49 @@ kbd {
   text-transform: uppercase;
   color: var(--shift);
   font-variant-numeric: tabular-nums;
+}
+
+.scene-pick { margin-top: 1.2em; width: min(100%, 62em); }
+.scene-pick h4 {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: .72em;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 216, .52);
+  margin: 0 0 .6em;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .4em;
+  pointer-events: auto;
+}
+.chip {
+  font: inherit;
+  font-size: .8em;
+  letter-spacing: .06em;
+  color: rgba(232, 228, 216, .78);
+  background: rgba(12, 15, 21, .7);
+  border: 1px solid rgba(232, 228, 216, .26);
+  padding: .4em .85em;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.chip:hover { border-color: rgba(232, 228, 216, .6); color: var(--newsprint); }
+.chip:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.chip[aria-pressed='true'] {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #191a20;
+  font-weight: 700;
+}
+.scene-blurb {
+  margin: .7em 0 0;
+  font-size: .8em;
+  color: rgba(232, 228, 216, .62);
+  min-height: 1.4em;
 }
 
 /* Briefing --------------------------------------------------------------- */
@@ -833,7 +896,16 @@ kbd {
     <div class="ov" id="ov-difficulty">
       <div class="banner">Pick your shift</div>
       <div class="cards" id="diff-cards"></div>
-      <div class="ov-foot"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> or click &middot; <kbd>Esc</kbd> back</div>
+      <div class="scene-pick">
+        <h4>Where the route runs</h4>
+        <div class="chips" id="scene-chips"></div>
+        <p class="scene-blurb" id="scene-blurb">&nbsp;</p>
+      </div>
+      <div class="ov-foot">
+        <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> start &middot;
+        <kbd>&larr;</kbd><kbd>&rarr;</kbd> change route &middot;
+        <kbd>Esc</kbd> back
+      </div>
     </div>
 
     <div class="ov" id="ov-howto">
@@ -899,6 +971,9 @@ kbd {
     <span class="brand">Paperboy<span style="color:var(--red)">64</span></span>
     <span class="spacer"></span>
     <span class="fps" id="fps">&mdash;</span>
+    <label>Route
+      <select id="scene"></select>
+    </label>
     <label>Shift
       <select id="difficulty">
         <option value="easy">Sunday Round</option>

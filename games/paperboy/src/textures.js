@@ -165,26 +165,79 @@ function windowTex(broken) {
   x.stroke();
 
   if (broken) {
-    x.fillStyle = '#191a20';
+    const rng = mulberry32(2024);
+    // Radial fracture: spokes out from the impact, a jagged hole punched
+    // through the middle, and the surviving shards left catching the light.
+    const spokes = 11;
+    const ang = [];
+    for (let i = 0; i < spokes; i++) ang.push((i / spokes) * Math.PI * 2 + rng() * 0.3);
+    const holeR = [];
+    for (let i = 0; i < spokes; i++) holeR.push(9 + rng() * 9);
+
+    // The dark hole itself, with a ragged edge.
+    x.fillStyle = '#14151a';
     x.beginPath();
-    x.moveTo(10, 12);
-    x.lineTo(30, 22);
-    x.lineTo(52, 10);
-    x.lineTo(56, 40);
-    x.lineTo(34, 34);
-    x.lineTo(44, 56);
-    x.lineTo(12, 50);
-    x.lineTo(22, 30);
+    for (let i = 0; i < spokes; i++) {
+      const px = 32 + Math.cos(ang[i]) * holeR[i];
+      const py = 32 + Math.sin(ang[i]) * holeR[i];
+      x[i ? 'lineTo' : 'moveTo'](px, py);
+    }
     x.closePath();
     x.fill();
-    x.strokeStyle = 'rgba(20,20,26,0.85)';
-    x.lineWidth = 2;
-    for (let i = 0; i < 7; i++) {
+
+    // Shards still in the frame: alternating bright and shadowed facets so
+    // the remaining glass reads as broken rather than merely dirty.
+    for (let i = 0; i < spokes; i++) {
+      const a1 = ang[i];
+      const a2 = ang[(i + 1) % spokes];
+      const outer = 27 + rng() * 3;
       x.beginPath();
-      x.moveTo(32, 32);
-      x.lineTo(32 + Math.cos(i * 1.4) * 30, 32 + Math.sin(i * 1.4) * 30);
+      x.moveTo(32 + Math.cos(a1) * holeR[i], 32 + Math.sin(a1) * holeR[i]);
+      x.lineTo(32 + Math.cos(a1) * outer, 32 + Math.sin(a1) * outer);
+      x.lineTo(32 + Math.cos(a2) * outer, 32 + Math.sin(a2) * outer);
+      x.lineTo(32 + Math.cos(a2) * holeR[(i + 1) % spokes], 32 + Math.sin(a2) * holeR[(i + 1) % spokes]);
+      x.closePath();
+      x.fillStyle = i % 3 === 0 ? 'rgba(255,255,255,0.42)'
+        : i % 3 === 1 ? 'rgba(40,54,72,0.5)' : 'rgba(196,220,240,0.22)';
+      x.fill();
+    }
+
+    // Fracture lines: radial cracks plus a couple of concentric ones.
+    x.strokeStyle = 'rgba(16,17,22,0.9)';
+    x.lineWidth = 1.6;
+    for (let i = 0; i < spokes; i++) {
+      x.beginPath();
+      x.moveTo(32 + Math.cos(ang[i]) * 3, 32 + Math.sin(ang[i]) * 3);
+      x.lineTo(32 + Math.cos(ang[i]) * (28 + rng() * 4), 32 + Math.sin(ang[i]) * (28 + rng() * 4));
       x.stroke();
     }
+    x.lineWidth = 1.1;
+    for (const r of [14, 21]) {
+      x.beginPath();
+      for (let i = 0; i <= spokes; i++) {
+        const a = ang[i % spokes];
+        const rr = r + rng() * 3;
+        x[i ? 'lineTo' : 'moveTo'](32 + Math.cos(a) * rr, 32 + Math.sin(a) * rr);
+      }
+      x.stroke();
+    }
+    // A few bright glints on shard edges.
+    x.strokeStyle = 'rgba(255,255,255,0.75)';
+    x.lineWidth = 1;
+    for (let i = 0; i < 6; i++) {
+      const a = rng() * Math.PI * 2;
+      const r0 = 12 + rng() * 12;
+      x.beginPath();
+      x.moveTo(32 + Math.cos(a) * r0, 32 + Math.sin(a) * r0);
+      x.lineTo(32 + Math.cos(a + 0.5) * (r0 + 5), 32 + Math.sin(a + 0.5) * (r0 + 5));
+      x.stroke();
+    }
+    // Keep the frame intact around the hole.
+    x.fillStyle = '#efeae0';
+    x.fillRect(0, 0, 64, 6);
+    x.fillRect(0, 58, 64, 6);
+    x.fillRect(0, 0, 6, 64);
+    x.fillRect(58, 0, 6, 64);
   }
   return c;
 }
@@ -397,22 +450,80 @@ function stopFace() {
   return c;
 }
 
-function sky() {
-  // The dome is a full sphere, so v = 0.5 is the horizon line. The amber band
-  // has to sit right on it or the sunrise ends up buried under the ground.
+function capLogo() {
+  const c = cv(64, 32);
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 64, 32);
+  x.fillStyle = '#20252e';
+  x.font = 'bold 25px Georgia, serif';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText('PB', 32, 17);
+  return c;
+}
+
+function shard() {
+  const c = cv(32);
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 32, 32);
+  x.fillStyle = 'rgba(214,236,252,0.92)';
+  x.beginPath();
+  x.moveTo(16, 1);
+  x.lineTo(29, 20);
+  x.lineTo(12, 30);
+  x.closePath();
+  x.fill();
+  x.strokeStyle = 'rgba(255,255,255,0.95)';
+  x.lineWidth = 2;
+  x.stroke();
+  return c;
+}
+
+// The dome is a full sphere, so v = 0.5 is the horizon line -- a scene's
+// bright band has to sit right on it or the sunrise ends up buried under the
+// ground.
+export function makeSkyTexture(stops) {
   const c = cv(4, 256);
   const x = c.getContext('2d');
   const g = x.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0.00, '#1d3563');
-  g.addColorStop(0.22, '#48699b');
-  g.addColorStop(0.38, '#8aa5c4');
-  g.addColorStop(0.455, '#c2b3ac');
-  g.addColorStop(0.492, '#f0a55c');
-  g.addColorStop(0.505, '#ffcd92');
-  g.addColorStop(0.55, '#f0b782');
-  g.addColorStop(1.00, '#e0a877');
+  for (const [at, col] of stops) g.addColorStop(at, col);
   x.fillStyle = g;
   x.fillRect(0, 0, 4, 256);
+  const t = finish(c, 1, 1);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.needsUpdate = true;
+  return t;
+}
+
+const DAWN_STOPS = [
+  [0.00, '#1d3563'], [0.22, '#48699b'], [0.38, '#8aa5c4'], [0.455, '#c2b3ac'],
+  [0.492, '#f0a55c'], [0.505, '#ffcd92'], [0.55, '#f0b782'], [1.00, '#e0a877'],
+];
+
+function sky() {
+  const c = cv(4, 256);
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 256);
+  for (const [at, col] of DAWN_STOPS) g.addColorStop(at, col);
+  x.fillStyle = g;
+  x.fillRect(0, 0, 4, 256);
+  return c;
+}
+
+// A grid of lit and dark windows, for towers seen from a long way off.
+function cityWindows() {
+  const c = cv(64);
+  const x = c.getContext('2d');
+  const rng = mulberry32(515);
+  x.fillStyle = '#3d4351';
+  x.fillRect(0, 0, 64, 64);
+  for (let gy = 0; gy < 8; gy++) {
+    for (let gx = 0; gx < 8; gx++) {
+      const r = rng();
+      x.fillStyle = r > 0.72 ? '#ffdc94' : r > 0.5 ? '#8f9db4' : '#333844';
+      x.fillRect(gx * 8 + 2, gy * 8 + 2, 4, 5);
+    }
+  }
   return c;
 }
 
@@ -438,12 +549,16 @@ export function makeTextures() {
     crosswalk: finish(crosswalk(), 1, 1),
     bird: finish(bird(), 1, 1),
     stopFace: finish(stopFace(), 1, 1),
+    capLogo: finish(capLogo(), 1, 1),
+    cityWindows: finish(cityWindows(), 1, 1),
+    shard: finish(shard(), 1, 1),
     water: finish(water(), 1, 1),
     sky: finish(sky(), 1, 1),
   };
   // Sprites and cards must not tile across their own edges.
   for (const k of ['window', 'windowBroken', 'door', 'leaves', 'blob', 'ring', 'chevron',
-    'cloud', 'glow', 'sunDisc', 'water', 'newsprint', 'sky', 'bird', 'stopFace']) {
+    'cloud', 'glow', 'sunDisc', 'water', 'newsprint', 'sky', 'bird', 'stopFace',
+    'capLogo', 'shard']) {
     t[k].wrapS = t[k].wrapT = THREE.ClampToEdgeWrapping;
     t[k].needsUpdate = true;
   }

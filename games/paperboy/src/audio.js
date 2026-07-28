@@ -87,14 +87,50 @@ export class Audio {
 
   throwPaper() { this.noise(0.16, 0.16, 'bandpass', 900, 2600); }
   deliver() { this.tone(523, 0.09, 'square', 0.22); this.tone(784, 0.14, 'square', 0.2, null, 0.07); }
-  bullseye() {
-    this.tone(659, 0.08, 'square', 0.24);
-    this.tone(988, 0.09, 'square', 0.24, null, 0.07);
-    this.tone(1319, 0.22, 'triangle', 0.26, null, 0.14);
+
+  // A bell voice: fundamental plus a detuned upper partial and a bright
+  // ringing overtone, which is what gives a coin chime its metallic edge.
+  bell(freq, dur, gain, delay) {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.connect(this.sfxGain);
+    for (const [mul, amp, type] of [[1, 1, 'triangle'], [2.01, 0.5, 'sine'], [3.02, 0.22, 'sine']]) {
+      const o = this.ctx.createOscillator();
+      const og = this.ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq * mul, t);
+      og.gain.value = amp;
+      o.connect(og); og.connect(g);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
   }
+
+  // The two-note chime you get for picking up a ring: a bright fifth, the
+  // second note landing almost on top of the first.
+  bullseye() {
+    this.bell(1661, 0.16, 0.3, 0);
+    this.bell(2489, 0.46, 0.26, 0.055);
+  }
+
+  // Glass: the crack, then the shower of falling pieces. The tinkles are what
+  // actually make it read as glass rather than as static.
   smash() {
-    this.noise(0.34, 0.3, 'highpass', 2600, 900);
-    this.noise(0.12, 0.2, 'bandpass', 5200, 3000, 0.02);
+    if (!this.ctx || this.muted) return;
+    this.noise(0.05, 0.34, 'highpass', 3800, 2400);          // the initial crack
+    this.noise(0.42, 0.2, 'highpass', 6000, 1500, 0.01);     // the spray
+    this.noise(0.3, 0.12, 'bandpass', 2400, 900, 0.03);
+    // Individual shards landing, scattered across the tail.
+    for (let i = 0; i < 9; i++) {
+      const f = 2600 + Math.random() * 4200;
+      const d = 0.03 + Math.random() * 0.05;
+      this.tone(f, d, 'triangle', 0.055 + Math.random() * 0.05, f * 0.75,
+        0.04 + Math.random() * 0.36);
+    }
   }
   thud() { this.noise(0.22, 0.22, 'lowpass', 420, 140); }
   crash() {

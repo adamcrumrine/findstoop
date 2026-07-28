@@ -1,4 +1,4 @@
-import { Game, DIFFICULTY, DIFFICULTY_ORDER } from './game.js';
+import { Game, DIFFICULTY, DIFFICULTY_ORDER, SCENES, SCENE_ORDER } from './game.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -98,6 +98,13 @@ const ui = {
         <span class="card-best">${best ? `Best ${pad6(best)}` : 'No round filed'}</span>
       </button>`;
     }).join('');
+  },
+
+  renderScenes(current) {
+    $('scene-chips').innerHTML = SCENE_ORDER.map((id) =>
+      `<button class="chip" type="button" data-scene="${id}" aria-pressed="${id === current}">${SCENES[id].short}</button>`
+    ).join('');
+    $('scene-blurb').textContent = SCENES[current].blurb;
   },
 
   showDayCard(d) {
@@ -234,7 +241,16 @@ function beginRun(day) {
 function showShifts() {
   game.state = 'difficulty';
   ui.renderShifts(game.difficulty, game.loadBests());
+  ui.renderScenes(game.sceneId);
   ui.setState('difficulty');
+}
+
+function cycleScene(dir) {
+  const i = SCENE_ORDER.indexOf(game.sceneId);
+  const next = SCENE_ORDER[(i + dir + SCENE_ORDER.length) % SCENE_ORDER.length];
+  game.setScene(next);
+  $('scene').value = next;
+  ui.renderScenes(next);
 }
 
 function showTitle() {
@@ -288,7 +304,16 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   const dir = CODES[e.code];
-  if (dir) { held[dir] = true; e.preventDefault(); return; }
+  if (dir) {
+    if (game.state === 'difficulty' && (dir === 'left' || dir === 'right')) {
+      cycleScene(dir === 'right' ? 1 : -1);
+      e.preventDefault();
+      return;
+    }
+    held[dir] = true;
+    e.preventDefault();
+    return;
+  }
 
   switch (e.code) {
     case 'Space':
@@ -357,7 +382,7 @@ screenEl.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.pad') || e.target.closest('.tbtn')) return;
   screenEl.focus({ preventScroll: true });
   // Cards and links on the menu screens handle their own clicks.
-  if (e.target.closest('.card') || e.target.closest('.linkish')) return;
+  if (e.target.closest('.card') || e.target.closest('.chip') || e.target.closest('.linkish')) return;
   if (game.state === 'daycard') return;
   if (game.state !== 'play') { advance(); return; }
   const r = screenEl.getBoundingClientRect();
@@ -428,6 +453,23 @@ $('sound').addEventListener('click', toggleSound);
 $('diff-cards').addEventListener('click', (e) => {
   const card = e.target.closest('.card');
   if (card) chooseShift(card.dataset.diff);
+});
+
+$('scene-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  game.setScene(chip.dataset.scene);
+  $('scene').value = chip.dataset.scene;
+  ui.renderScenes(game.sceneId);
+});
+
+$('scene').innerHTML = SCENE_ORDER
+  .map((id) => `<option value="${id}">${SCENES[id].short}</option>`).join('');
+$('scene').value = game.sceneId;
+$('scene').addEventListener('change', (e) => {
+  game.setScene(e.target.value);
+  if (game.state === 'difficulty') ui.renderScenes(game.sceneId);
+  screenEl.focus({ preventScroll: true });
 });
 
 $('howto-btn').addEventListener('click', (e) => {

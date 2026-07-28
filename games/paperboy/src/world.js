@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import * as MODELS from './models.js';
 import { LAYOUT, HOUSE_SPEC, VEHICLE_KINDS, POLE_SPAN } from './models.js';
 import { mulberry32, range, pick, clamp, damp, box } from './util.js';
+import { makeSkyTexture } from './textures.js';
 
 // Where a bus comes to rest when it pulls in.
 const LANE_KERB = 3.1;
@@ -48,7 +49,10 @@ export class World {
     this.skyRig = new THREE.Group();
     scene.add(this.skyRig);
     this.skyRig.add(MODELS.makeSky(M, mulberry32(5)));
-    this.skyRig.add(MODELS.makeHills(M, mulberry32(9)));
+    // Backdrops are built the first time a scene is visited and then kept,
+    // because rebuilding a skyline every time you change route would stall.
+    this.backdrops = {};
+    this.backdropGroup = null;
 
     const r = this.rng;
     const housePool = (type, n) => new Pool(
@@ -96,6 +100,37 @@ export class World {
     this.finish = MODELS.makeFinishArch(M);
     this.finish.visible = false;
     scene.add(this.finish);
+  }
+
+  // Swap the horizon, the sky gradient, the fog and the lighting over to a
+  // different scene. Everything from the kerb inward is untouched.
+  setScene(scene, T, lights, renderer, sceneRoot) {
+    if (this.backdropGroup) this.backdropGroup.visible = false;
+    if (!this.backdrops[scene.id]) {
+      const g = scene.build(this.M, T);
+      this.backdrops[scene.id] = g;
+      this.skyRig.add(g);
+    }
+    this.backdropGroup = this.backdrops[scene.id];
+    this.backdropGroup.visible = true;
+
+    if (!this.skyTextures) this.skyTextures = {};
+    if (!this.skyTextures[scene.id]) this.skyTextures[scene.id] = makeSkyTexture(scene.stops);
+    this.M.sky.map = this.skyTextures[scene.id];
+    this.M.sky.needsUpdate = true;
+
+    this.M.grass.color.setHex(scene.grass);
+    sceneRoot.fog.color.setHex(scene.fog);
+    sceneRoot.fog.density = scene.fogD;
+    renderer.setClearColor(scene.clear, 1);
+
+    lights.hemi.color.setHex(scene.hemi[0]);
+    lights.hemi.groundColor.setHex(scene.hemi[1]);
+    lights.hemi.intensity = scene.hemi[2];
+    lights.sun.color.setHex(scene.sun[0]);
+    lights.sun.intensity = scene.sun[1];
+    lights.amb.color.setHex(scene.amb[0]);
+    lights.amb.intensity = scene.amb[1];
   }
 
   // ------------------------------------------------------------- generation

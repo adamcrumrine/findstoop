@@ -31,6 +31,10 @@ const CONE4 = new THREE.ConeGeometry(0.5, 1, 4);
 const SPHERE = new THREE.SphereGeometry(0.5, 8, 6);
 const ICO = new THREE.IcosahedronGeometry(0.5, 0);
 const TORUS = new THREE.TorusGeometry(0.36, 0.07, 5, 12);
+// A torus is built in the XY plane with its hole along Z, which points the
+// axle straight at a chase camera. Bake a quarter turn into the geometry so a
+// bike wheel's axle runs along X and it rolls along Z like a wheel should.
+const WHEEL = new THREE.TorusGeometry(0.36, 0.07, 5, 12).rotateY(Math.PI / 2);
 
 function gableGeometry() {
   // Ridge runs along local +x (front-to-back), so the street sees a triangle.
@@ -75,7 +79,7 @@ function wedgeGeometry() {
 const GABLE = gableGeometry();
 const WEDGE = wedgeGeometry();
 
-export const GEO = { UNIT_BOX, PLANE, CYL, CYL_LOW, CONE, CONE4, SPHERE, ICO, TORUS, GABLE, WEDGE };
+export const GEO = { UNIT_BOX, PLANE, CYL, CYL_LOW, CONE, CONE4, SPHERE, ICO, TORUS, WHEEL, GABLE, WEDGE };
 
 // ---------------------------------------------------------------- materials
 
@@ -147,14 +151,20 @@ export function makeMaterials(T) {
     skin: lam({ color: 0xd8a077 }),
     shirt: lam({ color: 0xc8352b }),
     jeans: lam({ color: 0x3f5878 }),
-    cap: lam({ color: 0x22314a }),
+    cap: lam({ color: 0xe8c33a }),
+    capLogo: lam({ map: T.capLogo, transparent: true, alphaTest: 0.45 }),
     shoe: lam({ color: 0xe8e4d8 }),
-    bag: lam({ color: 0xc9bb96 }),
+    bag: lam({ color: 0xf4f1ea }),
+    bagFlap: lam({ color: 0xdcd7c8 }),
     bagStrap: lam({ color: 0xc8352b }),
     bike: lam({ color: 0x2e8f96 }),
     bikeDark: lam({ color: 0x22252c }),
 
     paper: lam({ map: T.newsprint }),
+    shard: new THREE.MeshBasicMaterial({
+      map: T.shard, transparent: true, depthWrite: false, fog: true,
+      side: THREE.DoubleSide,
+    }),
 
     shadow: new THREE.MeshBasicMaterial({
       map: T.blob, color: 0x1a1f2a, transparent: true, opacity: 0.4,
@@ -242,14 +252,14 @@ export function bx(mat, sx, sy, sz, x, y, z) {
   return m;
 }
 
-function cyl(mat, r, h, x, y, z, seg) {
+export function cyl(mat, r, h, x, y, z, seg) {
   const m = new THREE.Mesh(seg === 8 ? CYL_LOW : CYL, mat);
   m.scale.set(r * 2, h, r * 2);
   m.position.set(x, y, z);
   return m;
 }
 
-function plane(mat, w, h, x, y, z) {
+export function plane(mat, w, h, x, y, z) {
   const m = new THREE.Mesh(PLANE, mat);
   m.scale.set(w, h, 1);
   m.position.set(x, y, z);
@@ -364,32 +374,68 @@ function addSideWindows(g, M, halfW, xs, ys, w, h) {
 function addMailbox(g, M, spec, rng) {
   const mbX = -(spec.frontX - LAYOUT.mailboxX);
   const out = {};
+
   if (spec.mailW > 1.4) {
-    // Apartment: a bank of cluster boxes on a stand.
+    // Apartment: a bank of cluster boxes on a stand, each with its own door.
     out.post = bx(M.metalDark, 0.5, 1.0, 1.9, mbX, 0.5, 0);
     g.add(out.post);
-    out.boxMesh = bx(M.mailbox, 0.6, 0.72, spec.mailW, mbX, 1.34, 0);
+    g.add(bx(M.metalDark, 0.9, 0.1, 2.1, mbX, 0.06, 0));       // base plate
+    out.boxMesh = bx(M.mailbox, 0.6, 0.78, spec.mailW, mbX, 1.36, 0);
     g.add(out.boxMesh);
+    g.add(bx(M.metalDark, 0.64, 0.1, spec.mailW + 0.1, mbX, 1.79, 0));  // cap
     for (let i = -1; i <= 1; i++) {
-      g.add(bx(M.metalDark, 0.04, 0.6, 0.05, mbX - 0.31, 1.34, i * 0.62));
+      for (const y of [1.18, 1.54]) {
+        g.add(bx(M.metalDark, 0.05, 0.26, 0.5, mbX - 0.3, y, i * 0.62));
+        g.add(bx(M.chrome, 0.05, 0.05, 0.05, mbX - 0.33, y - 0.08, i * 0.62 + 0.16));
+      }
     }
-    out.flag = plane(M.flagRed, 0.16, 0.34, mbX + 0.32, 1.62, spec.mailW / 2 - 0.2);
+    out.flag = plane(M.flagRed, 0.16, 0.34, mbX + 0.32, 1.7, spec.mailW / 2 - 0.2);
   } else if (spec.mailW < 0.55) {
-    // Mansion: a slim box set into a stone pillar.
+    // Mansion: a slim brass slot set into a stone pillar with a lamp on top.
     g.add(bx(M.brickFor(0.9, 1.5), 0.7, 1.5, 0.9, mbX, 0.75, 0));
     out.post = bx(M.brickFor(0.9, 0.2), 0.86, 0.18, 1.06, mbX, 1.58, 0);
     g.add(out.post);
+    g.add(bx(M.chrome, 0.18, 0.18, 0.18, mbX, 1.76, 0));
+    g.add(bx(M.lightWhite, 0.13, 0.16, 0.13, mbX, 1.9, 0));
     out.boxMesh = bx(M.mailbox, 0.5, 0.36, spec.mailW, mbX - 0.12, 1.28, 0);
     g.add(out.boxMesh);
-    out.flag = plane(M.flagRed, 0.14, 0.3, mbX - 0.36, 1.5, 0.2);
+    g.add(bx(M.chrome, 0.05, 0.05, spec.mailW - 0.1, mbX - 0.37, 1.28, 0));  // slot
+    out.flag = plane(M.flagRed, 0.14, 0.3, mbX - 0.36, 1.52, 0.2);
   } else {
-    out.post = bx(M.postWood, 0.14, 1.0, 0.14, mbX, 0.5, 0);
+    // The classic tunnel box: post, cross brace, rounded lid, hinged door
+    // with a knob, a numbered plate and a flag on a real arm.
+    out.post = bx(M.postWood, 0.14, 1.02, 0.14, mbX, 0.51, 0);
     g.add(out.post);
-    out.boxMesh = bx(M.mailbox, 0.78, 0.44, spec.mailW, mbX, 1.16, 0);
+    g.add(bx(M.postWood, 0.5, 0.1, 0.12, mbX, 0.96, 0));          // cross brace
+    g.add(bx(M.postWood, 0.14, 0.12, 0.5, mbX, 0.96, 0));
+    g.add(bx(M.metalDark, 0.3, 0.1, 0.3, mbX, 0.05, 0));          // footing
+
+    // Body plus a half-round lid, axis running front-to-back like a real box.
+    const w = spec.mailW;
+    out.boxMesh = bx(M.mailbox, 0.78, 0.26, w, mbX, 1.1, 0);
     g.add(out.boxMesh);
-    out.flag = plane(M.flagRed, 0.16, 0.42, mbX + 0.3, 1.42, 0.24);
+    const lid = cyl(M.mailbox, w / 2, 0.78, mbX, 1.23, 0, 8);
+    lid.rotation.z = Math.PI / 2;
+    g.add(lid);
+
+    // Door on the street end, slightly proud, with a knob and hinge line.
+    g.add(bx(M.mailbox, 0.06, 0.24, w - 0.04, mbX - 0.4, 1.11, 0));
+    g.add(bx(M.chrome, 0.07, 0.07, 0.07, mbX - 0.45, 1.06, 0));
+    g.add(bx(M.metalDark, 0.05, 0.04, w - 0.06, mbX - 0.41, 1.24, 0));
+    // Address plate on the flank.
+    g.add(bx(M.trim, 0.34, 0.12, 0.03, mbX + 0.06, 1.06, w / 2 + 0.015));
+
+    // Flag on an arm, so raising it reads as a mechanism rather than a decal.
+    const arm = new THREE.Group();
+    arm.position.set(mbX + 0.3, 1.2, w / 2 + 0.03);
+    g.add(arm);
+    arm.add(bx(M.flagRed, 0.05, 0.3, 0.05, 0, 0.15, 0));
+    arm.add(bx(M.flagRed, 0.05, 0.22, 0.16, 0, 0.34, 0.06));
+    out.flag = arm;
   }
-  g.add(out.flag);
+  // The classic box hands back a pivoting arm; the others hand back a plane.
+  // Either way the caller only ever sets rotation.z and visible.
+  if (out.flag && out.flag.isMesh) g.add(out.flag);
   return out;
 }
 
@@ -979,10 +1025,16 @@ export function makeRider(M) {
 
   const wheels = [];
   for (const z of [0.62, -0.58]) {
-    const w = new THREE.Mesh(TORUS, M.bikeDark);
+    const w = new THREE.Mesh(WHEEL, M.bikeDark);
     w.position.set(0, 0.36, z);
     bike.add(w);
-    const spokes = bx(M.chrome, 0.03, 0.62, 0.03, 0, 0.36, z);
+    // Crossed spokes in the wheel plane, so the rotation is legible from
+    // behind even though the rim itself is nearly edge-on.
+    const spokes = new THREE.Group();
+    spokes.position.set(0, 0.36, z);
+    spokes.add(bx(M.chrome, 0.03, 0.66, 0.03, 0, 0, 0));
+    spokes.add(bx(M.chrome, 0.03, 0.03, 0.66, 0, 0, 0));
+    spokes.add(bx(M.chrome, 0.03, 0.5, 0.5, 0, 0, 0).rotateX(Math.PI / 4));
     bike.add(spokes);
     wheels.push({ tyre: w, spokes });
   }
@@ -1013,12 +1065,19 @@ export function makeRider(M) {
   torso.add(head);
   head.add(bx(M.skin, 0.26, 0.28, 0.26, 0, 0, 0));
   head.add(bx(M.cap, 0.29, 0.12, 0.29, 0, 0.18, 0));
-  head.add(bx(M.cap, 0.24, 0.05, 0.2, 0, 0.11, -0.2));
+  head.add(bx(M.cap, 0.3, 0.055, 0.09, 0, 0.13, 0.16));      // adjuster strap
+  // Worn backwards: the brim sticks out behind, toward the chase camera.
+  head.add(bx(M.cap, 0.24, 0.05, 0.2, 0, 0.115, 0.2));
+  // The monogram goes on the panel the camera can actually see.
+  const logo = plane(M.capLogo, 0.21, 0.095, 0, 0.184, 0.148);
+  head.add(logo);
 
-  // Satchel on the back -- the papers you are actually carrying.
-  const bag = bx(M.bag, 0.42, 0.3, 0.2, 0, 0.16, 0.23);
+  // Satchel on the back -- the papers you are actually carrying. The flap and
+  // buckle keep it from reading as a blank white slab from the chase camera.
+  const bag = bx(M.bag, 0.4, 0.28, 0.19, 0, 0.15, 0.225);
   torso.add(bag);
-  torso.add(bx(M.bagStrap, 0.44, 0.09, 0.22, 0, 0.28, 0.23));
+  torso.add(bx(M.bagFlap, 0.42, 0.11, 0.21, 0, 0.27, 0.228));
+  torso.add(bx(M.bagStrap, 0.08, 0.07, 0.06, 0, 0.22, 0.33));
   torso.add(bx(M.bagStrap, 0.1, 0.56, 0.3, 0.11, 0.3, 0.02).rotateZ(0.18));
 
   const arms = [];
@@ -1116,6 +1175,16 @@ export function makeFinishArch(M) {
 
 export function makePaperMesh(M) {
   const m = bx(M.paper, 0.34, 0.1, 0.24, 0, 0, 0);
+  return m;
+}
+
+export function makeShard(M) {
+  // Built at unit size on purpose: the spawn code calls setScalar, which would
+  // otherwise throw away any base scale baked in here.
+  const m = plane(M.shard, 1, 1, 0, 0, 0);
+  // Own material: each shard fades out on its own clock.
+  m.material = M.shard.clone();
+  m.renderOrder = 5;
   return m;
 }
 

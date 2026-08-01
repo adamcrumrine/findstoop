@@ -129,14 +129,29 @@ export default function ManagerSettings() {
     setConnecting(true)
     try {
       const { data, error } = await supabase.functions.invoke('stripe-connect-link', { body: {} })
-      if (error) throw error
+      if (error) {
+        // supabase-js collapses any non-2xx into "Edge Function returned a
+        // non-2xx status code", which tells you nothing. The function puts the
+        // real reason in the body — Stripe's messages here are actionable
+        // ("you haven't signed up for Connect", "capability unavailable"), so
+        // dig it out rather than showing the generic wrapper.
+        let detail: string | null = null
+        const ctx = (error as { context?: Response }).context
+        if (ctx && typeof ctx.text === 'function') {
+          try {
+            const body = await ctx.text()
+            detail = (JSON.parse(body) as { error?: string })?.error ?? body
+          } catch { /* not JSON — fall through to the generic message */ }
+        }
+        throw new Error(detail || (error as Error).message || 'Connect link failed')
+      }
       if (data?.onboardingUrl) {
         window.location.href = data.onboardingUrl
         return
       }
       toast.error(data?.error ?? 'Could not start Stripe onboarding.')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Connect link failed')
+      toast.error(err instanceof Error ? err.message : 'Connect link failed', { duration: 8000 })
     } finally {
       setConnecting(false)
     }

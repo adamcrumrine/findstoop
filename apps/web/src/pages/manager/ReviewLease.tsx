@@ -386,15 +386,22 @@ export default function ReviewLease() {
     }
 
     // 2) Re-render the Stoop-templated document from the merge fields
-    //    — BUT ONLY for leases that are using the Stoop draft as the
-    //    authoritative document. For externally-executed leases (an
-    //    imported signed PDF lives in the documents table), we must NOT
-    //    touch document_url — doing so erases the connection to the
-    //    executed PDF and the UI starts showing the Stoop boilerplate
-    //    instead of the actual signed lease. The signed PDF stays as the
-    //    document of record.
+    //    — BUT ONLY for leases that are still drafts.
+    //
+    //    Two ways a lease is executed and its document must be left alone:
+    //      • an imported signed PDF (hasExternalSignedPdf) — re-rendering
+    //        erases the link to the executed PDF and the UI starts showing
+    //        Stoop boilerplate instead of the actual signed lease;
+    //      • a fully-signed Stoop-templated lease (fullySigned) — the render
+    //        on file is the executed document, so regenerating it rewrites
+    //        what the parties signed.
+    //
+    //    This used to say `!hasExternalSignedPdf`, which was only safe
+    //    because the whole edit fieldset was disabled once executed. The
+    //    end-of-term toggle is now editable after execution (a landlord must
+    //    be able to stop an auto-renew), so the guard has to cover both.
     let newDocUrl: string | undefined
-    if (!hasExternalSignedPdf) {
+    if (!leaseExecuted) {
       const text = renderDocumentText(lease)
       if (text) {
         const url = await uploadDocument(text)
@@ -1007,36 +1014,52 @@ export default function ReviewLease() {
               </div>
             </div>
 
-            {/* ── End-of-term behavior ────────────────────────────────── */}
-            <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">End of term</p>
-            <div className="mb-5">
-              <label
-                className="flex items-start gap-2.5 cursor-pointer text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5"
-                title="When the lease ends, automatically continue month-to-month at the same rent. The system keeps generating monthly rent payments until you change the lease status."
-              >
-                <input
-                  type="checkbox"
-                  checked={fields.auto_renew_month_to_month}
-                  onChange={(e) => set('auto_renew_month_to_month', e.target.checked)}
-                  className="mt-0.5"
-                />
-                <div className="min-w-0">
-                  <p className="font-medium text-ink">Auto-extend to month-to-month at end of term</p>
-                  <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
-                    On the day after <strong>{fields.end_date || 'the lease end date'}</strong>, the lease automatically rolls month-to-month at the same rent.
-                    Monthly rent payments keep generating until you mark the lease expired or terminated. Section 26 of the lease document
-                    reflects this when checked.
-                  </p>
-                </div>
-              </label>
-            </div>
-
             {/* ── Notes ─────────────────────────────────────────────── */}
             <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-2 pt-4 border-t border-gray-100">Notes</p>
             <FormField label="Utility notes (optional)">
               <textarea rows={2} className={inputClass} value={fields.utility_notes} onChange={(e) => set('utility_notes', e.target.value)} placeholder="Water included, tenant pays electric…" />
             </FormField>
           </fieldset>
+        </section>
+
+        {/* End-of-term behavior — deliberately OUTSIDE the executed-lease
+            fieldset. This flag controls what the system does when the term
+            lapses, not what the parties agreed to, and a landlord has to be
+            able to change their mind after signing (otherwise an executed
+            lease is stuck auto-rolling forever with no way to let it end).
+            Same reasoning as the move-out notice below. */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-3">End of term</h2>
+          <label
+            className="flex items-start gap-2.5 cursor-pointer text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5"
+            title="When the lease ends, automatically continue month-to-month at the same rent. Leave unchecked to let the lease expire on its end date."
+          >
+            <input
+              type="checkbox"
+              checked={fields.auto_renew_month_to_month}
+              onChange={(e) => set('auto_renew_month_to_month', e.target.checked)}
+              className="mt-0.5"
+            />
+            <div className="min-w-0">
+              <p className="font-medium text-ink">Auto-extend to month-to-month at end of term</p>
+              <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
+                On the day after <strong>{fields.end_date || 'the lease end date'}</strong>, the lease automatically rolls
+                month-to-month at the same rent and monthly rent payments keep generating.
+                {' '}<strong>Unchecked, the lease expires on its end date</strong> — payments stop and the unit is
+                marked vacant.
+                {leaseExecuted
+                  ? ' Changing this now affects what the system does going forward; it does not alter the executed document.'
+                  : ' Section 26 of the lease document reflects this when checked.'}
+              </p>
+              {lease.month_to_month && (
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2 leading-relaxed">
+                  This lease is already rolling month-to-month. Unchecking stops new rent payments from
+                  being generated, but it doesn't end the tenancy on its own — month-to-month
+                  terminations need proper notice, so set the status to terminated when that's served.
+                </p>
+              )}
+            </div>
+          </label>
         </section>
 
         {/* Move-out notice — month-to-month only. Stays editable even on an

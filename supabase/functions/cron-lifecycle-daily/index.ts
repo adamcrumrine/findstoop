@@ -1059,7 +1059,38 @@ Deno.serve(async (req) => {
   const todayIso = new Date().toISOString().slice(0, 10)
   let m2mActivated = 0
   let m2mPaymentsQueued = 0
+  let leasesExpired = 0
   try {
+    // Sweep 0 — expire lapsed fixed-term leases.
+    //
+    // Without this a lease whose term ended just sat at status='active'
+    // forever, so the unit still counted as occupied, the tenant kept portal
+    // access, and the UI had to paper over it by calling every past-term
+    // lease "month-to-month" — which made the auto-renew toggle look broken
+    // (turning it off changed nothing).
+    //
+    // Only fixed-term leases are expired: both M2M flags must be false. A
+    // lease already rolled month-to-month (month_to_month=true) is a live
+    // tenancy — ending it requires proper notice, so that stays a deliberate
+    // manager action. Unchecking auto-renew on an already-rolling M2M lease
+    // stops new payment generation (sweep B) but never auto-terminates it.
+    const { data: toExpire } = await admin
+      .from('leases')
+      .select('id')
+      .eq('status', 'active')
+      .eq('auto_renew_month_to_month', false)
+      .eq('month_to_month', false)
+      .not('end_date', 'is', null)
+      .lt('end_date', todayIso)
+      .limit(500)
+    for (const row of (toExpire ?? []) as Array<{ id: string }>) {
+      const { error: expErr } = await admin
+        .from('leases')
+        .update({ status: 'expired' })
+        .eq('id', row.id)
+      if (!expErr) leasesExpired++
+    }
+
     // Sweep A — flip to M2M
     const { data: toFlip } = await admin
       .from('leases')
@@ -1133,7 +1164,7 @@ Deno.serve(async (req) => {
     totals,
     imagesPurged,
     autopay: { attempted: autopayAttempted, initiated: autopayInitiated, skipped: autopaySkipped, failed: autopayFailed },
-    monthToMonth: { activated: m2mActivated, payments_queued: m2mPaymentsQueued },
+    monthToMonth: { activated: m2mActivated, payments_queued: m2mPaymentsQueued, leases_expired: leasesExpired },
     ran_at: new Date().toISOString(),
   }), {
     status: 200,

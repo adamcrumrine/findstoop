@@ -8,6 +8,7 @@ import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseStatus } from '@findstoop/shared/types/lease'
 import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
+import { leaseTermPhase } from '../../lib/leaseTermState'
 import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -67,7 +68,13 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
   //                     tentative_move_out_date when the tenant gives soft
   //                     notice they're moving out.
   const isUpcoming     = lease.status === 'upcoming'
-  const isMonthToMonth = !!lease.month_to_month || (lease.status === 'active' && daysLeft <= 0)
+  // M2M is read from the lease's own flags, never inferred from the calendar —
+  // a lapsed fixed term with auto-renew OFF is 'term_ended' (pending the
+  // cron's expiry sweep), not month-to-month. Inferring it made the
+  // auto-renew toggle look broken. See lib/leaseTermState.ts.
+  const termPhase      = leaseTermPhase(lease)
+  const isMonthToMonth = termPhase === 'month_to_month'
+  const isTermEnded    = termPhase === 'term_ended'
   const moveOutDate    = lease.tentative_move_out_date
     ? (() => { const d = new Date(lease.tentative_move_out_date); d.setHours(0, 0, 0, 0); return d })()
     : null
@@ -166,6 +173,14 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
             {/* M2M is a derived state not surfaced elsewhere — keep it
                 visible on every breakpoint so the manager can tell at a
                 glance that the original term has lapsed. */}
+            {isTermEnded && (
+              <span
+                className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-gray-700 bg-gray-200"
+                title={`Term ended ${new Date(lease.end_date).toLocaleDateString()} — auto-renew is off, so this lease expires`}
+              >
+                Term ended
+              </span>
+            )}
             {isMonthToMonth && (
               <span
                 className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-amber-800 bg-amber-100"
@@ -203,6 +218,9 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
                 say explicitly that it rolled over to month-to-month. */}
             {isMonthToMonth && daysLeft <= 0 && (
               <span className="text-gray-500"> · now month-to-month</span>
+            )}
+            {isTermEnded && (
+              <span className="text-gray-500"> · term ended</span>
             )}
           </span>
           <span className="text-gray-300">·</span>

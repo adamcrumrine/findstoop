@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -28,7 +28,7 @@ interface Props {
 }
 
 export default function Login({ role }: Props) {
-  const { signIn, signInWithGoogle, user, profile, loading: authLoading } = useAuth()
+  const { signIn, signInWithGoogle, sendPasswordReset, user, profile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -40,6 +40,46 @@ export default function Login({ role }: Props) {
   // setLoading(false) and the actual route change.
   const [transitioning, setTransitioning] = useState(false)
   const [wrongRoleError, setWrongRoleError] = useState<{ actual: 'manager' | 'tenant' } | null>(null)
+
+  // An expired or already-used email link bounces back here with the reason in
+  // the URL fragment — which nothing read, so the visitor just met a sign-in
+  // form asking for a password they've never set, with no idea why. That
+  // silence is what sends invited tenants off to "create an account" (and into
+  // unrelated dead ends). Surface it and offer the one action that helps.
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [resendEmail, setResendEmail] = useState('')
+  const [resending, setResending] = useState(false)
+  const [resent, setResent] = useState(false)
+
+  useEffect(() => {
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''
+    if (!hash) return
+    const params = new URLSearchParams(hash)
+    const code = params.get('error_code')
+    const err = params.get('error')
+    if (!code && !err) return
+    setLinkError(
+      code === 'otp_expired'
+        ? 'That sign-in link has expired.'
+        : 'That sign-in link has already been used or is no longer valid.',
+    )
+    // Strip it so a refresh doesn't re-surface the banner.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }, [])
+
+  const handleResendLink = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resendEmail.trim()) return
+    setResending(true)
+    try {
+      await sendPasswordReset(resendEmail.trim())
+      setResent(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not send a new link')
+    } finally {
+      setResending(false)
+    }
+  }
 
   // OAuth-return seam: user is signed in (auth listener fired) but the profile
   // fetch may still be in flight. Render the branded loader rather than
@@ -172,6 +212,50 @@ export default function Login({ role }: Props) {
         <p className="text-sm text-mute mt-1 mb-6">
           Welcome to {BRAND.name}. Continue as a {label}.
         </p>
+
+        {/* Expired / already-used email link. Leads with what to do rather
+            than what failed — most people arriving here were invited and have
+            never had a password, so pointing them at the sign-in form alone
+            is a dead end. */}
+        {linkError && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            {resent ? (
+              <>
+                <p className="text-sm font-semibold text-amber-900">Check your email</p>
+                <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
+                  We sent a fresh link to <strong>{resendEmail}</strong>. Open it soon —
+                  these links are time-limited. It'll ask you to choose a password, then
+                  you're in.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-amber-900">{linkError}</p>
+                <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
+                  No problem — enter your email and we'll send a new one. You don't need
+                  an existing password.
+                </p>
+                <form onSubmit={handleResendLink} className="mt-3 flex gap-2">
+                  <input
+                    type="email"
+                    required
+                    value={resendEmail}
+                    onChange={(e) => setResendEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={resending}
+                    className="px-3 py-2 bg-amber-700 text-white rounded-lg text-sm font-medium hover:bg-amber-800 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {resending ? 'Sending…' : 'Send new link'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Wrong-role error */}
         {wrongRoleError && (

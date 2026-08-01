@@ -108,6 +108,9 @@ export default function ReviewLease() {
   // it's divided; they never assign individual roommate amounts.
   const [splitMode, setSplitMode] = useState<'even' | 'self_serve'>('even')
   const [petFee, setPetFee] = useState('')
+  // '' = split the pet fee evenly; otherwise the tenant id who owns the pet
+  // and carries the whole charge.
+  const [petPayer, setPetPayer] = useState('')
   const [savingCharges, setSavingCharges] = useState(false)
   const [addTenantEmail, setAddTenantEmail] = useState('')
   const [addingTenant, setAddingTenant] = useState(false)
@@ -193,9 +196,14 @@ export default function ReviewLease() {
             ? [{ ...l.tenant, is_primary: true, rent_share: null, monthly_pet_fee: null }]
             : enriched
           setAllTenants(finalTenants)
-          const lm = l as LeaseWithRefs & { rent_split_mode?: string; monthly_pet_fee?: number | null }
+          const lm = l as LeaseWithRefs & {
+            rent_split_mode?: string
+            monthly_pet_fee?: number | null
+            pet_fee_payer_id?: string | null
+          }
           setSplitMode(lm.rent_split_mode === 'self_serve' ? 'self_serve' : 'even')
           setPetFee(lm.monthly_pet_fee != null && Number(lm.monthly_pet_fee) > 0 ? String(lm.monthly_pet_fee) : '')
+          setPetPayer(lm.pet_fee_payer_id ?? '')
         }
         const f: MergeFields = {
           start_date: l.start_date ?? '',
@@ -502,9 +510,16 @@ export default function ReviewLease() {
       const v = allTenants.find((t) => t.id === id)?.rent_share
       return v == null ? null : Number(v)
     }
+    // Mirrors the resolver: one nominated owner carries the whole fee,
+    // otherwise it splits across primaries. A stale payer (no longer primary)
+    // falls back to the even split, same as the SQL.
     const petTotal = petFee.trim() === '' ? 0 : Number(petFee)
+    const payerIsPrimary = !!petPayer && primaries.some((t) => t.id === petPayer)
     const petEach = primariesCount > 0 ? Math.floor((petTotal * 100) / primariesCount) / 100 : 0
-    const petOf = () => petEach
+    const petOf = (id: string) => {
+      if (petTotal <= 0) return 0
+      return payerIsPrimary ? (id === petPayer ? petTotal : 0) : petEach
+    }
 
     const totalCents = Math.round(rent * 100)
     const assignedCents = primaries.reduce((sum, t) => {
@@ -530,7 +545,7 @@ export default function ReviewLease() {
         tenantId: t.id,
         name: t.full_name ?? t.email ?? 'Tenant',
         amount,
-        pet: petOf(),
+        pet: petOf(t.id),
         fixed,
       }
     })
@@ -551,7 +566,11 @@ export default function ReviewLease() {
       if (pet != null && (Number.isNaN(pet) || pet < 0)) throw new Error('Invalid pet rent amount')
       const { error } = await supabase
         .from('leases')
-        .update({ rent_split_mode: splitMode, monthly_pet_fee: pet })
+        .update({
+          rent_split_mode: splitMode,
+          monthly_pet_fee: pet,
+          pet_fee_payer_id: pet != null && petPayer ? petPayer : null,
+        })
         .eq('id', lease.id)
       if (error) throw new Error(error.message)
 
@@ -1152,10 +1171,29 @@ export default function ReviewLease() {
                 onChange={(e) => setPetFee(e.target.value)}
               />
               <p className="text-[11px] text-mute mt-1.5">
-                Billed monthly on top of rent, split across roommates, and kept as its own
-                line so pet income stays separate from rent at tax time.
+                Billed monthly on top of rent and kept as its own line so pet income
+                stays separate from rent at tax time.
               </p>
             </FormField>
+
+            {petFee.trim() !== '' && Number(petFee) > 0 && (
+              <FormField label="Who pays the pet rent?">
+                <select
+                  className={inputClass}
+                  value={petPayer}
+                  onChange={(e) => setPetPayer(e.target.value)}
+                >
+                  <option value="">Split evenly across roommates</option>
+                  {allTenants.filter((t) => t.is_primary).map((t) => (
+                    <option key={t.id} value={t.id}>{t.full_name ?? t.email} pays all of it</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-mute mt-1.5">
+                  When the pet belongs to one roommate, bill only them — the others
+                  shouldn't be charged for someone else's dog.
+                </p>
+              </FormField>
+            )}
 
             <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
               <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-1.5">Each month, per tenant</p>

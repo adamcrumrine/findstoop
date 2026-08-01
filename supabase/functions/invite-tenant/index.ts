@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     // email copy from "your landlord added you" to "your landlord just
     // moved to FindStoop — your lease came with them."
     const {
-      email, fullName, full_name, phone, applyUnitId, migrationFrom, skipEmail,
+      email, fullName, full_name, phone, applyUnitId, migrationFrom, skipEmail, resend: resendInvite,
     } = await req.json() as {
       email?: string
       fullName?: string
@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
       applyUnitId?: string
       migrationFrom?: string     // e.g. "Avail" — display name of prior platform
       skipEmail?: boolean        // create profile silently — manager invites later from Tenants page
+      resend?: boolean           // re-send to a tenant who already has an account (see below)
     }
     const callerFullName = fullName ?? full_name
     if (!email || !email.includes('@')) {
@@ -91,7 +92,13 @@ Deno.serve(async (req) => {
       .ilike('email', cleanEmail)
       .maybeSingle()
 
-    if (existingProfile) {
+    // `resend` overrides the bail: the tenant already has an auth user +
+    // profile (created by an import or an earlier invite) but never signed
+    // in, or their original invite link has since expired. Supabase rejects
+    // type:'invite' for an existing user, so a resend issues a 'magiclink'
+    // instead — same effect for the tenant (one click signs them in and lets
+    // them set a password), and the email body below is identical.
+    if (existingProfile && !resendInvite) {
       return json({
         alreadyExists: true,
         tenantId: existingProfile.id,
@@ -104,7 +111,7 @@ Deno.serve(async (req) => {
     // type 'invite' creates the auth user (if not yet) and returns a magic
     // action link that signs them in + lets them set a password.
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-      type: 'invite',
+      type: existingProfile ? 'magiclink' : 'invite',
       email: cleanEmail,
       options: {
         redirectTo: `${APP_URL}/login`,
@@ -123,6 +130,7 @@ Deno.serve(async (req) => {
     }
 
     const actionLink = linkData.properties.action_link
+    const isResend = !!existingProfile
     // The invite goes out on behalf of the landlord — when they've set a
     // company name, present the company as the inviter (branding); otherwise
     // fall back to their personal name, exactly as before.
@@ -130,7 +138,7 @@ Deno.serve(async (req) => {
     const accent = brandAccent(company ? callerProfile.brand_color : null)
     const inviterName = company ?? callerProfile.full_name ?? 'Your landlord'
     const tenantFirstName = (callerFullName?.split(' ')[0]) || 'there'
-    const newTenantId = linkData.user?.id ?? null
+    const newTenantId = linkData.user?.id ?? existingProfile?.id ?? null
 
     // Persist the optional phone (and name, if not already on the profile)
     // onto profiles. generateLink creates the auth.users row + a profiles
@@ -216,7 +224,11 @@ Deno.serve(async (req) => {
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: emailFrom(company, RESEND_FROM),
       to: cleanEmail,
-      bcc: callerProfile.email ?? undefined, // owning landlord gets a copy
+      // The owning landlord is CC'd (not BCC'd) on purpose: the tenant can
+      // see their landlord is on the thread, which makes an unexpected
+      // "set up your account" email read as legitimate rather than phishing,
+      // and lets them just hit reply-all with questions.
+      cc: callerProfile.email ?? undefined,
       subject,
       html,
       replyTo: callerProfile.email ?? undefined,
@@ -228,6 +240,7 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       alreadyExists: false,
+      resent: isResend,
       tenantId: newTenantId,
       messageId: emailData?.id,
       emailSent: true,

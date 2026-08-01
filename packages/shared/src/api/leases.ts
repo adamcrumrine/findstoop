@@ -16,10 +16,25 @@ import type { Profile } from '../types/profile'
 // tenants on signed-but-future leases with an empty portal.
 export async function getTenantActiveLease(tenantId: string): Promise<Lease | null> {
   const selection = '*, unit:units(unit_number, properties(name, address, city, state, zip, student_housing))'
-  const { data: active } = await supabase
-    .from('leases')
-    .select(selection)
+
+  // Lease membership lives in lease_tenants — every roommate has a row there.
+  // leases.tenant_id is a LEGACY single-tenant pointer (migration
+  // 20260525000003), so filtering on it alone returned nothing for co-tenants
+  // and left them with an empty portal and a dead Pay Rent button. Resolve the
+  // caller's lease ids first, then match those OR the legacy pointer (which
+  // covers any lease that has no lease_tenants rows).
+  const { data: memberships } = await supabase
+    .from('lease_tenants')
+    .select('lease_id')
     .eq('tenant_id', tenantId)
+  const leaseIds = (memberships ?? []).map((m) => (m as { lease_id: string }).lease_id)
+  const mine = leaseIds.length > 0
+    ? `id.in.(${leaseIds.join(',')}),tenant_id.eq.${tenantId}`
+    : null
+
+  const { data: active } = await (mine
+    ? supabase.from('leases').select(selection).or(mine)
+    : supabase.from('leases').select(selection).eq('tenant_id', tenantId))
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -28,20 +43,18 @@ export async function getTenantActiveLease(tenantId: string): Promise<Lease | nu
 
   // Signed but future-start — tenant should still see documents, lease,
   // and any pre-move-in comms / inspections their landlord has prepared.
-  const { data: upcoming } = await supabase
-    .from('leases')
-    .select(selection)
-    .eq('tenant_id', tenantId)
+  const { data: upcoming } = await (mine
+    ? supabase.from('leases').select(selection).or(mine)
+    : supabase.from('leases').select(selection).eq('tenant_id', tenantId))
     .eq('status', 'upcoming')
     .order('start_date', { ascending: true })
     .limit(1)
     .maybeSingle()
   if (upcoming) return upcoming as unknown as Lease
 
-  const { data: pendingSent } = await supabase
-    .from('leases')
-    .select(selection)
-    .eq('tenant_id', tenantId)
+  const { data: pendingSent } = await (mine
+    ? supabase.from('leases').select(selection).or(mine)
+    : supabase.from('leases').select(selection).eq('tenant_id', tenantId))
     .eq('status', 'pending')
     .not('sent_for_signature_at', 'is', null)
     .order('created_at', { ascending: false })

@@ -9,6 +9,7 @@ import { getTenantPayments } from '@findstoop/shared/api/payments'
 import { formatUsdCents } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
+import type { Lease } from '@findstoop/shared/types/lease'
 import { CheckCircle2, Landmark, CreditCard as CardIcon, ShieldCheck } from 'lucide-react'
 import PaymentMethodCard from '../../components/tenant/PaymentMethodCard'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
@@ -24,6 +25,94 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? 
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-lg ${className ?? ''}`} />
+}
+
+// ── "My monthly amount" — self-serve leases only ────────────────────────────
+// The landlord sets the unit's total; roommates divide it between themselves.
+// Saving re-prices only THIS tenant's unpaid future rent rows (set_my_rent_share
+// is SECURITY DEFINER and scoped to auth.uid()), so nobody else's amount moves
+// and paid months are untouched. The house's coverage against the unit total is
+// shown so a shortfall is visible to whoever is looking.
+function MyShareEditor({ leaseId, currentAmount, isGhost }: { leaseId: string; currentAmount: number; isGhost: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState(currentAmount ? String(currentAmount) : '')
+  const [saving, setSaving] = useState(false)
+  const [coverage, setCoverage] = useState<{ unit_total: number; allocated: number; shortfall: number } | null>(null)
+
+  const loadCoverage = async () => {
+    const due = new Date(); due.setDate(1)
+    const iso = due.toISOString().slice(0, 10)
+    const { data } = await supabase.rpc('lease_month_coverage', { p_lease_id: leaseId, p_due_date: iso })
+    const row = Array.isArray(data) ? data[0] : data
+    if (row) setCoverage({ unit_total: Number(row.unit_total), allocated: Number(row.allocated), shortfall: Number(row.shortfall) })
+  }
+
+  const save = async () => {
+    const amount = value.trim() === '' ? null : Number(value)
+    if (amount != null && (Number.isNaN(amount) || amount < 0)) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    setSaving(true)
+    try {
+      const { error } = await supabase.rpc('set_my_rent_share', { p_lease_id: leaseId, p_amount: amount })
+      if (error) throw new Error(error.message)
+      toast.success(amount == null ? 'Back to an even share' : 'Your monthly amount is updated')
+      window.location.reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update your amount')
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => { setOpen(true); void loadCoverage() }}
+        className={`mt-3 text-xs font-medium underline underline-offset-2 ${isGhost ? 'text-brand-700' : 'text-white/90'}`}
+      >
+        Change my monthly amount
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3 bg-white rounded-xl border border-gray-200 p-3 text-left">
+      <p className="text-xs font-semibold text-ink">Your share of the rent</p>
+      <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
+        Your house splits the rent between yourselves. Set what you pay each month —
+        this only changes your amount, not your roommates'.
+      </p>
+      {coverage && (
+        <p className={`text-[11px] mt-1.5 ${coverage.shortfall > 0 ? 'text-amber-800' : 'text-mute'}`}>
+          This month your house covers {formatUsdCents(coverage.allocated)} of {formatUsdCents(coverage.unit_total)}
+          {coverage.shortfall > 0 && ` — ${formatUsdCents(coverage.shortfall)} still unassigned.`}
+        </p>
+      )}
+      <div className="flex items-center gap-2 mt-2">
+        <input
+          type="number" inputMode="decimal" min="0" step="0.01"
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          placeholder="Leave blank for an even share"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <button
+          type="button" onClick={save} disabled={saving}
+          className="px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="px-2 py-2 text-sm text-mute hover:text-ink">
+          Cancel
+        </button>
+      </div>
+      <p className="text-[10px] text-mute mt-1.5">
+        Applies to upcoming months. Anything already paid stays as it was.
+      </p>
+    </div>
+  )
 }
 
 // ── Checkout form (inside Elements) ──────────────────────────────────────────
@@ -469,6 +558,12 @@ export default function TenantPayRent() {
           })()}
           {nextPayment && methodOn && (
             <ReschedulePicker payment={nextPayment} autopayEnabled={autopayOn} />
+          )}
+          {/* Self-serve houses divide the unit's rent between themselves —
+              each roommate sets their own monthly amount. Hidden entirely on
+              even-split leases, where the server refuses the change anyway. */}
+          {lease && (lease as Lease & { rent_split_mode?: string }).rent_split_mode === 'self_serve' && (
+            <MyShareEditor leaseId={lease.id} currentAmount={Number(nextPayment?.amount ?? 0)} isGhost={isGhost} />
           )}
           {nextPayment && (
             !stripeConfigured ? (

@@ -30,7 +30,7 @@ import {
 import toast from 'react-hot-toast'
 import FormField, { inputClass } from '../../components/shared/FormField'
 import { useInspection } from '@findstoop/shared/hooks/useInspection'
-import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { formatUsdCents, formatUsd } from '@findstoop/shared/lib/format'
 import { BRAND } from '../../lib/brand'
 import ModalShell from '../../components/shared/ModalShell'
 
@@ -99,7 +99,16 @@ export default function ReviewLease() {
   // Tenants on this lease, with the is_primary flag from lease_tenants so
   // the UI can show multi-primary state + toggle it. Multiple tenants can
   // be primary simultaneously (the trigger no longer enforces single).
-  const [allTenants, setAllTenants] = useState<Array<Profile & { is_primary: boolean }>>([])
+  const [allTenants, setAllTenants] = useState<Array<Profile & {
+    is_primary: boolean
+    rent_share?: number | null
+    monthly_pet_fee?: number | null
+  }>>([])
+  // Lease-level billing settings. The landlord sets the unit total and how
+  // it's divided; they never assign individual roommate amounts.
+  const [splitMode, setSplitMode] = useState<'even' | 'self_serve'>('even')
+  const [petFee, setPetFee] = useState('')
+  const [savingCharges, setSavingCharges] = useState(false)
   const [addTenantEmail, setAddTenantEmail] = useState('')
   const [addingTenant, setAddingTenant] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -157,24 +166,36 @@ export default function ReviewLease() {
         // lease_tenants join. Primary first, then by added order.
         const { data: ltRows } = await supabase
           .from('lease_tenants')
-          .select('tenant_id, is_primary, sort_order, added_at, profile:profiles!lease_tenants_tenant_id_fkey(*)')
+          .select('tenant_id, is_primary, sort_order, added_at, rent_share, monthly_pet_fee, profile:profiles!lease_tenants_tenant_id_fkey(*)')
           .eq('lease_id', l.id)
           .order('is_primary', { ascending: false })
           .order('sort_order', { ascending: true })
           .order('added_at', { ascending: true })
         if (!cancelled) {
-          const rows = (ltRows ?? []) as unknown as Array<{ is_primary: boolean; profile?: Profile | null }>
+          const rows = (ltRows ?? []) as unknown as Array<{
+            is_primary: boolean
+            rent_share: number | null
+            monthly_pet_fee: number | null
+            profile?: Profile | null
+          }>
           const enriched = rows
             .filter((r) => !!r.profile)
-            .map((r) => ({ ...(r.profile as Profile), is_primary: !!r.is_primary }))
+            .map((r) => ({
+              ...(r.profile as Profile),
+              is_primary: !!r.is_primary,
+              rent_share: r.rent_share,
+              monthly_pet_fee: r.monthly_pet_fee,
+            }))
           // Fallback: if join table is somehow empty (shouldn't happen
           // post-backfill), fall back to the single primary tenant on the
           // lease row and treat them as primary.
-          if (enriched.length === 0 && l.tenant) {
-            setAllTenants([{ ...l.tenant, is_primary: true }])
-          } else {
-            setAllTenants(enriched)
-          }
+          const finalTenants = (enriched.length === 0 && l.tenant)
+            ? [{ ...l.tenant, is_primary: true, rent_share: null, monthly_pet_fee: null }]
+            : enriched
+          setAllTenants(finalTenants)
+          const lm = l as LeaseWithRefs & { rent_split_mode?: string; monthly_pet_fee?: number | null }
+          setSplitMode(lm.rent_split_mode === 'self_serve' ? 'self_serve' : 'even')
+          setPetFee(lm.monthly_pet_fee != null && Number(lm.monthly_pet_fee) > 0 ? String(lm.monthly_pet_fee) : '')
         }
         const f: MergeFields = {
           start_date: l.start_date ?? '',
@@ -462,25 +483,89 @@ export default function ReviewLease() {
   const [addTenantLastName, setAddTenantLastName] = useState('')
   const [addTenantPhone, setAddTenantPhone] = useState('')
 
-  // Live preview of the rent split across primary tenants. Mirrors the SQL
-  // trigger's penny-exact math (cents-int division with remainder going to
-  // the first primary) so what's shown here is exactly what the DB will
-  // bill. Empty list when there's no rent yet or zero primaries.
-  const splitPreview: Array<{ tenantId: string; name: string; amount: number }> = (() => {
+  // Live preview of what each primary will actually be billed. Mirrors
+  // lease_tenant_charges() (migration 20260801000006): in 'even' mode the
+  // rent splits evenly and per-tenant overrides are ignored; in 'self_serve'
+  // a tenant's own amount is taken as-is and the rest split what's left.
+  // Penny-exact, remainder to the first unassigned primary.
+  const primariesCount = allTenants.filter((t) => t.is_primary).length
+  const splitPreview: Array<{ tenantId: string; name: string; amount: number; pet: number; fixed: boolean }> = (() => {
     const rent = Number(fields.rent_amount || 0)
     if (!rent || rent <= 0) return []
     const primaries = allTenants.filter((t) => t.is_primary)
     if (primaries.length === 0) return []
+
+    // Only self-serve leases honour per-tenant overrides — matches
+    // lease_tenant_charges(), which ignores stale shares in even mode.
+    const shareOf = (id: string) => {
+      if (splitMode !== 'self_serve') return null
+      const v = allTenants.find((t) => t.id === id)?.rent_share
+      return v == null ? null : Number(v)
+    }
+    const petTotal = petFee.trim() === '' ? 0 : Number(petFee)
+    const petEach = primariesCount > 0 ? Math.floor((petTotal * 100) / primariesCount) / 100 : 0
+    const petOf = () => petEach
+
     const totalCents = Math.round(rent * 100)
-    const n = primaries.length
-    const baseCents = Math.floor(totalCents / n)
-    const remainderCents = totalCents - baseCents * n
-    return primaries.map((t, i) => ({
-      tenantId: t.id,
-      name: t.full_name ?? t.email ?? 'Tenant',
-      amount: (baseCents + (i === 0 ? remainderCents : 0)) / 100,
-    }))
+    const assignedCents = primaries.reduce((sum, t) => {
+      const s = shareOf(t.id)
+      return sum + (s != null && !Number.isNaN(s) ? Math.round(s * 100) : 0)
+    }, 0)
+    const unassigned = primaries.filter((t) => {
+      const s = shareOf(t.id)
+      return s == null || Number.isNaN(s)
+    })
+    const remainingCents = Math.max(totalCents - assignedCents, 0)
+    const baseCents = unassigned.length > 0 ? Math.floor(remainingCents / unassigned.length) : 0
+    const remainderCents = unassigned.length > 0 ? remainingCents - baseCents * unassigned.length : 0
+    const firstUnassignedId = unassigned[0]?.id
+
+    return primaries.map((t) => {
+      const s = shareOf(t.id)
+      const fixed = s != null && !Number.isNaN(s)
+      const amount = fixed
+        ? s!
+        : (baseCents + (t.id === firstUnassignedId ? remainderCents : 0)) / 100
+      return {
+        tenantId: t.id,
+        name: t.full_name ?? t.email ?? 'Tenant',
+        amount,
+        pet: petOf(),
+        fixed,
+      }
+    })
   })()
+
+  const splitTotal = splitPreview.reduce((s, r) => s + r.amount, 0)
+  const splitMismatch = splitPreview.length > 0 &&
+    Math.round(splitTotal * 100) !== Math.round(Number(fields.rent_amount || 0) * 100)
+
+  // Save the lease-level billing settings (split mode + monthly pet rent),
+  // then rebuild FUTURE unpaid charges so the change reaches tenant portals.
+  // Paid months are never touched.
+  const saveCharges = async () => {
+    if (!lease) return
+    setSavingCharges(true)
+    try {
+      const pet = petFee.trim() === '' ? null : Number(petFee)
+      if (pet != null && (Number.isNaN(pet) || pet < 0)) throw new Error('Invalid pet rent amount')
+      const { error } = await supabase
+        .from('leases')
+        .update({ rent_split_mode: splitMode, monthly_pet_fee: pet })
+        .eq('id', lease.id)
+      if (error) throw new Error(error.message)
+
+      const { data, error: rpcErr } = await supabase.rpc('regenerate_rent_schedule', { p_lease_id: lease.id })
+      if (rpcErr) throw new Error(rpcErr.message)
+      const row = Array.isArray(data) ? data[0] : data
+      toast.success(`Saved — rebuilt ${row?.created_count ?? 0} upcoming charges (kept ${row?.skipped_paid_count ?? 0} already billed)`)
+      setLease((prev) => prev ? { ...prev, rent_split_mode: splitMode, monthly_pet_fee: pet } as LeaseWithRefs : prev)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save billing settings')
+    } finally {
+      setSavingCharges(false)
+    }
+  }
 
   // Toggle a tenant's is_primary flag on this lease. Allows multiple
   // primaries simultaneously — the DB trigger keeps leases.tenant_id in
@@ -1021,6 +1106,92 @@ export default function ReviewLease() {
             </FormField>
           </fieldset>
         </section>
+
+        {/* Rent split & recurring fees — also OUTSIDE the executed-lease
+            fieldset. The lease fixes the TOTAL rent; how roommates divide it
+            between themselves (and who pays pet rent) is an operational
+            arrangement that changes during a tenancy — someone swaps rooms,
+            a pet arrives. Leaving it locked meant a signed lease could only
+            ever bill an even split. Changing it never alters the total. */}
+        {splitPreview.length > 0 && (
+          <section className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-mute mb-1">Rent split &amp; recurring fees</h2>
+            <p className="text-[11px] text-mute mb-3 leading-relaxed">
+              You set the unit's total; this decides how it's divided between roommates.
+            </p>
+
+            <div className="space-y-2 mb-4">
+              <label className={`flex items-start gap-2.5 cursor-pointer text-sm border rounded-lg px-3 py-2.5 ${splitMode === 'even' ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-gray-50'}`}>
+                <input type="radio" name="split-mode" className="mt-0.5" checked={splitMode === 'even'} onChange={() => setSplitMode('even')} />
+                <div className="min-w-0">
+                  <p className="font-medium text-ink">Even split</p>
+                  <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
+                    Rent divides equally across {primariesCount} {primariesCount === 1 ? 'tenant' : 'tenants'}. Nobody can change their own amount.
+                  </p>
+                </div>
+              </label>
+              <label className={`flex items-start gap-2.5 cursor-pointer text-sm border rounded-lg px-3 py-2.5 ${splitMode === 'self_serve' ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-gray-50'}`}>
+                <input type="radio" name="split-mode" className="mt-0.5" checked={splitMode === 'self_serve'} onChange={() => setSplitMode('self_serve')} />
+                <div className="min-w-0">
+                  <p className="font-medium text-ink">Self-serve</p>
+                  <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
+                    Roommates set their own monthly amounts from their portal — for houses that
+                    split by room size. Anyone who doesn't set one takes an even share of the
+                    remainder. You still only set the unit total.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <FormField label="Monthly pet rent for the unit (optional)">
+              <input
+                type="number" inputMode="decimal" min="0" step="0.01"
+                className={inputClass}
+                placeholder="0.00"
+                value={petFee}
+                onChange={(e) => setPetFee(e.target.value)}
+              />
+              <p className="text-[11px] text-mute mt-1.5">
+                Billed monthly on top of rent, split across roommates, and kept as its own
+                line so pet income stays separate from rent at tax time.
+              </p>
+            </FormField>
+
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-1.5">Each month, per tenant</p>
+              <div className="space-y-1">
+                {splitPreview.map((row) => (
+                  <div key={row.tenantId} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate text-ink">
+                      {row.name}
+                      {row.fixed && <span className="ml-1.5 text-[9px] uppercase tracking-wider text-brand-700">set their own</span>}
+                    </span>
+                    <span className="shrink-0 font-medium text-ink">
+                      {formatUsd(row.amount + row.pet)}
+                      {row.pet > 0 && <span className="text-mute font-normal"> ({formatUsd(row.amount)} + {formatUsd(row.pet)} pet)</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className={`mt-2 pt-2 border-t border-gray-200 text-xs ${splitMismatch ? 'text-amber-900' : 'text-mute'}`}>
+                Covers <strong>{formatUsd(splitTotal)}</strong> of {formatUsd(Number(fields.rent_amount || 0))} rent
+                {splitMismatch && ` — ${formatUsd(Math.abs(splitTotal - Number(fields.rent_amount || 0)))} ${splitTotal < Number(fields.rent_amount || 0) ? 'short' : 'over'}. Tenants are jointly liable for the full amount.`}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={saveCharges}
+              disabled={savingCharges}
+              className="mt-3 w-full py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
+            >
+              {savingCharges ? 'Saving…' : 'Save and rebuild upcoming charges'}
+            </button>
+            <p className="text-[10px] text-mute mt-1.5 text-center">
+              Rebuilds unpaid charges dated after today. Already-paid months are never touched.
+            </p>
+          </section>
+        )}
 
         {/* End-of-term behavior — deliberately OUTSIDE the executed-lease
             fieldset. This flag controls what the system does when the term

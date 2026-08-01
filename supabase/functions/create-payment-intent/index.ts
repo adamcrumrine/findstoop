@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     // and lease are taken from THIS row, not the request.
     const { data: payment, error: payErr } = await admin
       .from('payments')
-      .select('id, lease_id, tenant_id, amount, status')
+      .select('id, lease_id, tenant_id, amount, status, type')
       .eq('id', paymentId)
       .single()
     if (payErr || !payment) return json({ error: 'Payment not found' }, { status: 404 })
@@ -80,6 +80,9 @@ Deno.serve(async (req) => {
     const amount = Number(payment.amount)
     const leaseId = payment.lease_id
     const tenantId = payment.tenant_id
+    const chargeLabel = payment.type === 'rent'
+      ? 'Rent'
+      : String(payment.type ?? 'Charge').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
     if (!(amount > 0)) return json({ error: 'Invalid payment amount' }, { status: 400 })
 
     // Look up the landlord's tier + Connect status from the lease.
@@ -116,9 +119,12 @@ Deno.serve(async (req) => {
       amount: totalCents,
       currency: 'usd',
       payment_method_types: [paymentMethod],
+      // A lease can bill more than rent (recurring pet rent, one-off fees), so
+      // name the actual charge — "Rent + fee" on a $5 pet charge reads as an
+      // error on the tenant's statement.
       description: paymentMethod === 'card'
-        ? `Rent + 3.5% card processing fee`
-        : `Rent payment via ACH`,
+        ? `${chargeLabel} + 3.5% card processing fee`
+        : `${chargeLabel} via ACH`,
       metadata: {
         // findstoop_payment_id lets the webhook flip THIS existing pending row
         // to completed (it matches on this first). The client no longer inserts

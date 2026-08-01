@@ -33,16 +33,35 @@ export async function getTenantUpcomingPayments(tenantId: string, limit = 5): Pr
 }
 
 export async function getNextDuePayment(tenantId: string): Promise<Payment | null> {
+  // A month can carry more than one charge for the same tenant (rent plus a
+  // recurring pet fee, say). Ordering by due_date alone made which one came
+  // back arbitrary, so a tenant could open Pay Rent and see "$5.00 due"
+  // instead of their rent. Take the earliest due date, then prefer rent.
   const { data, error } = await supabase
     .from('payments')
     .select('*')
     .eq('tenant_id', tenantId)
     .eq('status', 'pending')
     .order('due_date', { ascending: true })
-    .limit(1)
-    .single()
-  if (error) return null
-  return data
+    .limit(10)
+  if (error || !data || data.length === 0) return null
+  const earliest = (data[0] as Payment).due_date
+  const sameDate = (data as Payment[]).filter((p) => p.due_date === earliest)
+  return sameDate.find((p) => p.type === 'rent') ?? sameDate[0]
+}
+
+/** Every other pending charge sharing a due date with `payment` — the pet fee
+ *  and any one-off items the tenant still owes for that period. Lets the Pay
+ *  Rent screen show the true monthly total rather than just the rent line. */
+export async function getSiblingChargesDue(tenantId: string, payment: Payment): Promise<Payment[]> {
+  if (!payment.due_date) return []
+  const { data } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .eq('due_date', payment.due_date)
+  return ((data ?? []) as Payment[]).filter((p) => p.id !== payment.id)
 }
 
 // Manager-side "Recent Payments" widget — only actually-attempted payments

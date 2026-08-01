@@ -5,7 +5,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import toast from 'react-hot-toast'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
-import { getTenantPayments } from '@findstoop/shared/api/payments'
+import { getTenantPayments, getSiblingChargesDue } from '@findstoop/shared/api/payments'
 import { formatUsdCents } from '@findstoop/shared/lib/format'
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
@@ -371,6 +371,17 @@ export default function TenantPayRent() {
     }).catch(() => setHistoryLoading(false))
   }, [profile?.id, paid])
 
+  // Other charges due the same day as the payment being made (pet rent etc).
+  const [siblingCharges, setSiblingCharges] = useState<Payment[]>([])
+  useEffect(() => {
+    if (!profile?.id || !nextPayment) { setSiblingCharges([]); return }
+    let cancelled = false
+    getSiblingChargesDue(profile.id, nextPayment)
+      .then((rows) => { if (!cancelled) setSiblingCharges(rows) })
+      .catch(() => { if (!cancelled) setSiblingCharges([]) })
+    return () => { cancelled = true }
+  }, [profile?.id, nextPayment?.id, paid])
+
   const rentAmount = Number(nextPayment?.amount ?? 0)
   // Shared helper matches the server's cent-rounding exactly, so the amount
   // shown here always equals what create-payment-intent charges.
@@ -556,6 +567,21 @@ export default function TenantPayRent() {
               </p>
             )
           })()}
+          {/* Other charges sharing this due date (pet rent, one-offs). Each is
+              its own Stripe payment, so say so plainly rather than showing a
+              combined figure the Pay button won't actually charge. */}
+          {siblingCharges.length > 0 && (
+            <div className={`mt-2 text-xs ${isGhost ? 'text-mute' : 'opacity-90'}`}>
+              Also due this month:{' '}
+              {siblingCharges.map((c, i) => (
+                <span key={c.id}>
+                  {i > 0 && ', '}
+                  {c.type.replace(/_/g, ' ')} {formatUsdCents(Number(c.amount))}
+                </span>
+              ))}
+              {' '}· paid separately after rent
+            </div>
+          )}
           {nextPayment && methodOn && (
             <ReschedulePicker payment={nextPayment} autopayEnabled={autopayOn} />
           )}

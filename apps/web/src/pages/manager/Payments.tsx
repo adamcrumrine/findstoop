@@ -6,7 +6,7 @@ import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
 import { formatUsd, formatUsdCents, formatLocalDate, formatMonthYear } from '@findstoop/shared/lib/format'
-import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, paymentAnchor, ledgerOrder } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
 import type { Payment, PaymentType, PaymentStatus } from '@findstoop/shared/types/payment'
@@ -492,12 +492,12 @@ export default function ManagerPayments() {
     [payments, filterStatus, filterType, filterLeaseStatus, filterPropertyId, leaseMap, unitToProperty]
   )
 
-  // Newest first by money-movement date, paged 50 at a time — rendering all
-  // rows at once made the page a 20,000px scroll with a few hundred payments.
-  const sorted = useMemo(() =>
-    filtered.slice().sort((a, b) => new Date(paymentAnchor(b)).getTime() - new Date(paymentAnchor(a)).getTime()),
-    [filtered]
-  )
+  // Attention-first: unsettled payments ascending (most overdue → due now →
+  // scheduled future), then settled history newest-first. Paged 50 at a time —
+  // rendering all rows at once made the page a 20,000px scroll with a few
+  // hundred payments. Sorting purely newest-first used to put the far end of
+  // every lease's pre-generated schedule on top, hiding what's actually due.
+  const sorted = useMemo(() => ledgerOrder(filtered), [filtered])
   const [visibleCount, setVisibleCount] = useState(50)
   useEffect(() => { setVisibleCount(50) }, [filterStatus, filterType, filterLeaseStatus, filterPropertyId])
   const visible = sorted.slice(0, visibleCount)

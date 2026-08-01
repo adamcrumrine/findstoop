@@ -49,6 +49,43 @@ function isSettled(p: Payment): boolean {
 }
 
 /**
+ * Parse a payment anchor as a local date.
+ *
+ * Anchors are a mix of DATE columns ('2026-08-01') and timestamps. A bare
+ * date string is parsed by `new Date()` as UTC midnight, which is the
+ * PREVIOUS day in any negative UTC offset — so comparing it against a local
+ * "today" silently shifts payments a day. Build bare dates from their parts.
+ */
+function anchorTime(p: Payment): number {
+  const raw = paymentAnchor(p)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime()
+  return new Date(raw).getTime()
+}
+
+/**
+ * Ledger order for a full payments list: what needs attention now, then what's
+ * coming, then history.
+ *
+ *   1. Unsettled payments, oldest first — the most overdue rent leads, then
+ *      today's, then scheduled future ones.
+ *   2. Settled history after that, newest first.
+ *
+ * Sorting the whole list newest-first (the previous behaviour) buried the
+ * next payment due behind a year of pre-generated future rows, so the top of
+ * the page was next July rather than this month.
+ */
+export function ledgerOrder(payments: Payment[], today: Date = new Date()): Payment[] {
+  const t = new Date(today); t.setHours(0, 0, 0, 0)
+  const cutoff = t.getTime()
+  const isHistory = (p: Payment) => isSettled(p) && anchorTime(p) < cutoff
+
+  const current = payments.filter((p) => !isHistory(p)).sort((a, b) => anchorTime(a) - anchorTime(b))
+  const history = payments.filter(isHistory).sort((a, b) => anchorTime(b) - anchorTime(a))
+  return [...current, ...history]
+}
+
+/**
  * The payment window a manager actually wants on a tenant summary: start at
  * the oldest UNSETTLED payment (so anything past due leads) and read forward
  * in date order into the future.

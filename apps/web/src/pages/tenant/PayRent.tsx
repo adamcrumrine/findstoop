@@ -27,6 +27,83 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-gray-200 rounded-lg ${className ?? ''}`} />
 }
 
+// ── House progress for the month ────────────────────────────────────────────
+// Roommates are jointly liable for the whole unit, so each of them can see
+// where the month stands overall — what's cleared, what's in flight, what's
+// scheduled, and anything nobody has accounted for yet. Shown on every shared
+// lease (not just self-serve): on an even split it's still the honest answer
+// to "have my roommates paid?".
+function HouseProgress({ leaseId, dueDate }: { leaseId: string; dueDate: string }) {
+  const [cov, setCov] = useState<{ unit_total: number; paid: number; processing: number; pending: number; unassigned: number } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    supabase.rpc('lease_month_coverage', { p_lease_id: leaseId, p_due_date: dueDate })
+      .then(({ data }) => {
+        const row = Array.isArray(data) ? data[0] : data
+        if (!cancelled && row) {
+          setCov({
+            unit_total: Number(row.unit_total), paid: Number(row.paid),
+            processing: Number(row.processing), pending: Number(row.pending),
+            unassigned: Number(row.unassigned),
+          })
+        }
+      })
+    return () => { cancelled = true }
+  }, [leaseId, dueDate])
+
+  if (!cov || cov.unit_total <= 0) return null
+  const pct = (n: number) => Math.max(0, Math.min(100, (n / cov.unit_total) * 100))
+  const settledPct = pct(cov.paid)
+  const flightPct = pct(cov.processing)
+  const pendingPct = pct(cov.pending)
+  const monthLabel = new Date(dueDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'long' })
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <h2 className="text-sm font-semibold text-ink">{monthLabel} — your household</h2>
+        <span className="text-xs text-mute">{formatUsdCents(cov.unit_total)} total</span>
+      </div>
+      <p className="text-xs text-mute mb-3 leading-relaxed">
+        Everyone on the lease is responsible for the full amount, so here's where the whole unit stands.
+      </p>
+
+      <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden flex">
+        <div className="bg-brand-500 h-full" style={{ width: `${settledPct}%` }} />
+        <div className="bg-amber-400 h-full" style={{ width: `${flightPct}%` }} />
+        <div className="bg-gray-300 h-full" style={{ width: `${pendingPct}%` }} />
+      </div>
+
+      <div className="mt-3 space-y-1.5 text-xs">
+        <Row label="Paid" amount={cov.paid} dot="bg-brand-500" pct={settledPct} />
+        {cov.processing > 0 && <Row label="Clearing now" amount={cov.processing} dot="bg-amber-400" pct={flightPct} />}
+        {cov.pending > 0 && <Row label="Scheduled" amount={cov.pending} dot="bg-gray-300" pct={pendingPct} />}
+        {Math.abs(cov.unassigned) >= 0.01 && (
+          <div className={`flex items-center justify-between pt-1.5 mt-1.5 border-t border-gray-100 font-medium ${cov.unassigned > 0 ? 'text-amber-800' : 'text-mute'}`}>
+            <span>{cov.unassigned > 0 ? 'Not yet accounted for' : 'Over the total'}</span>
+            <span>{formatUsdCents(Math.abs(cov.unassigned))}</span>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function Row({ label, amount, dot, pct }: { label: string; amount: number; dot: string; pct: number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="inline-flex items-center gap-1.5 text-mute">
+        <span className={`w-2 h-2 rounded-full ${dot}`} />
+        {label}
+      </span>
+      <span className="text-ink">
+        {formatUsdCents(amount)} <span className="text-mute">· {Math.round(pct)}%</span>
+      </span>
+    </div>
+  )
+}
+
 // ── "My monthly amount" — self-serve leases only ────────────────────────────
 // The landlord sets the unit's total; roommates divide it between themselves.
 // Saving re-prices only THIS tenant's unpaid future rent rows (set_my_rent_share
@@ -37,15 +114,6 @@ function MyShareEditor({ leaseId, currentAmount, isGhost }: { leaseId: string; c
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState(currentAmount ? String(currentAmount) : '')
   const [saving, setSaving] = useState(false)
-  const [coverage, setCoverage] = useState<{ unit_total: number; allocated: number; shortfall: number } | null>(null)
-
-  const loadCoverage = async () => {
-    const due = new Date(); due.setDate(1)
-    const iso = due.toISOString().slice(0, 10)
-    const { data } = await supabase.rpc('lease_month_coverage', { p_lease_id: leaseId, p_due_date: iso })
-    const row = Array.isArray(data) ? data[0] : data
-    if (row) setCoverage({ unit_total: Number(row.unit_total), allocated: Number(row.allocated), shortfall: Number(row.shortfall) })
-  }
 
   const save = async () => {
     const amount = value.trim() === '' ? null : Number(value)
@@ -69,7 +137,7 @@ function MyShareEditor({ leaseId, currentAmount, isGhost }: { leaseId: string; c
     return (
       <button
         type="button"
-        onClick={() => { setOpen(true); void loadCoverage() }}
+        onClick={() => setOpen(true)}
         className={`mt-3 text-xs font-medium underline underline-offset-2 ${isGhost ? 'text-brand-700' : 'text-white/90'}`}
       >
         Change my monthly amount
@@ -84,12 +152,6 @@ function MyShareEditor({ leaseId, currentAmount, isGhost }: { leaseId: string; c
         Your house splits the rent between yourselves. Set what you pay each month —
         this only changes your amount, not your roommates'.
       </p>
-      {coverage && (
-        <p className={`text-[11px] mt-1.5 ${coverage.shortfall > 0 ? 'text-amber-800' : 'text-mute'}`}>
-          This month your house covers {formatUsdCents(coverage.allocated)} of {formatUsdCents(coverage.unit_total)}
-          {coverage.shortfall > 0 && ` — ${formatUsdCents(coverage.shortfall)} still unassigned.`}
-        </p>
-      )}
       <div className="flex items-center gap-2 mt-2">
         <input
           type="number" inputMode="decimal" min="0" step="0.01"
@@ -686,6 +748,11 @@ export default function TenantPayRent() {
           }}
           onMethodChange={(has) => setMethodLocal(has)}
         />
+      )}
+
+      {/* Household progress — only meaningful on a shared lease. */}
+      {lease && nextPayment?.due_date && (
+        <HouseProgress leaseId={lease.id} dueDate={nextPayment.due_date} />
       )}
 
       {/* Payment history */}

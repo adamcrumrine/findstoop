@@ -9,6 +9,7 @@ import type { LeaseStatus } from '@findstoop/shared/types/lease'
 import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
 import { leaseTermPhase } from '../../lib/leaseTermState'
+import { parseLocalDay } from '@findstoop/shared/lib/paymentRails'
 import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -58,9 +59,11 @@ interface LeaseCardProps {
 
 function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId }: LeaseCardProps) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
-  const startDate = new Date(lease.start_date); startDate.setHours(0, 0, 0, 0)
-  const daysLeft = Math.ceil((new Date(lease.end_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  const daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  // parseLocalDay, not new Date(str) — DATE columns parse as UTC midnight,
+  // which is the previous evening in the US, so every countdown was a day out.
+  const startDate = parseLocalDay(lease.start_date)
+  const daysLeft = Math.round((parseLocalDay(lease.end_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const daysUntilStart = Math.round((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
   // Derived display states:
   //   isUpcoming:     status is 'upcoming' (signed lease, hasn't started yet)
   //   isMonthToMonth: active lease whose original term has lapsed
@@ -76,7 +79,7 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
   const isMonthToMonth = termPhase === 'month_to_month'
   const isTermEnded    = termPhase === 'term_ended'
   const moveOutDate    = lease.tentative_move_out_date
-    ? (() => { const d = new Date(lease.tentative_move_out_date); d.setHours(0, 0, 0, 0); return d })()
+    ? parseLocalDay(lease.tentative_move_out_date)
     : null
   const daysUntilMoveOut = moveOutDate
     ? Math.ceil((moveOutDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))

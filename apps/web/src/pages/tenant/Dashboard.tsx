@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantDashboard } from '@findstoop/shared/hooks/useTenantDashboard'
 import { formatUsd, formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
+import { parseLocalDay } from '@findstoop/shared/lib/paymentRails'
 import { supabase } from '../../lib/supabase'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
@@ -34,9 +35,14 @@ function tenantStatus(p: Payment, paymentMethodSetup: boolean, autopayOn: boolea
   const anchor = (p as Payment & { scheduled_for?: string | null }).scheduled_for ?? p.due_date
   if (anchor) {
     const today = new Date(); today.setHours(0,0,0,0)
-    const due = new Date(anchor); due.setHours(0,0,0,0)
+    // parseLocalDay, not new Date(str) — a DATE column parses as UTC midnight,
+    // which is the previous evening in the US, so rent due TODAY read as past due.
+    const due = parseLocalDay(anchor)
     if (due.getTime() < today.getTime()) {
       return { label: 'Past due', cls: 'text-red-700 bg-red-50 border-red-200' }
+    }
+    if (due.getTime() === today.getTime()) {
+      return { label: 'Due today', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
     }
   }
   // Autopay is going to pull this automatically — call it "Scheduled" with

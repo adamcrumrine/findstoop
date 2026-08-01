@@ -16,7 +16,24 @@ import type { Payment } from '../types/payment'
 //   • status = 'pending' otherwise → Upcoming (gray)
 export interface RowStatus { label: string; cls: string }
 
-export function rowStatus(p: Payment): RowStatus {
+/**
+ * Parse a payment date as LOCAL midnight.
+ *
+ * DATE columns arrive as '2026-08-01'. `new Date()` reads that as UTC
+ * midnight, which is the previous evening anywhere west of Greenwich — so in
+ * Ohio the common `new Date(str); d.setHours(0,0,0,0)` pattern lands on
+ * Jul 31 and rent due TODAY reads as "Past due". Build from the parts
+ * instead. Falls through to Date parsing for full timestamps.
+ */
+export function parseLocalDay(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  const d = new Date(value)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export function rowStatus(p: Payment, today: Date = new Date()): RowStatus {
   if (p.status === 'completed')  return { label: 'Paid',       cls: 'text-brand-700 bg-brand-50 border-brand-200' }
   if (p.status === 'processing') return { label: 'Processing', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
   if (p.status === 'failed')     return { label: 'Failed',     cls: 'text-red-700 bg-red-50 border-red-200' }
@@ -25,10 +42,15 @@ export function rowStatus(p: Payment): RowStatus {
   const scheduledFor = (p as Payment & { scheduled_for?: string | null }).scheduled_for
   const anchor = scheduledFor ?? p.due_date
   if (anchor) {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const due = new Date(anchor); due.setHours(0, 0, 0, 0)
-    if (due.getTime() < today.getTime()) {
+    const t = new Date(today); t.setHours(0, 0, 0, 0)
+    const due = parseLocalDay(anchor)
+    if (due.getTime() < t.getTime()) {
       return { label: 'Past due', cls: 'text-red-700 bg-red-50 border-red-200' }
+    }
+    // Due today is its own state — calling it "Upcoming" undersells it, and
+    // calling it "Past due" (the old off-by-one) was simply wrong.
+    if (due.getTime() === t.getTime()) {
+      return { label: 'Due today', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
     }
   }
   return scheduledFor
@@ -48,19 +70,9 @@ function isSettled(p: Payment): boolean {
   return p.status === 'completed' || p.status === 'refunded'
 }
 
-/**
- * Parse a payment anchor as a local date.
- *
- * Anchors are a mix of DATE columns ('2026-08-01') and timestamps. A bare
- * date string is parsed by `new Date()` as UTC midnight, which is the
- * PREVIOUS day in any negative UTC offset — so comparing it against a local
- * "today" silently shifts payments a day. Build bare dates from their parts.
- */
+/** Anchor as a local-midnight timestamp — see parseLocalDay. */
 function anchorTime(p: Payment): number {
-  const raw = paymentAnchor(p)
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime()
-  return new Date(raw).getTime()
+  return parseLocalDay(paymentAnchor(p)).getTime()
 }
 
 /**

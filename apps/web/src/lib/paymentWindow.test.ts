@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { upcomingPaymentWindow, ledgerOrder } from '@findstoop/shared/lib/paymentRails'
+import { upcomingPaymentWindow, ledgerOrder, rowStatus, parseLocalDay } from '@findstoop/shared/lib/paymentRails'
 import type { Payment } from '@findstoop/shared/types/payment'
 
 // Minimal Payment factory — only the fields paymentAnchor/status read.
@@ -86,6 +86,36 @@ describe('upcomingPaymentWindow', () => {
 
   it('empty input is safe', () => {
     expect(upcomingPaymentWindow([], 5)).toEqual([])
+  })
+})
+
+describe('rowStatus date handling', () => {
+  const AUG1 = new Date(2026, 7, 1) // local Aug 1
+
+  // The regression: '2026-08-01' parsed as UTC midnight is Jul 31 evening in
+  // any US timezone, so rent due TODAY was labelled "Past due".
+  it('rent due today is not past due', () => {
+    expect(rowStatus(pay('2026-08-01', 'pending'), AUG1).label).toBe('Due today')
+  })
+
+  it('yesterday is past due', () => {
+    expect(rowStatus(pay('2026-07-31', 'pending'), AUG1).label).toBe('Past due')
+  })
+
+  it('tomorrow is upcoming', () => {
+    expect(rowStatus(pay('2026-08-02', 'pending'), AUG1).label).toBe('Upcoming')
+  })
+
+  it('parseLocalDay keeps the calendar day regardless of UTC offset', () => {
+    const d = parseLocalDay('2026-08-01')
+    expect(d.getFullYear()).toBe(2026)
+    expect(d.getMonth()).toBe(7) // August
+    expect(d.getDate()).toBe(1)
+  })
+
+  it('settled statuses ignore dates entirely', () => {
+    expect(rowStatus(pay('2026-07-01', 'completed', '2026-07-01'), AUG1).label).toBe('Paid')
+    expect(rowStatus(pay('2026-07-01', 'refunded'), AUG1).label).toBe('Refunded')
   })
 })
 

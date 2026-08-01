@@ -20,6 +20,10 @@ export interface Profile {
   payment_complimentary?: boolean
   payment_method_setup_at?: string | null
   autopay_enabled?: boolean
+  /** TRUE when the account was reached via an emailed invite/magic link and
+   *  no password has been chosen yet — the app forces /set-password until
+   *  it's cleared. See migration 20260801000003. */
+  must_set_password?: boolean
   // Tenant-bio fields — tenant self-fills from Settings; manager sees on tenant detail.
   date_of_birth?: string | null
   employer?: string | null

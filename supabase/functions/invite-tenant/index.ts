@@ -114,7 +114,10 @@ Deno.serve(async (req) => {
       type: existingProfile ? 'magiclink' : 'invite',
       email: cleanEmail,
       options: {
-        redirectTo: `${APP_URL}/login`,
+        // Land on the password step rather than the portal. Already-delivered
+        // invites still point at /login, but ProtectedRoute enforces the same
+        // step off profiles.must_set_password, so both routes converge.
+        redirectTo: `${APP_URL}/set-password`,
         data: { role: 'tenant', full_name: callerFullName ?? '' },
       },
     })
@@ -144,14 +147,17 @@ Deno.serve(async (req) => {
     // onto profiles. generateLink creates the auth.users row + a profiles
     // row via the on-signup trigger, but the trigger doesn't see our
     // caller-supplied phone. Write it explicitly.
-    if (newTenantId && (phone || callerFullName)) {
+    if (newTenantId) {
       const cleanPhone = phone ? String(phone).replace(/\D/g, '') : null
-      const profilePatch: Record<string, unknown> = {}
+      const profilePatch: Record<string, unknown> = {
+        // Every link this function issues is a bearer token, so the recipient
+        // must set a real password before the portal opens. ProtectedRoute
+        // enforces it. Cleared by the /set-password screen.
+        must_set_password: true,
+      }
       if (cleanPhone) profilePatch.phone = cleanPhone
       if (callerFullName) profilePatch.full_name = callerFullName
-      if (Object.keys(profilePatch).length > 0) {
-        await admin.from('profiles').update(profilePatch).eq('id', newTenantId)
-      }
+      await admin.from('profiles').update(profilePatch).eq('id', newTenantId)
     }
 
     // ── Send branded invite email via Resend ──────────────────────────
@@ -221,20 +227,41 @@ Deno.serve(async (req) => {
       })
     }
 
+    // SECURITY: this email contains a sign-in link, which is a BEARER token —
+    // opening it signs you in AS THE TENANT. So it goes to the tenant and
+    // nobody else. It previously BCC'd (later CC'd) the landlord "for a
+    // copy", which handed them a working login to their tenant's account and
+    // burned the tenant's single-use link if they clicked it. The landlord
+    // gets a separate confirmation below with no link in it.
     const { data: emailData, error: emailErr } = await resend.emails.send({
       from: emailFrom(company, RESEND_FROM),
       to: cleanEmail,
-      // The owning landlord is CC'd (not BCC'd) on purpose: the tenant can
-      // see their landlord is on the thread, which makes an unexpected
-      // "set up your account" email read as legitimate rather than phishing,
-      // and lets them just hit reply-all with questions.
-      cc: callerProfile.email ?? undefined,
       subject,
       html,
       replyTo: callerProfile.email ?? undefined,
     })
     if (emailErr) {
       return json({ error: `Email failed to send: ${emailErr.message}` }, { status: 500 })
+    }
+
+    // Landlord's own copy — confirmation only, deliberately link-free.
+    if (callerProfile.email) {
+      try {
+        await resend.emails.send({
+          from: emailFrom(company, RESEND_FROM),
+          to: callerProfile.email,
+          subject: `Sign-in link sent to ${callerFullName || cleanEmail}`,
+          html: `
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
+              ${emailHeaderHtml(company, callerProfile.company_logo_url, callerProfile.brand_color)}
+              <p>We emailed <strong>${escapeHtml(callerFullName || cleanEmail)}</strong> (${escapeHtml(cleanEmail)}) a link to ${isResend ? 'sign in to' : 'set up'} their renter account.</p>
+              <p>They'll be asked to choose a password on first use, so only they can get in from then on.</p>
+              <p style="color:#8E8E93;font-size:13px">This confirmation intentionally doesn't include their sign-in link — that link signs in whoever opens it, so it goes to them alone. If they don't receive it, resend from the Tenants page.</p>
+              ${company ? emailFooterHtml(company) : ''}
+            </div>
+          `,
+        })
+      } catch { /* fail-soft — the tenant's invite already went out */ }
     }
 
     return json({

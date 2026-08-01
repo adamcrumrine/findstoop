@@ -52,6 +52,7 @@ const NotFound              = lazy(() => import('./pages/marketing/NotFound'))
 // Auth
 const Welcome        = lazy(() => import('./pages/auth/Welcome'))
 const Login          = lazy(() => import('./pages/auth/Login'))
+const SetPassword    = lazy(() => import('./pages/auth/SetPassword'))
 const Register       = lazy(() => import('./pages/auth/Register'))
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'))
 const Verify         = lazy(() => import('./pages/auth/Verify'))
@@ -216,6 +217,7 @@ export default function App() {
 
           {/* Auth */}
           <Route path="/welcome"         element={<Welcome />} />
+          <Route path="/set-password"    element={<SetPassword />} />
           <Route path="/login"           element={<Login role="manager" />} />
           <Route path="/login/renter"    element={<Login role="tenant" />} />
           <Route path="/register"        element={<Register role="manager" />} />

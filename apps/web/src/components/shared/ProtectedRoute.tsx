@@ -17,6 +17,16 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     return <Navigate to={loginPathForRole(requiredRole)} replace />
   }
 
+  // Arrived via an emailed invite/magic link and hasn't chosen a password.
+  // That link is a bearer token — anyone holding a copy of the email is
+  // signed in as them — so get a real credential on the account before
+  // opening the portal. Enforced here rather than at the landing route so it
+  // catches every entry point, including invite emails already delivered
+  // with an older redirect target baked in.
+  if (profile?.must_set_password) {
+    return <Navigate to="/set-password" replace />
+  }
+
   // Admin-required routes — only the admin role passes.
   if (requiredRole === 'admin') {
     if (profile?.role !== 'admin') {

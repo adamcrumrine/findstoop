@@ -37,3 +37,27 @@ export function blockedStateName(stateCode: string): string {
 
 /** Comma-joined list of blocked-state names, for display copy. */
 export const BLOCKED_STATES_DISPLAY = BLOCKED_STATES.map((s) => BLOCKED_NAMES[s]).join(', ')
+
+/**
+ * Should the signup geo gate fire?
+ *
+ * ONLY for landlords. The pause exists because operating as a rental platform
+ * in these states carries compliance work we haven't finished — screening
+ * criteria, broker rules, biometric law. All of that attaches to the LANDLORD
+ * and to where the PROPERTY sits, never to where a renter happens to be.
+ *
+ * A renter joining an Ohio lease creates no exposure in California, so
+ * blocking them is both wrong and hostile: they can't pay their rent, and
+ * they get told a state they may not even live in. IP geolocation is
+ * approximate — carrier and VPN routing regularly place people hundreds of
+ * miles away — so this must never gate anyone who isn't creating a landlord
+ * account. Property creation is separately validated against the property's
+ * real address, which is the check that actually matters.
+ */
+export function shouldGeoBlockSignup(
+  role: 'manager' | 'tenant',
+  geo: { detected: boolean; country: string | null; state: string | null },
+): boolean {
+  if (role !== 'manager') return false
+  return geo.detected && geo.country === 'US' && isBlockedState(geo.state)
+}

@@ -3,7 +3,7 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
 import { useGeoState } from '../../lib/useGeoState'
-import { isBlockedState, blockedStateName, BLOCKED_STATES_DISPLAY } from '../../lib/blockedStates'
+import { blockedStateName, BLOCKED_STATES_DISPLAY, shouldGeoBlockSignup } from '../../lib/blockedStates'
 import { trackAuth } from '../../lib/analytics'
 import { defaultPathForRole } from '../../lib/roleRouting'
 import { checkPasswordStrength, hibpCheckPassword } from '../../lib/passwordSecurity'
@@ -61,10 +61,11 @@ export default function Register({ role }: Props) {
     return <LoadingSpinner message="Signing you in…" />
   }
 
-  // Best-effort geo block — show a friendly "not yet available" page if the
-  // visitor's IP-detected state is currently paused. VPNs can bypass; the
-  // server-side property-creation block is the real safety net.
-  if (geo.detected && geo.country === 'US' && isBlockedState(geo.state)) {
+  // Best-effort geo block for LANDLORD signup only. This previously ran for
+  // every role, which locked renters out of their own portal based on an
+  // IP guess — a New Jersey tenant on an Ohio lease was shown "not open in
+  // California" and couldn't pay rent. See shouldGeoBlockSignup.
+  if (shouldGeoBlockSignup(role, geo)) {
     return <GeoBlockedPage state={geo.state ?? ''} />
   }
 

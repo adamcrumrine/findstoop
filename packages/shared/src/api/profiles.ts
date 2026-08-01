@@ -30,15 +30,37 @@ export async function getProfileByEmail(email: string): Promise<Profile | null> 
 }
 
 export interface InviteTenantResult {
-  /** True when the email already maps to an existing FindStoop user — no invite email was sent. */
+  /** True when the email already maps to an existing user — no invite email was sent. */
   alreadyExists: boolean
   /** Display name when known (existing profile's full_name, or the email when not). */
   name?: string
   /** Existing tenant's profile id when alreadyExists is true — useful for jumping straight to lease creation. */
   tenantId?: string
+  /** True when this was a re-send to a tenant who already had an account. */
+  resent?: boolean
 }
 
-export async function inviteTenant(email: string, fullName: string, applyUnitId?: string): Promise<InviteTenantResult> {
+export interface InviteTenantOptions {
+  applyUnitId?: string
+  /**
+   * Re-send to a tenant who already has an account but never signed in (or
+   * whose original invite link expired). Without this the edge function
+   * deliberately bails with alreadyExists and sends nothing.
+   */
+  resend?: boolean
+  /**
+   * Prior platform name, e.g. "Avail". Switches the email copy from "your
+   * landlord added you" to "your landlord moved platforms — your lease came
+   * with them", and adds a "what stays the same" reassurance block.
+   */
+  migrationFrom?: string
+}
+
+export async function inviteTenant(
+  email: string,
+  fullName: string,
+  options?: string | InviteTenantOptions,
+): Promise<InviteTenantResult> {
   // Calls the invite-tenant edge function (manager JWT verified there).
   // The function admin-creates the auth user, generates a magic invite link,
   // and sends a branded email via Resend. If applyUnitId is provided, the
@@ -46,9 +68,20 @@ export async function inviteTenant(email: string, fullName: string, applyUnitId?
   //
   // If the email is already in the system, the function returns
   // { alreadyExists: true } with a 200 — the caller should show a friendly
-  // toast rather than a generic "user already registered" error.
+  // toast rather than a generic "user already registered" error. Pass
+  // { resend: true } to override that and re-issue the sign-in link.
+  //
+  // The legacy third positional arg was applyUnitId; still accepted as a
+  // string so existing call sites keep working.
+  const opts: InviteTenantOptions = typeof options === 'string' ? { applyUnitId: options } : (options ?? {})
   const { data, error } = await supabase.functions.invoke('invite-tenant', {
-    body: { email, fullName, applyUnitId },
+    body: {
+      email,
+      fullName,
+      applyUnitId: opts.applyUnitId,
+      resend: opts.resend,
+      migrationFrom: opts.migrationFrom,
+    },
   })
   if (error) throw new Error(error.message)
   if (data?.error) throw new Error(data.error)
@@ -56,5 +89,6 @@ export async function inviteTenant(email: string, fullName: string, applyUnitId?
     alreadyExists: Boolean(data?.alreadyExists),
     name: data?.name,
     tenantId: data?.tenantId,
+    resent: Boolean(data?.resent),
   }
 }

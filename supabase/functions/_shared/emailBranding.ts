@@ -43,30 +43,36 @@ export function companyDisplayName(companyName: string | null | undefined): stri
   return cleaned.length > 0 ? cleaned : null
 }
 
+// The product/company name is "Stoop" — findstoop.com is only the domain.
+// Edge functions can't import apps/web/src/lib/brand.ts (BRAND.name), so the
+// name is declared here once and reused by every email helper below.
+export const PLATFORM_NAME = 'Stoop'
+
 /**
  * From header for Resend. With a company name:
- *   "Hawk Investments via FindStoop" <noreply@findstoop.com>
+ *   "Hawk Investments via Stoop" <noreply@findstoop.com>
  * (quoted, so legal-entity punctuation like "Hawk Investments, LLC" can't
  * break the header). Without one, exactly today's presentation:
- *   FindStoop <noreply@findstoop.com>
+ *   Stoop <noreply@findstoop.com>
  */
 export function emailFrom(companyName: string | null | undefined, fromAddress: string): string {
   const name = companyDisplayName(companyName)
-  if (!name) return `FindStoop <${fromAddress}>`
-  return `"${name} via FindStoop" <${fromAddress}>`
+  if (!name) return `${PLATFORM_NAME} <${fromAddress}>`
+  return `"${name} via ${PLATFORM_NAME}" <${fromAddress}>`
 }
 
 /**
  * Muted attribution footer:
- *   Sent by Hawk Investments via FindStoop
- * (or just "Sent via FindStoop" when no company). Keeps the platform brand
+ *   Sent by Hawk Investments via Stoop
+ * (or just "Sent via Stoop" when no company). Keeps the platform brand
  * visible on white-labeled emails.
  */
 export function emailFooterHtml(companyName?: string | null): string {
   const name = companyDisplayName(companyName)
+  const link = `<a href="https://findstoop.com" style="color:#00A896;text-decoration:none">${PLATFORM_NAME}</a>`
   const line = name
-    ? `Sent by ${escapeHtml(name)} via <a href="https://findstoop.com" style="color:#00A896;text-decoration:none">FindStoop</a>`
-    : `Sent via <a href="https://findstoop.com" style="color:#00A896;text-decoration:none">FindStoop</a>`
+    ? `Sent by ${escapeHtml(name)} via ${link}`
+    : `Sent via ${link}`
   return `<p style="margin-top:24px;color:#8E8E93;font-size:12px;line-height:1.5;text-align:center">${line}</p>`
 }
 
@@ -93,7 +99,7 @@ export function emailHeaderHtml(
   const name = companyDisplayName(companyName)
   const accent = brandAccent(brandColor)
   const mark = !name
-    ? `<span style="font-size:24px;font-weight:700;color:${DEFAULT_ACCENT};letter-spacing:-0.02em">FindStoop</span>`
+    ? `<span style="font-size:24px;font-weight:700;color:${DEFAULT_ACCENT};letter-spacing:-0.02em">${PLATFORM_NAME}</span>`
     : companyLogoUrl && /^https:\/\/\S+$/.test(companyLogoUrl)
       ? `<img src="${escapeHtml(companyLogoUrl)}" alt="${escapeHtml(name)}" style="max-height:40px;max-width:220px" />`
       : `<span style="font-size:24px;font-weight:700;color:${accent};letter-spacing:-0.02em">${escapeHtml(name)}</span>`

@@ -137,6 +137,13 @@ export default function ManagerTenants() {
   const [inviteForm, setInviteForm] = useState<InviteFormData>({ email: '', fullName: '', applyUnitId: '' })
   const [inviteErrors, setInviteErrors] = useState<Partial<InviteFormData>>({})
   const [inviting, setInviting] = useState(false)
+  // Bulk re-send of sign-in links. Needed whenever tenants were created by an
+  // import (or an invite that expired) and never claimed their account —
+  // there was previously no way to re-issue a link at all.
+  const [resendOpen, setResendOpen] = useState(false)
+  const [resendIds, setResendIds] = useState<Set<string>>(new Set())
+  const [resendFrom, setResendFrom] = useState('')
+  const [resending, setResending] = useState(false)
   // Filter state: property dropdown + lease-status dropdown + free-text
   // search across name/email/phone.
   const [filterPropertyId, setFilterPropertyId] = useState<'all' | string>('all')
@@ -218,6 +225,34 @@ export default function ManagerTenants() {
     }
   }
 
+  // Re-issue sign-in links to the selected tenants. Each call is independent
+  // and fail-soft: one bad address must not abort the rest of the batch.
+  const handleResend = async () => {
+    const targets = filteredTenants.filter((t) => resendIds.has(t.id) && t.email)
+    if (targets.length === 0) return
+    setResending(true)
+    let sent = 0
+    const failed: string[] = []
+    for (const t of targets) {
+      try {
+        await inviteTenant(t.email!, t.full_name ?? '', {
+          resend: true,
+          migrationFrom: resendFrom.trim() || undefined,
+        })
+        sent++
+      } catch {
+        failed.push(t.email!)
+      }
+    }
+    setResending(false)
+    if (sent > 0) toast.success(`Sign-in link sent to ${sent} tenant${sent !== 1 ? 's' : ''}`)
+    if (failed.length > 0) toast.error(`Failed for: ${failed.join(', ')}`)
+    if (failed.length === 0) {
+      setResendOpen(false)
+      setResendIds(new Set())
+    }
+  }
+
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-3">
@@ -229,12 +264,22 @@ export default function ManagerTenants() {
               : `${filteredTenants.length} of ${tenants.length} tenant${tenants.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <button
-          onClick={() => setInviteOpen(true)}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors shrink-0"
-        >
-          + Invite Tenant
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {filteredTenants.length > 0 && (
+            <button
+              onClick={() => { setResendIds(new Set(filteredTenants.map((t) => t.id))); setResendOpen(true) }}
+              className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              Resend links
+            </button>
+          )}
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors"
+          >
+            + Invite Tenant
+          </button>
+        </div>
       </div>
 
       {/* Filters — property dropdown + name/email search. Hide when the
@@ -387,6 +432,61 @@ export default function ManagerTenants() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={resendOpen} onClose={() => setResendOpen(false)} title="Resend sign-in links">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Sends each selected tenant a fresh link to claim their account. Safe to
+            re-send — it replaces any earlier link. You're CC'd on every email.
+          </p>
+          <FormField label="Moving from another platform? (optional)">
+            <input
+              className={inputClass}
+              value={resendFrom}
+              onChange={(e) => setResendFrom(e.target.value)}
+              placeholder="Avail"
+            />
+            <p className="text-xs text-mute mt-1.5">
+              Name the platform you're leaving and the email explains the move —
+              "your lease came with them, terms carry over unchanged" — instead of
+              reading like a cold invite.
+            </p>
+          </FormField>
+          <div className="border border-gray-200 rounded-lg divide-y max-h-64 overflow-y-auto">
+            {filteredTenants.filter((t) => t.email).map((t) => (
+              <label key={t.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={resendIds.has(t.id)}
+                  onChange={(e) => setResendIds((prev) => {
+                    const next = new Set(prev)
+                    if (e.target.checked) next.add(t.id); else next.delete(t.id)
+                    return next
+                  })}
+                  className="w-4 h-4 accent-brand-600"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-gray-900 truncate">{t.full_name ?? t.email}</span>
+                  <span className="block text-xs text-gray-500 truncate">{t.email}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setResendOpen(false)} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending || resendIds.size === 0}
+              className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors"
+            >
+              {resending ? 'Sending…' : `Send to ${resendIds.size}`}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

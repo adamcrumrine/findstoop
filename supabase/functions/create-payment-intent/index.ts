@@ -21,6 +21,29 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 
 const CARD_SURCHARGE_PCT = 3.5
 
+/**
+ * Build a bank-statement descriptor the tenant will actually recognise.
+ *
+ * Without one, Stripe falls back to the PLATFORM account's name — so rent
+ * showed up as a company the tenant has no relationship with. That is the
+ * usual trigger for ACH returns ($4) and card disputes ($15), and it is
+ * alarming to see a stranger pulling rent from your account.
+ *
+ * Stripe rules: max 22 chars, at least one letter, and < > \ " ' are
+ * forbidden. Uppercased because that's how banks render it anyway.
+ */
+function statementDescriptor(companyName?: string | null, managerName?: string | null): string {
+  const raw = (companyName || managerName || 'Stoop Rent').trim()
+  const cleaned = raw
+    .replace(/[<>\\"']/g, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
+    .slice(0, 22)
+    .trim()
+  // Must contain a letter; fall back rather than send something Stripe rejects.
+  return /[A-Z]/.test(cleaned) ? cleaned : 'STOOP RENT'
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -90,6 +113,7 @@ Deno.serve(async (req) => {
     const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows
     const connectAccountId: string | null = ctx?.connect_account_id ?? null
     const connectReady: boolean = !!ctx?.charges_enabled
+    const descriptor = statementDescriptor(ctx?.company_name, ctx?.manager_name)
 
     // Calculate the actual charge based on method
     const rentCents = Math.round(amount * 100)
@@ -114,6 +138,8 @@ Deno.serve(async (req) => {
       transfer_data?: { destination: string }
       on_behalf_of?: string
       application_fee_amount?: number
+      statement_descriptor?: string
+      statement_descriptor_suffix?: string
     }
     const params: PIParams = {
       amount: totalCents,
@@ -139,6 +165,15 @@ Deno.serve(async (req) => {
         platform: 'findstoop',
         connectMode: connectReady && connectAccountId ? 'destination' : 'platform',
       },
+    }
+    // ACH takes a full descriptor; cards take a suffix appended to the
+    // account-level prefix (which is set in the Stripe dashboard, so a
+    // platform-branded prefix still shows on cards until Connect's
+    // on_behalf_of makes the landlord the settlement merchant).
+    if (paymentMethod === 'us_bank_account') {
+      params.statement_descriptor = descriptor
+    } else {
+      params.statement_descriptor_suffix = descriptor.slice(0, 22)
     }
     if (connectReady && connectAccountId) {
       params.transfer_data = { destination: connectAccountId }

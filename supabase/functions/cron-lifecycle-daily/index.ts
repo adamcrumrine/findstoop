@@ -816,6 +816,14 @@ Deno.serve(async (req) => {
         const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows
         const connectAccountId: string | null = ctx?.connect_account_id ?? null
         const connectReady: boolean = !!ctx?.charges_enabled
+        // Without this Stripe falls back to the PLATFORM account name on the
+        // tenant's bank statement — an unrecognised name is the usual cause of
+        // ACH returns and disputes. Max 22 chars, no < > \ " ' per Stripe.
+        const descriptor = (() => {
+          const raw = String(ctx?.company_name || ctx?.manager_name || 'Stoop Rent').trim()
+          const cleaned = raw.replace(/[<>\\"']/g, '').replace(/\s+/g, ' ').toUpperCase().slice(0, 22).trim()
+          return /[A-Z]/.test(cleaned) ? cleaned : 'STOOP RENT'
+        })()
 
         const params: Stripe.PaymentIntentCreateParams = {
           amount: rentCents + surchargeCents,
@@ -828,6 +836,9 @@ Deno.serve(async (req) => {
           off_session: true,
           confirm: true,
           description: isCard ? 'Rent + 3.5% card processing fee (autopay)' : 'Rent payment via ACH (autopay)',
+          ...(isCard
+            ? { statement_descriptor_suffix: descriptor }
+            : { statement_descriptor: descriptor }),
           metadata: {
             findstoop_payment_id: row.id,
             findstoop_lease_id: row.lease_id,

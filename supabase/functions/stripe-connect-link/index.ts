@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await admin
       .from('profiles')
-      .select('id, email, full_name, role, stripe_connect_account_id, stripe_connect_charges_enabled')
+      .select('id, email, full_name, company_name, role, stripe_connect_account_id, stripe_connect_charges_enabled')
       .eq('id', user.id)
       .single()
     if (!profile) return json({ error: 'Profile not found' }, { status: 404 })
@@ -57,10 +57,24 @@ Deno.serve(async (req) => {
     // Ensure a Connect Express account exists for this landlord.
     let accountId: string | null = profile.stripe_connect_account_id
     if (!accountId) {
+      // Landlords holding property in an LLC are common, and this was
+      // hardcoded to 'individual' — which starts KYC down the wrong path and
+      // asks for an SSN where an EIN belongs. Infer from whether they've told
+      // us a company name; Stripe still lets them correct it in onboarding.
+      const isCompany = !!(profile.company_name && profile.company_name.trim())
       const account = await stripe.accounts.create({
         type: 'express',
         email: profile.email ?? user.email ?? undefined,
-        business_type: 'individual',
+        business_type: isCompany ? 'company' : 'individual',
+        ...(isCompany
+          ? { company: { name: profile.company_name!.trim() } }
+          : {}),
+        business_profile: {
+          // Shows on the tenant's statement once this account is the
+          // settlement merchant, and pre-fills the onboarding form.
+          name: (profile.company_name || profile.full_name || undefined) ?? undefined,
+          product_description: 'Residential rent collection',
+        },
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },

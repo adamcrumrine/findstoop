@@ -64,6 +64,165 @@ interface AddPaymentFormData {
   memo: string
 }
 
+// ── Bill back a third-party utility ─────────────────────────────────────────
+// The landlord pays the provider, then recovers it from the household. One
+// submit writes BOTH sides: a property_expenses row (their cost, Schedule E
+// line 17) and one evenly-split charge per primary tenant (income, line 3).
+// Recording only one side misstates the return, so bill_back_utility does
+// them together and links them.
+//
+// Utilities split evenly whatever the lease's rent split mode — they track
+// occupancy, not room size.
+function BillBackForm({ leases, leaseMap, onDone, onCancel }: {
+  leases: LeaseWithTenant[]
+  leaseMap: Record<string, LeaseWithTenant | undefined>
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [leaseId, setLeaseId] = useState('')
+  const [utilityType, setUtilityType] = useState<'water' | 'gas' | 'electric' | 'trash' | 'internet' | 'other'>('water')
+  const [provider, setProvider] = useState('')
+  const [amount, setAmount] = useState('')
+  const [periodStart, setPeriodStart] = useState('')
+  const [periodEnd, setPeriodEnd] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [recordExpense, setRecordExpense] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  // Default the due date to the next rent due date so tenants settle
+  // everything in one go and it lands in the same month's household total.
+  const nextRentDue = (() => {
+    const lease = leaseMap[leaseId] as (LeaseWithTenant & { payment_due_day?: number | null }) | undefined
+    const day = Math.min(28, Math.max(1, Number(lease?.payment_due_day ?? 1)))
+    const d = new Date()
+    d.setDate(1)
+    if (new Date().getDate() >= day) d.setMonth(d.getMonth() + 1)
+    d.setDate(day)
+    return d.toISOString().slice(0, 10)
+  })()
+  const effectiveDue = dueDate || nextRentDue
+
+  const tenantCount = (() => {
+    const l = leaseMap[leaseId] as (LeaseWithTenant & { all_tenants?: unknown[] }) | undefined
+    return Math.max(1, l?.all_tenants?.length ?? 1)
+  })()
+  const perTenant = amount && Number(amount) > 0 ? Number(amount) / tenantCount : 0
+
+  const submit = async () => {
+    if (!leaseId) { toast.error('Pick a lease'); return }
+    if (!amount || Number(amount) <= 0) { toast.error('Enter the bill amount'); return }
+    if (!periodStart || !periodEnd) { toast.error('Enter the billing period'); return }
+    if (periodEnd < periodStart) { toast.error('The period ends before it starts'); return }
+    setBusy(true)
+    try {
+      const { data, error } = await supabase.rpc('bill_back_utility', {
+        p_lease_id: leaseId,
+        p_utility_type: utilityType,
+        p_amount: Number(amount),
+        p_period_start: periodStart,
+        p_period_end: periodEnd,
+        p_due_date: effectiveDue,
+        p_provider_name: provider.trim() || null,
+        p_note: null,
+        p_record_expense: recordExpense,
+      })
+      if (error) throw new Error(error.message)
+      const row = Array.isArray(data) ? data[0] : data
+      toast.success(`Billed back to ${row?.charges_created ?? 0} tenants${recordExpense ? ' — expense recorded too' : ''}`)
+      onDone()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not bill this back')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Enter the bill as it came from the provider. It's split evenly across the
+        tenants on the lease and added to their next payment.
+      </p>
+
+      <FormField label="Lease" required>
+        <select className={selectClass} value={leaseId} onChange={(e) => setLeaseId(e.target.value)}>
+          <option value="">Select a lease…</option>
+          {leases.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.unit?.unit_number ? `Unit ${l.unit.unit_number} — ` : ''}
+              {l.profile?.full_name ?? l.profile?.email ?? 'Lease'}
+            </option>
+          ))}
+        </select>
+      </FormField>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Utility" required>
+          <select className={selectClass} value={utilityType} onChange={(e) => setUtilityType(e.target.value as typeof utilityType)}>
+            <option value="water">Water</option>
+            <option value="gas">Gas</option>
+            <option value="electric">Electric</option>
+            <option value="trash">Trash</option>
+            <option value="internet">Internet</option>
+            <option value="other">Other</option>
+          </select>
+        </FormField>
+        <FormField label="Bill amount" required>
+          <input type="number" inputMode="decimal" min="0" step="0.01" className={inputClass}
+            value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="121.37" />
+        </FormField>
+      </div>
+
+      <FormField label="Provider (optional)">
+        <input className={inputClass} value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="Columbus Water" />
+      </FormField>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Period start" required>
+          <input type="date" className={inputClass} value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+        </FormField>
+        <FormField label="Period end" required>
+          <input type="date" className={inputClass} value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+        </FormField>
+      </div>
+
+      <FormField label="Tenants pay by">
+        <input type="date" className={inputClass} value={effectiveDue} onChange={(e) => setDueDate(e.target.value)} />
+        <p className="text-xs text-mute mt-1.5">Defaults to their next rent due date so it's paid alongside rent.</p>
+      </FormField>
+
+      <label className="flex items-start gap-2.5 cursor-pointer text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+        <input type="checkbox" className="mt-0.5" checked={recordExpense} onChange={(e) => setRecordExpense(e.target.checked)} />
+        <div>
+          <p className="font-medium text-ink">Also record what I paid as an expense</p>
+          <p className="text-[11px] text-mute mt-0.5 leading-relaxed">
+            Adds it under Utilities for Schedule E. A bill-back is two entries — the
+            bill you paid is an expense, what tenants repay is income — so leaving
+            this off means entering the bill somewhere else or your tax export is short.
+          </p>
+        </div>
+      </label>
+
+      {leaseId && Number(amount) > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-mute">
+          Splits to about <strong className="text-ink">{formatUsd(perTenant)}</strong> each
+          across {tenantCount} {tenantCount === 1 ? 'tenant' : 'tenants'}, due {new Date(effectiveDue + 'T00:00:00').toLocaleDateString()}.
+          Rounding goes to the first tenant so the charges total the bill exactly.
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-1">
+        <button type="button" onClick={onCancel} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+        <button type="button" onClick={submit} disabled={busy}
+          className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition-colors">
+          {busy ? 'Billing…' : 'Bill it back'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface AddPaymentFormProps {
   leases: LeaseWithTenant[]
   onSubmit: (data: AddPaymentFormData) => Promise<void>
@@ -333,6 +492,7 @@ export default function ManagerPayments() {
   const [filterPropertyId, setFilterPropertyId] = useState<string | 'all'>('all')
   const [filterLeaseStatus, setFilterLeaseStatus] = useState<'all' | 'active' | 'pending' | 'expired' | 'terminated'>('all')
   const [addOpen, setAddOpen] = useState(false)
+  const [billBackOpen, setBillBackOpen] = useState(false)
   const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null)
   const [creditTarget, setCreditTarget] = useState<Payment | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -608,6 +768,13 @@ export default function ManagerPayments() {
             Export CSV
           </button>
           <button
+            onClick={() => setBillBackOpen(true)}
+            disabled={leases.length === 0}
+            className="px-3 py-2 text-sm font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          >
+            Bill back a utility
+          </button>
+          <button
             onClick={() => setAddOpen(true)}
             disabled={leases.length === 0}
             className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
@@ -783,6 +950,15 @@ export default function ManagerPayments() {
           )}
         </>
       )}
+
+      <Modal open={billBackOpen} onClose={() => setBillBackOpen(false)} title="Bill back a utility">
+        <BillBackForm
+          leases={leases}
+          leaseMap={leaseMap}
+          onDone={() => { setBillBackOpen(false); void reload() }}
+          onCancel={() => setBillBackOpen(false)}
+        />
+      </Modal>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Record Payment">
         <AddPaymentForm

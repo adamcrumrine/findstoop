@@ -42,3 +42,31 @@ export function paymentAnchor(p: Payment): string {
   return (p as Payment & { scheduled_for?: string | null }).scheduled_for
     ?? p.paid_at ?? p.due_date ?? p.created_at
 }
+
+/** Settled = the money question is closed. Everything else still needs eyes. */
+function isSettled(p: Payment): boolean {
+  return p.status === 'completed' || p.status === 'refunded'
+}
+
+/**
+ * The payment window a manager actually wants on a tenant summary: start at
+ * the oldest UNSETTLED payment (so anything past due leads) and read forward
+ * in date order into the future.
+ *
+ * The obvious `sort(desc).slice(0, n)` is wrong for a lease with a full
+ * schedule generated up front — a 12-month lease has rows out to next July,
+ * so descending shows next July, June, May… and the payment actually due
+ * this month never appears.
+ *
+ * When every payment is settled there's nothing forward-looking to show, so
+ * fall back to the most recent history (still ascending, so the newest is at
+ * the bottom where the eye lands after reading down).
+ */
+export function upcomingPaymentWindow(payments: Payment[], limit = 5): Payment[] {
+  const asc = payments
+    .slice()
+    .sort((a, b) => +new Date(paymentAnchor(a)) - +new Date(paymentAnchor(b)))
+  const firstOpen = asc.findIndex((p) => !isSettled(p))
+  if (firstOpen === -1) return asc.slice(-limit)
+  return asc.slice(firstOpen, firstOpen + limit)
+}

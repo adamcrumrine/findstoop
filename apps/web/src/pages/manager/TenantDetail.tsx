@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, Wrench, type LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatUsd, formatUsdCents, formatPhone } from '@findstoop/shared/lib/format'
-import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, paymentAnchor, upcomingPaymentWindow } from '@findstoop/shared/lib/paymentRails'
 import type { Profile } from '@findstoop/shared/types/profile'
 import type { Lease } from '@findstoop/shared/types/lease'
 import type { Payment } from '@findstoop/shared/types/payment'
@@ -178,10 +178,10 @@ export default function TenantDetail() {
           const lastPaid = payments
             .filter((p) => p.status === 'completed' && p.paid_at)
             .sort((a, b) => +new Date(b.paid_at!) - +new Date(a.paid_at!))[0]
-          const recent = payments
-            .slice()
-            .sort((a, b) => +new Date(paymentAnchor(b)) - +new Date(paymentAnchor(a)))
-            .slice(0, 5)
+          // Forward-looking: oldest unsettled first (past due leads), then
+          // into the future. Sorting descending here showed the far end of a
+          // year's generated schedule and hid the payment actually due now.
+          const recent = upcomingPaymentWindow(payments, 5)
           return (
             <>
               <div className="grid grid-cols-2 gap-3 mb-4">

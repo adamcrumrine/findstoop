@@ -167,18 +167,27 @@ export default function ReviewLease() {
 
         // Load all tenants on this lease (primary + co-tenants) via the
         // lease_tenants join. Primary first, then by added order.
-        const { data: ltRows } = await supabase
+        const { data: ltRows, error: ltErr } = await supabase
           .from('lease_tenants')
-          .select('tenant_id, is_primary, sort_order, added_at, rent_share, monthly_pet_fee, profile:profiles!lease_tenants_tenant_id_fkey(*)')
+          // NOTE: pet rent lives on the LEASE (migration 20260801000005), not
+          // here. Selecting a dropped column makes PostgREST reject the whole
+          // query, which silently collapsed this list to the single legacy
+          // tenant and made a 4-roommate lease look like one person owing all
+          // the rent. Keep this column list in step with the table.
+          .select('tenant_id, is_primary, sort_order, added_at, rent_share, profile:profiles!lease_tenants_tenant_id_fkey(*)')
           .eq('lease_id', l.id)
           .order('is_primary', { ascending: false })
           .order('sort_order', { ascending: true })
           .order('added_at', { ascending: true })
         if (!cancelled) {
+          // Say so if the roster failed to load. The fallback below shows a
+          // single tenant, which on a shared lease looks like a real (wrong)
+          // answer rather than a failure — surfacing rent and pet-fee choices
+          // for one person when four are on the lease.
+          if (ltErr) toast.error('Could not load all tenants on this lease — amounts shown may be incomplete.')
           const rows = (ltRows ?? []) as unknown as Array<{
             is_primary: boolean
             rent_share: number | null
-            monthly_pet_fee: number | null
             profile?: Profile | null
           }>
           const enriched = rows
@@ -187,7 +196,6 @@ export default function ReviewLease() {
               ...(r.profile as Profile),
               is_primary: !!r.is_primary,
               rent_share: r.rent_share,
-              monthly_pet_fee: r.monthly_pet_fee,
             }))
           // Fallback: if join table is somehow empty (shouldn't happen
           // post-backfill), fall back to the single primary tenant on the

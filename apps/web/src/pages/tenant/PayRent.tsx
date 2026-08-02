@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from 'react'
+import { useState, useEffect, useId, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
@@ -15,7 +15,7 @@ import PaymentMethodCard from '../../components/tenant/PaymentMethodCard'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
 import Dialog from '../../components/shared/Dialog'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
-import { CARD_SURCHARGE_PCT, cardSurcharge } from '@findstoop/shared/lib/billing'
+import { railOptions, payerFeeCents, combineSavings } from '@findstoop/shared/lib/paymentFees'
 import { BRAND, brandColor } from '../../lib/brand'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 
@@ -447,8 +447,24 @@ export default function TenantPayRent() {
   const rentAmount = Number(nextPayment?.amount ?? 0)
   // Shared helper matches the server's cent-rounding exactly, so the amount
   // shown here always equals what create-payment-intent charges.
-  const surcharge = method === 'card' ? cardSurcharge(rentAmount) : 0
+  const rentCents = Math.round(rentAmount * 100)
+  const feeOptions = useMemo(() => railOptions(rentCents), [rentCents])
+  const cheaper = feeOptions[0]
+  const costlier = feeOptions[feeOptions.length - 1]
+  const surcharge = payerFeeCents(method, rentCents) / 100
   const totalToCharge = +(rentAmount + surcharge).toFixed(2)
+
+  // What settling this month's charges in one transaction would save versus
+  // paying them one at a time. Real money on bank transfers, where Stripe's
+  // fee is capped PER TRANSACTION — four roommates sending $525 each pay
+  // $16.80 in fees where a single $2,100 payment pays $5.00. On cards the
+  // surcharge is a flat percentage, so the same bundling saves about two
+  // cents; the banner below suppresses itself rather than pretend otherwise.
+  const bundleSavingCents = useMemo(() => {
+    if (siblingCharges.length === 0) return 0
+    const amounts = [rentCents, ...siblingCharges.map((c) => Math.round(Number(c.amount) * 100))]
+    return combineSavings(method, amounts).savingsCents
+  }, [rentCents, siblingCharges, method])
 
   const handleStartPayment = async () => {
     if (!lease || !nextPayment) return
@@ -673,41 +689,77 @@ export default function TenantPayRent() {
               </div>
             ) : (
               <div className="mt-4 space-y-2.5">
-                {/* Payment method selector */}
-                <div className={`rounded-xl p-2 grid grid-cols-2 gap-2 text-sm ${isGhost ? 'bg-gray-100' : 'bg-white/15'}`}>
-                  <button
-                    type="button"
-                    onClick={() => setMethod('us_bank_account')}
-                    className={`flex items-center gap-2 justify-center px-3 py-2.5 rounded-lg transition-colors ${
-                      method === 'us_bank_account'
-                        ? (isGhost ? 'bg-white text-ink font-semibold border border-brand-200' : 'bg-white text-gray-900 font-semibold')
-                        : (isGhost ? 'text-mute hover:bg-white/60' : 'text-white/90 hover:bg-white/10')
-                    }`}
-                  >
-                    <Landmark className="w-4 h-4" strokeWidth={1.75} />
-                    Bank · Free
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMethod('card')}
-                    className={`flex items-center gap-2 justify-center px-3 py-2.5 rounded-lg transition-colors ${
-                      method === 'card'
-                        ? (isGhost ? 'bg-white text-ink font-semibold border border-brand-200' : 'bg-white text-gray-900 font-semibold')
-                        : (isGhost ? 'text-mute hover:bg-white/60' : 'text-white/90 hover:bg-white/10')
-                    }`}
-                  >
-                    <CardIcon className="w-4 h-4" strokeWidth={1.75} />
-                    {/* Concrete dollars beat percentages — the fee on THIS payment. */}
-                    Card · +{formatUsdCents(cardSurcharge(rentAmount))}
-                  </button>
+                {/* Both options, both priced, cheapest marked.
+                    Processing fees are passed through to whoever pays, so the
+                    only fair way to charge them is to show the tenant every
+                    option in dollars BEFORE they pick — not a percentage, and
+                    not just the fee on the option they happen to be looking
+                    at. A tenant reaching for a card should know precisely what
+                    that convenience costs them. */}
+                <div className="grid gap-2">
+                  {feeOptions.map((opt) => {
+                    const selected = method === opt.rail
+                    return (
+                      <button
+                        key={opt.rail}
+                        type="button"
+                        onClick={() => setMethod(opt.rail)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                          selected
+                            ? (isGhost ? 'bg-white border-brand-400 ring-1 ring-brand-300' : 'bg-white border-white')
+                            : (isGhost ? 'bg-white/60 border-gray-200 hover:bg-white' : 'bg-white/10 border-white/25 hover:bg-white/20')
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className={`flex items-center gap-2 text-sm font-semibold ${
+                            selected || isGhost ? 'text-ink' : 'text-white'
+                          }`}>
+                            {opt.rail === 'card'
+                              ? <CardIcon className="w-4 h-4" strokeWidth={1.75} />
+                              : <Landmark className="w-4 h-4" strokeWidth={1.75} />}
+                            {opt.label}
+                            {opt.recommended && (
+                              <span className="text-[10px] uppercase tracking-wide font-bold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700">
+                                Cheapest
+                              </span>
+                            )}
+                          </span>
+                          <span className={`text-sm font-semibold tabular-nums ${
+                            selected || isGhost ? 'text-ink' : 'text-white'
+                          }`}>
+                            {formatUsdCents(opt.totalCents / 100)}
+                          </span>
+                        </span>
+                        <span className={`mt-0.5 flex items-center justify-between gap-3 text-xs ${
+                          selected || isGhost ? 'text-mute' : 'text-white/75'
+                        }`}>
+                          <span>{opt.settlement}</span>
+                          <span className="tabular-nums">
+                            {opt.feeCents > 0
+                              ? `+${formatUsdCents(opt.feeCents / 100)} fee`
+                              : 'No fee'}
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
-                {method === 'card' ? (
+                {/* State the size of the choice once, in dollars. */}
+                {cheaper && costlier && costlier.feeCents > cheaper.feeCents && (
                   <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
-                    Card payments include a {formatUsdCents(cardSurcharge(rentAmount))} processing fee ({CARD_SURCHARGE_PCT}%). Total: {formatUsdCents(totalToCharge)}. Bank transfer is free.
+                    {method === cheaper.rail
+                      ? `You're on the cheapest option — ${formatUsdCents((costlier.feeCents - cheaper.feeCents) / 100)} less than paying by card.`
+                      : `Paying by ${cheaper.label.toLowerCase()} instead would cost you ${formatUsdCents((costlier.feeCents - cheaper.feeCents) / 100)} less.`}
                   </p>
-                ) : (
+                )}
+                {/* The fee is per transaction, so several charges settled in one
+                    go can cost less than the same money sent piecemeal. Only
+                    shown when the saving is real — on a flat percentage it's
+                    pennies, and dressing that up as a tip would be noise. */}
+                {bundleSavingCents >= 25 && (
                   <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
-                    Bank transfer is free — you’re saving {formatUsdCents(cardSurcharge(rentAmount))} vs. paying by card.
+                    Fees are charged per payment. Paying everything due this month in one
+                    go would save you {formatUsdCents(bundleSavingCents / 100)}.
                   </p>
                 )}
                 <button

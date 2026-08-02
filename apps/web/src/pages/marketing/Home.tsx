@@ -207,7 +207,7 @@ export default function Home() {
             features={[
               'Verified pre-qualification on every applicant ($5 paid by applicant)',
               'AI Tenability™ with Fair-Housing-safe scoring',
-              'Online rent collection — ACH free for your tenants',
+              'Online rent collection — bank transfer fees capped at $5 per payment',
               'State-specific lease templates with e-sign',
               'Maintenance tracking with photos',
               '24/7 tenant portal + messaging per lease',

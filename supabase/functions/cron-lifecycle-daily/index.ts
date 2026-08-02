@@ -22,8 +22,20 @@ const resend = new Resend(RESEND_API_KEY)
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', { apiVersion: '2023-10-16' })
 
 // Must match create-payment-intent (and packages/shared/src/lib/billing.ts):
-// card charges carry a 3.5% surcharge passed to the tenant; ACH does not.
+// every processing cost is passed to the tenant: cards 3.5%, bank transfers
+// 0.8% capped at $5. Autopay has to price identically to the manual pay
+// screen, or the amount a tenant approved differs from the amount collected.
+// Mirrors packages/shared/src/lib/paymentFees.ts (Deno can't import it).
 const CARD_SURCHARGE_PCT = 3.5
+const ACH_SURCHARGE_PCT = 0.8
+const ACH_SURCHARGE_CAP_CENTS = 500
+
+function payerFeeCents(isCard: boolean, baseCents: number): number {
+  if (!(baseCents > 0)) return 0
+  return isCard
+    ? Math.round(baseCents * (CARD_SURCHARGE_PCT / 100))
+    : Math.min(Math.round(baseCents * (ACH_SURCHARGE_PCT / 100)), ACH_SURCHARGE_CAP_CENTS)
+}
 
 const admin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
@@ -810,7 +822,7 @@ Deno.serve(async (req) => {
         }
         const isCard = pmType !== 'us_bank_account' // unknown type ⇒ treat as card (never under-charge the surcharge rail)
         const rentCents = Math.round(Number(row.amount) * 100)
-        const surchargeCents = isCard ? Math.round(Number(row.amount) * CARD_SURCHARGE_PCT) : 0
+        const surchargeCents = payerFeeCents(isCard, rentCents)
 
         const { data: ctxRows } = await admin.rpc('lease_payout_context', { lease_uuid: row.lease_id })
         const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows

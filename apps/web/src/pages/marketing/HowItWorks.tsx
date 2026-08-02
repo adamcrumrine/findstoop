@@ -62,7 +62,7 @@ const steps: Step[] = [
     number: '05',
     Icon: CreditCard,
     title: 'Collect rent and run the place',
-    body: 'Auto-reminders three days before rent is due. ACH is free. Late fees apply themselves. Maintenance requests come in with photos. You watch the dashboard from the couch.',
+    body: 'Auto-reminders three days before rent is due. Processing passes through to the tenant — capped at $5 on bank transfers. Late fees apply themselves. Maintenance requests come in with photos. You watch the dashboard from the couch.',
     detail: [
       'Auto-reminders + auto late fees',
       'Photo-attached maintenance triage',

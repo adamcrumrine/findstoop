@@ -11,7 +11,7 @@ const includedAtThisPrice = [
   'Unlimited properties and units',
   'Verified pre-qualification on every applicant (applicant pays $5)',
   'AI Tenability™ with Fair-Housing-safe scoring',
-  'Online rent collection — ACH free for your tenants',
+  'Online rent collection — bank transfer fees capped at $5 per payment',
   '50-state lease templates with e-sign',
   'Maintenance tracking with photos',
   '24/7 tenant portal access',
@@ -154,8 +154,9 @@ export default function Pricing() {
               What renters pay
             </h2>
             <p className="mt-3 text-mute max-w-xl mx-auto">
-              ACH bank transfers are free for your tenants — we cover the fee.
-              Card payments include a 3.5% processing surcharge, paid by the renter.
+              Processing is passed through at cost on bank transfers: 0.8%, capped at $5
+              however large the rent. Card payments carry a 3.5% surcharge with no cap.
+              Renters see both totals in dollars and pick before paying.
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">

@@ -1,11 +1,17 @@
 // Creates a PaymentIntent for a tenant rent payment.
 //
 // Pricing rules (single-tier $9/unit/mo model):
-//   • ACH (us_bank_account): tenant pays rent only. Stripe ACH fee is paid by
-//     the landlord (when Connect is set up) or absorbed by the platform
-//     (until Connect is set up).
-//   • Card: 3.5% surcharge added to the rent amount, passed through to the
-//     tenant. Covers Stripe's 2.9% + $0.30 with a 0.6% spread for overhead.
+//   • Every Stripe processing cost is passed to the payer. The subscription is
+//     the platform's margin; processing is a pass-through, and neither Stoop
+//     nor the landlord absorbs a card or ACH fee.
+//   • ACH (us_bank_account): 0.8% capped at $5 — Stripe's own rate and cap, no
+//     spread. This is the rail we want tenants on, so it's priced at cost.
+//   • Card: 3.5%, covering Stripe's 2.9% + $0.30 with a spread for the fixed
+//     component and disputes.
+//
+// Rates are duplicated from packages/shared/src/lib/paymentFees.ts because
+// Deno can't import the workspace package. paymentFees.test.ts pins the
+// numbers on both sides so drift fails a test instead of mispricing a charge.
 //
 // Stripe Connect: if the landlord has an active Connect Express account
 // (charges_enabled=true), the PaymentIntent uses transfer_data[destination]
@@ -20,6 +26,18 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 })
 
 const CARD_SURCHARGE_PCT = 3.5
+const ACH_SURCHARGE_PCT = 0.8
+const ACH_SURCHARGE_CAP_CENTS = 500
+
+/** Processing fee charged to the payer, in cents. Mirrors payerFeeCents(). */
+function payerFeeCents(rail: string, baseCents: number): number {
+  if (!(baseCents > 0)) return 0
+  return rail === 'us_bank_account'
+    // The cap is per TRANSACTION — this is why paying several charges together
+    // is worth real money to a tenant, and why the pay screen says so.
+    ? Math.min(Math.round(baseCents * (ACH_SURCHARGE_PCT / 100)), ACH_SURCHARGE_CAP_CENTS)
+    : Math.round(baseCents * (CARD_SURCHARGE_PCT / 100))
+}
 
 /**
  * Build a bank-statement descriptor the tenant will actually recognise.
@@ -117,18 +135,15 @@ Deno.serve(async (req) => {
 
     // Calculate the actual charge based on method
     const rentCents = Math.round(amount * 100)
-    let surchargeCents = 0
-    let totalCents = rentCents
-    if (paymentMethod === 'card') {
-      surchargeCents = Math.round(amount * CARD_SURCHARGE_PCT)
-      totalCents = rentCents + surchargeCents
-    }
+    const surchargeCents = payerFeeCents(paymentMethod, rentCents)
+    const totalCents = rentCents + surchargeCents
 
     // Build PaymentIntent params. If the landlord has Connect set up, use
-    // destination charges so rent goes direct to their bank. The 3.5% card
-    // surcharge is retained by the platform via application_fee_amount —
-    // without it the full amount (rent + surcharge) transfers to the landlord
-    // and FindStoop absorbs the card fee, violating the surcharge policy.
+    // destination charges so rent goes direct to their bank. The processing
+    // fee is retained by the platform via application_fee_amount — without it
+    // the full amount (rent + fee) transfers to the landlord and the platform
+    // absorbs Stripe's cut, which is exactly what the pass-through exists to
+    // prevent. The landlord receives the rent figure and nothing else moves.
     interface PIParams {
       amount: number
       currency: string
@@ -149,8 +164,8 @@ Deno.serve(async (req) => {
       // name the actual charge — "Rent + fee" on a $5 pet charge reads as an
       // error on the tenant's statement.
       description: paymentMethod === 'card'
-        ? `${chargeLabel} + 3.5% card processing fee`
-        : `${chargeLabel} via ACH`,
+        ? `${chargeLabel} + ${CARD_SURCHARGE_PCT}% card processing fee`
+        : `${chargeLabel} + bank transfer processing fee`,
       metadata: {
         // findstoop_payment_id lets the webhook flip THIS existing pending row
         // to completed (it matches on this first). The client no longer inserts

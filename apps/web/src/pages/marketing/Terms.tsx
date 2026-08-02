@@ -73,9 +73,11 @@ export default function Terms() {
 
         <Sec title="6. Rent collection (tenants paying landlords)">
           <p>
-            Rent payments are processed by Stripe, which holds appropriate money-transmitter licenses. ACH bank payments
-            are free to tenants. Card payments include a 3.5% surcharge passed to the tenant at checkout. Failed ACH
-            returns may incur a fee (currently $5) charged to the tenant.
+            Rent payments are processed by Stripe, which holds appropriate money-transmitter licenses. Processing costs
+            are passed through to the paying tenant: bank (ACH) payments carry a 0.8% fee capped at $5 per transaction,
+            and card payments carry a 3.5% surcharge with no cap. Both are disclosed in dollars before you confirm, and
+            the total charged is the amount you approve. Failed ACH returns may incur a fee (currently $5) charged to
+            the tenant.
           </p>
           <p className="mt-2">
             {BRAND.legalName} is not a party to any rental agreement between landlord and tenant. We act as the technology facilitator

@@ -166,7 +166,10 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
       <section className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Payment method</h2>
-          <p className="text-xs text-mute mt-1">Used for rent and auto-pay. ACH is free; cards add a 3.5% surcharge.</p>
+          <p className="text-xs text-mute mt-1">
+            Used for rent and auto-pay. Bank transfers cost 0.8% (never more than $5);
+            cards add 3.5%. You'll see the exact amount before you pay.
+          </p>
         </div>
 
         {hasMethod ? (
@@ -406,7 +409,10 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
       <PaymentElement options={{ layout: 'tabs' }} />
       <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 text-xs text-brand-900 inline-flex items-start gap-2">
         <Landmark className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.75} />
-        <span>ACH is free for you. Cards add a 3.5% surcharge at charge time.</span>
+        <span>
+          Bank transfer costs 0.8%, capped at $5 no matter how large the payment.
+          Cards add 3.5% with no cap — usually several times more.
+        </span>
       </div>
       {errorMsg && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{errorMsg}</div>

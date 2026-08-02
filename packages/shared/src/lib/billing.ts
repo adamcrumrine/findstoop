@@ -1,8 +1,13 @@
-// Single source of truth for the card-surcharge policy.
+// Card-surcharge policy for MANAGER SUBSCRIPTION billing.
+//
+// For tenant rent, see lib/paymentFees.ts — that module prices every rail
+// (bank transfer as well as card) because tenants choose between them and are
+// shown both totals. This file stays card-only because the subscription
+// surcharge is the only thing left that needs just the one number.
 //
 // FindStoop never absorbs card-network fees: a 3.5% surcharge is added to
-// every CARD charge — tenant rent, manager subscriptions, and any other
-// card-rail payment. ACH (us_bank_account) carries no surcharge.
+// every CARD charge. Subscription payments by ACH currently carry no
+// surcharge — the one remaining place the platform absorbs a Stripe fee.
 //
 // The Supabase edge functions (Deno) can't import this workspace package, so
 // they each declare `CARD_SURCHARGE_PCT = 3.5` locally — if the rate ever

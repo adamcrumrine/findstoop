@@ -468,20 +468,44 @@ export default function TenantPayRent() {
   const rentAmount = Number(nextPayment?.amount ?? 0)
   // Shared helper matches the server's cent-rounding exactly, so the amount
   // shown here always equals what create-payment-intent charges.
+  // Charges the tenant has chosen to settle alongside rent. Bundling is our
+  // arithmetic, not Stripe's: we send ONE PaymentIntent for the summed amount,
+  // so the per-transaction ACH fee is charged once rather than once per
+  // charge. Stripe sees a single payment; the ledger still has three rows.
+  const [bundledIds, setBundledIds] = useState<Set<string>>(new Set())
+  const toggleBundled = (id: string) => setBundledIds((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  // Drop selections whose charge is no longer due (paid elsewhere, re-scheduled).
+  useEffect(() => {
+    setBundledIds((prev) => {
+      const live = new Set(siblingCharges.map((c) => c.id))
+      const next = new Set([...prev].filter((id) => live.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [siblingCharges])
+
+  const bundled = siblingCharges.filter((c) => bundledIds.has(c.id))
+  const bundledCents = bundled.reduce((s, c) => s + Math.round(Number(c.amount) * 100), 0)
+
+  // Everything this transaction will settle — rent plus whatever they ticked.
   const rentCents = Math.round(rentAmount * 100)
+  const chargeCents = rentCents + bundledCents
   const feeOptions = useMemo(
     // When the landlord absorbs, every option costs the tenant the same, so
     // the comparison collapses to "pick whichever you like" — zero the fees
     // rather than showing numbers they won't be charged.
-    () => railOptions(rentCents).map((o) => (
-      landlordAbsorbsFees ? { ...o, feeCents: 0, totalCents: rentCents } : o
+    () => railOptions(chargeCents).map((o) => (
+      landlordAbsorbsFees ? { ...o, feeCents: 0, totalCents: chargeCents } : o
     )),
-    [rentCents, landlordAbsorbsFees],
+    [chargeCents, landlordAbsorbsFees],
   )
   const cheaper = feeOptions[0]
   const costlier = feeOptions[feeOptions.length - 1]
-  const surcharge = landlordAbsorbsFees ? 0 : payerFeeCents(method, rentCents) / 100
-  const totalToCharge = +(rentAmount + surcharge).toFixed(2)
+  const surcharge = landlordAbsorbsFees ? 0 : payerFeeCents(method, chargeCents) / 100
+  const totalToCharge = +(chargeCents / 100 + surcharge).toFixed(2)
 
   // What settling this month's charges in one transaction would save versus
   // paying them one at a time. Real money on bank transfers, where Stripe's
@@ -489,12 +513,16 @@ export default function TenantPayRent() {
   // $16.80 in fees where a single $2,100 payment pays $5.00. On cards the
   // surcharge is a flat percentage, so the same bundling saves about two
   // cents; the banner below suppresses itself rather than pretend otherwise.
+  // What ticking every remaining charge would save versus paying them one at
+  // a time. Recomputed against what's still UNSELECTED, so the prompt shrinks
+  // as they select and disappears when there's nothing left to gain.
   const bundleSavingCents = useMemo(() => {
     if (landlordAbsorbsFees) return 0
-    if (siblingCharges.length === 0) return 0
-    const amounts = [rentCents, ...siblingCharges.map((c) => Math.round(Number(c.amount) * 100))]
+    const remaining = siblingCharges.filter((c) => !bundledIds.has(c.id))
+    if (remaining.length === 0) return 0
+    const amounts = [chargeCents, ...remaining.map((c) => Math.round(Number(c.amount) * 100))]
     return combineSavings(method, amounts).savingsCents
-  }, [rentCents, siblingCharges, method])
+  }, [chargeCents, siblingCharges, bundledIds, method, landlordAbsorbsFees])
 
   const handleStartPayment = async () => {
     if (!lease || !nextPayment) return
@@ -529,11 +557,13 @@ export default function TenantPayRent() {
     }
 
     try {
-      // Pass only the payment row id — the edge function derives the amount
-      // server-side from that row and verifies we own it. (Never send amount.)
+      // Pass only row ids — the edge function sums the amounts server-side
+      // from those rows and verifies we own every one. (Never send amount.)
+      // Several ids means one PaymentIntent covering all of them: one Stripe
+      // transaction, one fee, and the webhook settles each row.
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: {
-          paymentId: nextPayment.id,
+          paymentIds: [nextPayment.id, ...bundled.map((c) => c.id)],
           paymentMethod: method,
         },
       })
@@ -675,19 +705,54 @@ export default function TenantPayRent() {
               </p>
             )
           })()}
-          {/* Other charges sharing this due date (pet rent, one-offs). Each is
-              its own Stripe payment, so say so plainly rather than showing a
-              combined figure the Pay button won't actually charge. */}
+          {/* Other charges sharing this due date (pet rent, utility bill-backs,
+              one-offs). Tick any of them to settle them in the SAME
+              transaction as rent. Stripe's ACH fee is charged per transaction,
+              so three charges paid separately can cost three fees where one
+              would do — the tenant should be able to act on that, not just be
+              told about it. */}
           {siblingCharges.length > 0 && (
-            <div className={`mt-2 text-xs ${isGhost ? 'text-mute' : 'opacity-90'}`}>
-              Also due this month:{' '}
-              {siblingCharges.map((c, i) => (
-                <span key={c.id}>
-                  {i > 0 && ', '}
-                  {c.type.replace(/_/g, ' ')} {formatUsdCents(Number(c.amount))}
-                </span>
-              ))}
-              {' '}· paid separately after rent
+            <div className={`mt-3 rounded-xl p-3 ${isGhost ? 'bg-gray-50 border border-gray-200' : 'bg-white/10'}`}>
+              <p className={`text-xs font-semibold ${isGhost ? 'text-ink' : 'text-white'}`}>
+                Also due this month
+              </p>
+              <p className={`text-[11px] mt-0.5 leading-relaxed ${isGhost ? 'text-mute' : 'text-white/75'}`}>
+                Add these to the same payment and you're charged one processing fee instead of one each.
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {siblingCharges.map((c) => {
+                  const on = bundledIds.has(c.id)
+                  return (
+                    <label
+                      key={c.id}
+                      className={`flex items-center gap-2.5 text-xs cursor-pointer rounded-lg px-2 py-1.5 ${
+                        on ? (isGhost ? 'bg-white border border-brand-300' : 'bg-white/15') : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => toggleBundled(c.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      />
+                      <span className={`flex-1 capitalize ${isGhost ? 'text-ink' : 'text-white'}`}>
+                        {c.type.replace(/_/g, ' ')}
+                      </span>
+                      <span className={`tabular-nums font-medium ${isGhost ? 'text-ink' : 'text-white'}`}>
+                        {formatUsdCents(Number(c.amount))}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              {bundled.length > 0 && (
+                <p className={`text-[11px] mt-2 pt-2 border-t ${
+                  isGhost ? 'text-mute border-gray-200' : 'text-white/75 border-white/20'
+                }`}>
+                  Paying {bundled.length + 1} charges together — {formatUsdCents(chargeCents / 100)} plus
+                  {' '}{surcharge > 0 ? formatUsdCents(surcharge) : 'no'} fee.
+                </p>
+              )}
             </div>
           )}
           {nextPayment && methodOn && (

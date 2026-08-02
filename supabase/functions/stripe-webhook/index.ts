@@ -34,6 +34,29 @@ const CARD_SURCHARGE_PCT = 3.0
 const ACH_SURCHARGE_PCT = 0.8
 const ACH_SURCHARGE_CAP_CENTS = 500
 
+/**
+ * The payment rows a PaymentIntent covers.
+ *
+ * Bundling is arithmetic on our side, not a Stripe feature: when a tenant
+ * settles rent + pet fee + a utility bill-back together we send Stripe ONE
+ * intent for the summed amount, so Stripe's per-transaction ACH fee is charged
+ * once instead of three times. The link back to individual charges lives only
+ * in metadata, which makes this function the seam holding the ledger together.
+ *
+ * Reads the plural key, falls back to the singular one so intents created
+ * before bundling shipped — and any still in flight during the deploy — keep
+ * resolving.
+ */
+function paymentIdsFromMetadata(md: Stripe.Metadata | null | undefined): string[] {
+  const many = (md?.findstoop_payment_ids ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (many.length > 0) return Array.from(new Set(many))
+  const one = md?.findstoop_payment_id
+  return one ? [one] : []
+}
+
 // A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
 // bounced days later (insufficient funds, closed account). The cron's
 // autopay-failure alert only covers charge-time declines; this covers the
@@ -446,28 +469,33 @@ Deno.serve(async (req) => {
           break
         }
         const update = { status: 'completed', paid_at: new Date().toISOString(), stripe_payment_id: pi.id }
-        // Resolve the row first (metadata id preferred, legacy stripe_payment_id
-        // match otherwise) so the amount reconciliation below covers BOTH paths.
-        const { data: row } = pi.metadata?.findstoop_payment_id
-          ? await admin.from('payments').select('id, amount').eq('id', pi.metadata.findstoop_payment_id).maybeSingle()
-          : await admin.from('payments').select('id, amount').eq('stripe_payment_id', pi.id).maybeSingle()
-        if (row) {
-          // Defense in depth: reconcile the charged amount against the row's
-          // rent before marking it paid, so an under-charged PaymentIntent can
-          // never flip a full rent row to "completed". amount_received includes
-          // the card surcharge, so it must be AT LEAST the rent in cents.
-          const expectedRentCents = Math.round(Number(row.amount) * 100)
-          if ((pi.amount_received ?? 0) < expectedRentCents) {
+        // One PaymentIntent can settle several charges — a tenant paying rent,
+        // pet fee and a utility bill-back in one transaction to incur one
+        // Stripe fee. Every row it covers must flip together: marking some and
+        // not others leaves the tenant charged in full but still showing a
+        // balance, which is the worst failure this handler has.
+        const rowIds = paymentIdsFromMetadata(pi.metadata)
+        const { data: rows } = rowIds.length > 0
+          ? await admin.from('payments').select('id, amount').in('id', rowIds)
+          : await admin.from('payments').select('id, amount').eq('stripe_payment_id', pi.id)
+        const covered = rows ?? []
+        if (covered.length > 0) {
+          // Defense in depth: reconcile the charged amount against the SUM of
+          // the rows before marking any paid, so an under-charged PaymentIntent
+          // can never flip full rent rows to "completed". amount_received
+          // includes any processing fee, so it must be at least the total.
+          const expectedCents = covered.reduce((s, r) => s + Math.round(Number(r.amount) * 100), 0)
+          if ((pi.amount_received ?? 0) < expectedCents) {
             await logApiCall({
               function_name: 'stripe-webhook', vendor: 'stripe', status_code: 409,
               reference_id: pi.id,
-              error_message: `amount mismatch: received ${pi.amount_received} < expected rent ${expectedRentCents}`,
-              metadata: { payment_id: row.id, event_type: event.type },
+              error_message: `amount mismatch: received ${pi.amount_received} < expected ${expectedCents}`,
+              metadata: { payment_ids: covered.map((r) => r.id).join(','), event_type: event.type },
             })
-            // Do NOT mark completed — leave the row for manual review.
+            // Do NOT mark completed — leave the rows for manual review.
             break
           }
-          await admin.from('payments').update(update).eq('id', row.id)
+          await admin.from('payments').update(update).in('id', covered.map((r) => r.id))
         }
         const tenantId = pi.metadata?.findstoop_tenant_id || pi.metadata?.tenantId
         if (tenantId) {
@@ -481,8 +509,9 @@ Deno.serve(async (req) => {
       case 'payment_intent.processing': {
         const pi = event.data.object as Stripe.PaymentIntent
         const update = { status: 'processing', stripe_payment_id: pi.id }
-        if (pi.metadata?.findstoop_payment_id) {
-          await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
+        const ids = paymentIdsFromMetadata(pi.metadata)
+        if (ids.length > 0) {
+          await admin.from('payments').update(update).in('id', ids)
         } else {
           await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
         }
@@ -497,8 +526,11 @@ Deno.serve(async (req) => {
           break
         }
         const update = { status: 'failed', stripe_payment_id: pi.id }
-        if (pi.metadata?.findstoop_payment_id) {
-          await admin.from('payments').update(update).eq('id', pi.metadata.findstoop_payment_id)
+        const failedIds = paymentIdsFromMetadata(pi.metadata)
+        if (failedIds.length > 0) {
+          // A grouped payment fails as a unit — none of the charges settled,
+          // so all of them go back to owing.
+          await admin.from('payments').update(update).in('id', failedIds)
         } else {
           await admin.from('payments').update(update).eq('stripe_payment_id', pi.id)
         }

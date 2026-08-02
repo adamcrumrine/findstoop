@@ -84,13 +84,26 @@ Deno.serve(async (req) => {
     // derived SERVER-SIDE from the pending payments row — never trusted from
     // the request body. (Previously `amount`/`leaseId`/`tenantId` were taken
     // from the client, so a tenant could pay $1 and have full rent recorded.)
-    const { paymentId, paymentMethod } = await req.json() as {
-      paymentId: string
+    // paymentIds (plural) settles several charges due the same period in ONE
+    // transaction. Stripe's ACH fee is capped PER TRANSACTION, so a tenant
+    // paying rent + pet fee + a utility bill-back separately can pay three
+    // fees where one would do. `paymentId` stays supported for older clients.
+    const body = await req.json() as {
+      paymentId?: string
+      paymentIds?: string[]
       paymentMethod: 'card' | 'us_bank_account'
     }
+    const { paymentMethod } = body
+    const requestedIds = Array.from(new Set(
+      (body.paymentIds?.length ? body.paymentIds : [body.paymentId]).filter(Boolean) as string[],
+    ))
 
-    if (!paymentId || !paymentMethod) {
+    if (requestedIds.length === 0 || !paymentMethod) {
       return json({ error: 'Missing required fields' }, { status: 400 })
+    }
+    // Bounded so a malformed client can't ask us to load the whole table.
+    if (requestedIds.length > 20) {
+      return json({ error: 'Too many charges in one payment' }, { status: 400 })
     }
     if (paymentMethod !== 'card' && paymentMethod !== 'us_bank_account') {
       return json({ error: 'Invalid payment method' }, { status: 400 })
@@ -107,24 +120,46 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await admin.auth.getUser(token)
     if (authErr || !user) return json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Load the pending payment row and verify the caller owns it. The amount
-    // and lease are taken from THIS row, not the request.
-    const { data: payment, error: payErr } = await admin
+    // Load the pending rows and verify the caller owns every one. Amounts and
+    // lease come from THESE rows, never from the request.
+    const { data: rows, error: payErr } = await admin
       .from('payments')
-      .select('id, lease_id, tenant_id, amount, status, type')
-      .eq('id', paymentId)
-      .single()
-    if (payErr || !payment) return json({ error: 'Payment not found' }, { status: 404 })
-    if (payment.tenant_id !== user.id) return json({ error: 'Forbidden' }, { status: 403 })
-    if (payment.status === 'completed') return json({ error: 'Payment already completed' }, { status: 409 })
+      .select('id, lease_id, tenant_id, amount, status, type, due_date')
+      .in('id', requestedIds)
+    if (payErr) return json({ error: 'Payment lookup failed' }, { status: 500 })
+    if (!rows || rows.length !== requestedIds.length) {
+      return json({ error: 'Payment not found' }, { status: 404 })
+    }
+    // Every check the single-charge path made, applied to each row — one
+    // foreign or already-paid id must sink the whole request rather than being
+    // quietly dropped from a total the tenant already saw.
+    for (const r of rows) {
+      if (r.tenant_id !== user.id) return json({ error: 'Forbidden' }, { status: 403 })
+      if (r.status === 'completed') return json({ error: 'Payment already completed' }, { status: 409 })
+      if (!(Number(r.amount) > 0)) return json({ error: 'Invalid payment amount' }, { status: 400 })
+    }
+    // Grouping across leases would make the destination account ambiguous —
+    // two landlords can't share one transfer.
+    const leaseId = rows[0].lease_id
+    if (rows.some((r) => r.lease_id !== leaseId)) {
+      return json({ error: 'Charges from different leases must be paid separately' }, { status: 400 })
+    }
 
-    const amount = Number(payment.amount)
-    const leaseId = payment.lease_id
-    const tenantId = payment.tenant_id
-    const chargeLabel = payment.type === 'rent'
+    // Stable order so the description and the metadata id list agree.
+    rows.sort((a, b) => String(a.due_date ?? '').localeCompare(String(b.due_date ?? '')) || a.id.localeCompare(b.id))
+    const paymentIds = rows.map((r) => r.id)
+    const primaryId = paymentIds[0]
+    const tenantId = rows[0].tenant_id
+    const amount = rows.reduce((sum, r) => sum + Number(r.amount), 0)
+
+    const labelFor = (t: string | null) => t === 'rent'
       ? 'Rent'
-      : String(payment.type ?? 'Charge').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-    if (!(amount > 0)) return json({ error: 'Invalid payment amount' }, { status: 400 })
+      : String(t ?? 'Charge').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+    const chargeLabel = rows.length === 1
+      ? labelFor(rows[0].type)
+      // "Rent + Pet fee + Utilities" — a tenant reading their statement should
+      // recognise what the single line covers.
+      : rows.map((r) => labelFor(r.type)).join(' + ')
 
     // Look up the landlord's tier + Connect status from the lease.
     const { data: ctxRows } = await admin.rpc('lease_payout_context', { lease_uuid: leaseId })
@@ -192,7 +227,11 @@ Deno.serve(async (req) => {
         // findstoop_payment_id lets the webhook flip THIS existing pending row
         // to completed (it matches on this first). The client no longer inserts
         // a payment row, which also removes the old duplicate-row bug.
-        findstoop_payment_id: paymentId,
+        // The webhook flips this row first and reads findstoop_payment_ids for
+        // the rest. Keeping the singular key means a PaymentIntent created by
+        // an older deploy still resolves after this ships.
+        findstoop_payment_id: primaryId,
+        findstoop_payment_ids: paymentIds.join(','),
         findstoop_tenant_id: tenantId,
         leaseId,
         tenantId,
@@ -231,7 +270,10 @@ Deno.serve(async (req) => {
     // "Pay" (or a retry) returns the SAME PaymentIntent instead of creating a
     // second charge for the same rent row.
     const paymentIntent = await stripe.paymentIntents.create(params, {
-      idempotencyKey: `rent:${paymentId}:${paymentMethod}`,
+      // Keyed on the whole set: paying rent alone and then rent+pet together
+      // are different requests and must not collide, while a double-clicked
+      // "Pay" on the same selection still returns the same PaymentIntent.
+      idempotencyKey: `rent:${paymentIds.join('_')}:${paymentMethod}`,
     })
 
     return json({

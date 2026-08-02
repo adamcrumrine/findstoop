@@ -168,7 +168,7 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
           <h2 className="text-sm font-semibold uppercase tracking-wider text-mute">Payment method</h2>
           <p className="text-xs text-mute mt-1">
             Used for rent and auto-pay. Bank transfers cost 0.8% (never more than $5);
-            cards add 3.5%. You'll see the exact amount before you pay.
+            cards add 3%. You'll see the exact amount before you pay.
           </p>
         </div>
 
@@ -411,7 +411,7 @@ function SetupForm({ onSuccess }: { onSuccess: () => void }) {
         <Landmark className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.75} />
         <span>
           Bank transfer costs 0.8%, capped at $5 no matter how large the payment.
-          Cards add 3.5% with no cap — usually several times more.
+          Cards add 3% with no cap — usually several times more.
         </span>
       </div>
       {errorMsg && (

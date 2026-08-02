@@ -22,11 +22,11 @@ const resend = new Resend(RESEND_API_KEY)
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', { apiVersion: '2023-10-16' })
 
 // Must match create-payment-intent (and packages/shared/src/lib/billing.ts):
-// every processing cost is passed to the tenant: cards 3.5%, bank transfers
+// every processing cost is passed to the tenant: cards 3%, bank transfers
 // 0.8% capped at $5. Autopay has to price identically to the manual pay
 // screen, or the amount a tenant approved differs from the amount collected.
 // Mirrors packages/shared/src/lib/paymentFees.ts (Deno can't import it).
-const CARD_SURCHARGE_PCT = 3.5
+const CARD_SURCHARGE_PCT = 3.0
 const ACH_SURCHARGE_PCT = 0.8
 const ACH_SURCHARGE_CAP_CENTS = 500
 
@@ -810,7 +810,7 @@ Deno.serve(async (req) => {
 
       try {
         // Mirror the manual create-payment-intent path: the saved PM's type
-        // decides the 3.5% card surcharge, and the landlord's Connect status
+        // decides the card surcharge, and the landlord's Connect status
         // decides whether the funds route direct to their bank. The profiles
         // row mirrors the PM type at save time (setup_intent.succeeded);
         // fall back to Stripe for PMs saved before the mirror existed.
@@ -847,7 +847,7 @@ Deno.serve(async (req) => {
           payment_method_types: [isCard ? 'card' : 'us_bank_account'],
           off_session: true,
           confirm: true,
-          description: isCard ? 'Rent + 3.5% card processing fee (autopay)' : 'Rent payment via ACH (autopay)',
+          description: isCard ? 'Rent + card processing fee (autopay)' : 'Rent payment via ACH (autopay)',
           ...(isCard
             ? { statement_descriptor_suffix: descriptor }
             : { statement_descriptor: descriptor }),

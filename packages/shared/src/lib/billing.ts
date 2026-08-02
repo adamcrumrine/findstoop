@@ -5,16 +5,16 @@
 // shown both totals. This file stays card-only because the subscription
 // surcharge is the only thing left that needs just the one number.
 //
-// FindStoop never absorbs card-network fees: a 3.5% surcharge is added to
+// FindStoop never absorbs card-network fees: a 3% surcharge is added to
 // every CARD charge. Subscription payments by ACH currently carry no
 // surcharge — the one remaining place the platform absorbs a Stripe fee.
 //
 // The Supabase edge functions (Deno) can't import this workspace package, so
-// they each declare `CARD_SURCHARGE_PCT = 3.5` locally — if the rate ever
+// they each declare `CARD_SURCHARGE_PCT` locally — if the rate ever
 // changes, update those too: create-payment-intent, cron-lifecycle-daily,
 // stripe-subscribe, stripe-webhook.
 
-export const CARD_SURCHARGE_PCT = 3.5
+export const CARD_SURCHARGE_PCT = 3.0
 
 /** Surcharge in cents for a base amount in cents. Card only — pass ACH through untouched. */
 export function cardSurchargeCents(baseCents: number): number {
@@ -22,7 +22,7 @@ export function cardSurchargeCents(baseCents: number): number {
 }
 
 /** Surcharge in dollars for a base amount in dollars, rounded to the cent.
- *  Matches the server formula: Math.round(dollars * 3.5) cents. */
+ *  Matches the server formula: Math.round(dollars * CARD_SURCHARGE_PCT) cents. */
 export function cardSurcharge(baseDollars: number): number {
   return Math.round(baseDollars * CARD_SURCHARGE_PCT) / 100
 }

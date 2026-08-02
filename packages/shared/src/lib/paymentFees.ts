@@ -36,15 +36,27 @@ export const CARD_FIXED_CENTS = 30
 // ---------------------------------------------------------------------------
 
 /**
- * Card surcharge. Set above Stripe's 2.9% + 30¢ to cover the fixed component
- * and disputes.
+ * Card surcharge, held at Visa's 3% ceiling — the lowest cap any network sets,
+ * so one rate stays compliant everywhere rather than varying by card brand.
  *
- * CEILING WARNING: Visa caps surcharges at 3% and Mastercard at 4%; a few
- * states ban credit surcharging outright, and card-network rules prohibit
- * surcharging DEBIT cards anywhere. 3.5% is over Visa's line. Dropping to 3.0
- * here is the only change needed to comply.
+ * KNOWN SHORTFALL: 3% clears Stripe's 2.9% but not the fixed 30¢, so charges
+ * under $300 collect less than they cost. Break-even is exactly $300
+ * (0.001x = 30¢). A $20 pet fee costs 88¢ to process and collects 60¢ — the
+ * platform absorbs 28¢. This is deliberate: raising the rate breaks the
+ * network cap, and adding a fixed component to a surcharge is the kind of
+ * thing that draws scrutiny for very little money. Rent is far above the line;
+ * only incidental charges sit below it.
+ *
+ * STILL UNSOLVED: card networks prohibit surcharging DEBIT cards anywhere, and
+ * Stripe doesn't reveal the funding type until the charge is under way. Any
+ * debit payment here is surcharged in breach of that rule. Fixing it properly
+ * means confirming the PaymentIntent, reading `card.funding`, and refunding the
+ * surcharge when it comes back 'debit'.
  */
-export const CARD_SURCHARGE_PCT = 3.5
+export const CARD_SURCHARGE_PCT = 3.0
+
+/** Below this, a 3% surcharge collects less than Stripe's 2.9% + 30¢ costs. */
+export const CARD_SURCHARGE_BREAKEVEN_CENTS = 30000
 
 /**
  * ACH surcharge — a straight pass-through of Stripe's rate and cap, no spread.

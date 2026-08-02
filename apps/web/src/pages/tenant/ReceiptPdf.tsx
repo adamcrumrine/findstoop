@@ -197,7 +197,7 @@ export default function TenantReceiptPdf() {
               charged by the processor at payment time; the recorded rent
               amount above is what the landlord received toward the lease. */}
           <p className="text-xs text-mute mb-10">
-            Amount shown is the amount applied to your lease. If you paid by card, the 3.5% card
+            Amount shown is the amount applied to your lease. If you paid by card, the 3% card
             processing fee appears separately on your card statement.
           </p>
 

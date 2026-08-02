@@ -238,7 +238,7 @@ function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, tenantId, p
       {surcharge > 0 && (
         <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2.5 text-xs text-gray-700">
           <div className="flex justify-between"><span>Rent</span><span>{formatUsdCents(rentAmount)}</span></div>
-          <div className="flex justify-between mt-0.5"><span>Card processing fee (3.5%)</span><span>{formatUsdCents(surcharge)}</span></div>
+          <div className="flex justify-between mt-0.5"><span>Card processing fee (3%)</span><span>{formatUsdCents(surcharge)}</span></div>
           <div className="flex justify-between mt-1 pt-1 border-t border-gray-200 font-semibold text-gray-900"><span>Total charge</span><span>{formatUsdCents(chargeAmount)}</span></div>
         </div>
       )}

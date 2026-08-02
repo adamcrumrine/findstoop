@@ -127,7 +127,7 @@ export default function HowToCollectRentOnline() {
       </ul>
       <p>
         On {BRAND.name}, ACH rent transfers are free for tenants — the landlord's flat $9/unit/month
-        subscription covers it — and card payments carry a 3.5% surcharge paid by the tenant at checkout,
+        subscription covers it — and card payments carry a 3% surcharge paid by the tenant at checkout,
         disclosed before they confirm the payment. Every payment posts to a shared ledger both the landlord
         and tenant can see, with CSV export for tax season.
       </p>

@@ -28,7 +28,7 @@ interface Props {
   onSuccess: () => void
   // Two-step flow: while clientSecret is null the modal shows the rail
   // chooser; picking one calls onSelectRail, the parent creates the
-  // subscription server-side (which bakes in the 3.5% card surcharge), and
+  // subscription server-side (which bakes in the 3% card surcharge), and
   // the returned clientSecret + breakdown flip the modal to the payment step.
   onSelectRail: (payWith: 'card' | 'ach') => Promise<void>
   onChangeRail: () => void
@@ -107,7 +107,7 @@ export default function SubscribeModal({
           </p>
         </div>
 
-        {/* Step 1: pick the payment rail (decides whether the 3.5% card
+        {/* Step 1: pick the payment rail (decides whether the 3% card
             surcharge applies — the server bakes it into the invoice). */}
         {!clientSecret ? (
           <div className="p-6 space-y-3">

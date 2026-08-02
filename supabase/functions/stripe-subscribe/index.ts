@@ -8,7 +8,7 @@
 //
 // Payment method is chosen by the manager BEFORE checkout (body.payWith):
 //   • 'ach'  → us_bank_account only, no surcharge.
-//   • 'card' → card only (incl. Apple Pay & Google Pay), plus the 3.5% card
+//   • 'card' → card only (incl. Apple Pay & Google Pay), plus the card
 //     surcharge: a pending invoice item is created before the subscription so
 //     the FIRST invoice carries it, and the stripe-webhook invoice.created
 //     handler adds it to every renewal invoice while the default PM is a card.
@@ -24,7 +24,7 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 
 // Must match stripe-webhook / create-payment-intent (and
 // packages/shared/src/lib/billing.ts).
-const CARD_SURCHARGE_PCT = 3.5
+const CARD_SURCHARGE_PCT = 3.0
 // Single-tier pricing: $9/unit/mo, $90/unit/yr. No free units, no tiers.
 const PRICE_MONTHLY = Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY') ?? ''
 const PRICE_YEARLY  = Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY')  ?? ''
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
       }
     } catch { /* listing failed — worst case Stripe rejects nothing; continue */ }
 
-    // Card rail: the 3.5% surcharge goes on as a pending invoice item so the
+    // Card rail: the surcharge goes on as a pending invoice item so the
     // FIRST invoice carries it (subscription creation pulls pending items in).
     // Renewal invoices are surcharged by the stripe-webhook invoice.created
     // handler, which re-checks the default PM each cycle.

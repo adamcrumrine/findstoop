@@ -22,7 +22,7 @@ const includedAtThisPrice = [
 
 const tenantCosts = [
   { label: 'ACH rent payment',  price: 'Free', sub: 'covered by the landlord' },
-  { label: 'Card rent payment', price: '3.5%', sub: 'paid by the renter at checkout' },
+  { label: 'Card rent payment', price: '3%', sub: 'paid by the renter at checkout' },
   { label: 'Tenability™',       price: '$5',   sub: 'income verification + ID verification + AI Tenability™ score' },
   { label: 'Tenability™ Pro',   price: '$25',  sub: 'everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring' },
 ]
@@ -155,7 +155,7 @@ export default function Pricing() {
             </h2>
             <p className="mt-3 text-mute max-w-xl mx-auto">
               Processing is passed through at cost on bank transfers: 0.8%, capped at $5
-              however large the rent. Card payments carry a 3.5% surcharge with no cap.
+              however large the rent. Card payments carry a 3% surcharge with no cap.
               Renters see both totals in dollars and pick before paying.
             </p>
           </div>

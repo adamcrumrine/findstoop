@@ -28,8 +28,8 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY') ?? '')
 const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop.com'
 
 // Must match create-payment-intent / stripe-subscribe (and
-// packages/shared/src/lib/billing.ts): card charges carry a 3.5% surcharge.
-const CARD_SURCHARGE_PCT = 3.5
+// packages/shared/src/lib/billing.ts): card charges carry a 3% surcharge.
+const CARD_SURCHARGE_PCT = 3.0
 
 // A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
 // bounced days later (insufficient funds, closed account). The cron's
@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
       }
       case 'invoice.created': {
         // Card-surcharge policy for manager subscriptions: renewal invoices
-        // get a 3.5% line item when the subscription will charge a card.
+        // get a surcharge line item when the subscription will charge a card.
         // Stripe creates subscription-cycle invoices as drafts and waits
         // ~1 hour before finalizing, which is the window to add the item.
         // (The FIRST invoice is handled at subscription-create time in

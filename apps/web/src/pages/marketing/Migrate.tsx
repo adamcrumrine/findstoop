@@ -265,7 +265,7 @@ export default function Migrate() {
             </Faq>
             <Faq q="What happens to my existing payments?">
               Past payments stay in your previous platform's history. Going forward, tenants pay through
-              {BRAND.name} — bank transfer costs them 0.8% capped at $5, card is 3.5% — both paid by them at checkout. Stripe Connect routes
+              {BRAND.name} — bank transfer costs them 0.8% capped at $5, card is 3% — both paid by them at checkout. Stripe Connect routes
               funds directly to your bank.
             </Faq>
             <Faq q="What about my signed lease PDFs?">

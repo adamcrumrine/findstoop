@@ -56,7 +56,7 @@ export default function Terms() {
             and is non-refundable except as required by law.
           </p>
           <p className="mt-2">
-            <strong>Card surcharge.</strong> If you pay your subscription by credit or debit card, a 3.5% surcharge is added
+            <strong>Card surcharge.</strong> If you pay your subscription by credit or debit card, a 3% surcharge is added
             to recover the card-processing fees. ACH bank payment has no surcharge. The Service displays the total before
             you confirm.
           </p>
@@ -75,7 +75,7 @@ export default function Terms() {
           <p>
             Rent payments are processed by Stripe, which holds appropriate money-transmitter licenses. Processing costs
             are passed through to the paying tenant: bank (ACH) payments carry a 0.8% fee capped at $5 per transaction,
-            and card payments carry a 3.5% surcharge with no cap. Both are disclosed in dollars before you confirm, and
+            and card payments carry a 3% surcharge with no cap. Both are disclosed in dollars before you confirm, and
             the total charged is the amount you approve. Failed ACH returns may incur a fee (currently $5) charged to
             the tenant.
           </p>

@@ -159,7 +159,7 @@ export default function Tenants() {
             <Row label="Tenability™" sub="Income verification + ID verification + your AI Tenability™ score" price="$5" />
             <Row label="Tenability™ Pro" sub="Everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring. Selfie is free." price="$25" />
             <Row label="Pay rent by ACH" sub="From any US bank, free for renters" price="$0" />
-            <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3.5%" />
+            <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3%" />
           </div>
           <p className="text-xs text-mute text-center mt-3">
             The $20 credit-report tier is a copy of <em>your own</em> AnnualCreditReport.gov report — federally free to pull —

@@ -6,8 +6,8 @@
 //     nor the landlord absorbs a card or ACH fee.
 //   • ACH (us_bank_account): 0.8% capped at $5 — Stripe's own rate and cap, no
 //     spread. This is the rail we want tenants on, so it's priced at cost.
-//   • Card: 3.5%, covering Stripe's 2.9% + $0.30 with a spread for the fixed
-//     component and disputes.
+//   • Card: 3%, held at Visa's surcharge ceiling. Clears Stripe's 2.9% but
+//     not the fixed 30c, so charges under $300 run at a small loss.
 //
 // Rates are duplicated from packages/shared/src/lib/paymentFees.ts because
 // Deno can't import the workspace package. paymentFees.test.ts pins the
@@ -25,7 +25,7 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
 })
 
-const CARD_SURCHARGE_PCT = 3.5
+const CARD_SURCHARGE_PCT = 3.0
 const ACH_SURCHARGE_PCT = 0.8
 const ACH_SURCHARGE_CAP_CENTS = 500
 

@@ -77,7 +77,7 @@ export default function Billing() {
   // Embedded Stripe Elements subscription flow — opened in-place instead of
   // redirecting to hosted Checkout (which carries the wrong brand identity).
   // Opens with clientSecret null (rail-chooser step); once the manager picks
-  // ACH vs card the server creates the subscription — with the 3.5% card
+  // ACH vs card the server creates the subscription — with the 3% card
   // surcharge baked into the invoice — and fills in clientSecret + breakdown.
   const [subscribeModal, setSubscribeModal] = useState<{
     plan: 'monthly' | 'annual'
@@ -158,7 +158,7 @@ export default function Billing() {
     }
     // Open the modal on the rail-chooser step; the subscription is only
     // created once the manager picks ACH vs card (the choice decides the
-    // 3.5% card surcharge, so it must precede the Stripe call).
+    // 3% card surcharge, so it must precede the Stripe call).
     setSubscribeModal({
       plan: selectedPlan,
       quantity: Math.max(1, state?.paidUnits ?? 1),

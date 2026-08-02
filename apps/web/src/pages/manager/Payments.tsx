@@ -383,10 +383,17 @@ function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMi
     }
   }
 
+  // Three rows, not one.
+  //
+  // Everything used to sit on a single flex line with the actions marked
+  // shrink-0, so on a phone three buttons plus the amount claimed the width
+  // and the tenant name wrapped to four lines beside them. Identity now gets
+  // the full column, and the buttons drop to their own row where they have
+  // room to be tappable.
   return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+    <div className="py-3 border-b border-gray-100 last:border-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
             {status.label}
@@ -398,82 +405,93 @@ function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMi
             <RefreshCw className="w-3.5 h-3.5 text-gray-500" strokeWidth={1.75} aria-label="Tenant auto-pay" />
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {tenantName}
-          {propertyLabel && <> · {propertyLabel}</>}
-          {' · '}{formatMonthYear(payment.due_date ?? anchor)}
-        </p>
-        {payment.memo && (
-          <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
-        )}
-        {splitMismatch && (
-          <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" strokeWidth={2} />
-            Split sum {formatUsdCents(splitMismatch.groupSum)} ≠ lease rent {formatUsdCents(splitMismatch.expected)}
+        {/* The amount is what gets scanned down the column, so it keeps its
+            place on the first line and never moves. */}
+        {!editing && (
+          <p className="text-sm font-semibold text-gray-900 shrink-0 tabular-nums">
+            {formatUsdCents(Number(payment.amount))}
           </p>
         )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {editing ? (
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              value={draftAmount}
-              onChange={(e) => setDraftAmount(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void commitEdit(); if (e.key === 'Escape') setEditing(false) }}
-              autoFocus
-              disabled={saving}
-              className="w-20 text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
-            <button
-              onClick={commitEdit}
-              disabled={saving}
-              className="text-xs font-medium text-brand-700 hover:text-brand-800 px-1"
-            >
-              {saving ? '…' : 'Save'}
-            </button>
-            <button
-              onClick={() => { setEditing(false); setDraftAmount(String(payment.amount)) }}
-              disabled={saving}
-              className="text-xs text-mute hover:text-ink px-1"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm font-semibold text-gray-900">{formatUsdCents(Number(payment.amount))}</p>
-            {isAmountEditable && (
+
+      <p className="text-xs text-gray-500 mt-0.5 truncate">
+        {tenantName}
+        {propertyLabel && <> · {propertyLabel}</>}
+        {' · '}{formatMonthYear(payment.due_date ?? anchor)}
+      </p>
+      {payment.memo && (
+        <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
+      )}
+      {splitMismatch && (
+        <p className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
+          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" strokeWidth={2} />
+          <span>Split sum {formatUsdCents(splitMismatch.groupSum)} ≠ lease rent {formatUsdCents(splitMismatch.expected)}</span>
+        </p>
+      )}
+
+      {(editing || isAmountEditable || isCreditable || showMarkPaid) && (
+        <div className="flex items-center gap-2 flex-wrap justify-end mt-2">
+          {editing ? (
+            <>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={draftAmount}
+                onChange={(e) => setDraftAmount(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+                autoFocus
+                disabled={saving}
+                aria-label="Amount"
+                className="w-24 text-sm px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
               <button
-                onClick={() => { setDraftAmount(String(payment.amount)); setEditing(true) }}
-                className="text-xs font-medium text-gray-600 border border-gray-200 px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors"
-                title="Override this row's amount — useful for uneven multi-primary splits"
+                onClick={commitEdit}
+                disabled={saving}
+                className="text-xs font-medium text-brand-700 hover:text-brand-800 px-2 py-1.5"
               >
-                Edit
+                {saving ? '…' : 'Save'}
               </button>
-            )}
-          </>
-        )}
-        {isCreditable && !editing && (
-          <button
-            onClick={() => onApplyCredit(payment)}
-            className="text-xs font-medium text-amber-700 border border-amber-200 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors"
-          >
-            Credit
-          </button>
-        )}
-        {showMarkPaid && !editing && (
-          <button
-            onClick={() => onMarkPaid(payment.id)}
-            className="text-xs font-medium text-brand-600 border border-brand-200 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
-          >
-            Mark Paid
-          </button>
-        )}
-      </div>
+              <button
+                onClick={() => { setEditing(false); setDraftAmount(String(payment.amount)) }}
+                disabled={saving}
+                className="text-xs text-mute hover:text-ink px-2 py-1.5"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              {isAmountEditable && (
+                <button
+                  onClick={() => { setDraftAmount(String(payment.amount)); setEditing(true) }}
+                  className="text-xs font-medium text-gray-600 border border-gray-200 px-2.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Override this row's amount — useful for uneven multi-primary splits"
+                >
+                  Edit
+                </button>
+              )}
+              {isCreditable && (
+                <button
+                  onClick={() => onApplyCredit(payment)}
+                  className="text-xs font-medium text-amber-700 border border-amber-200 px-2.5 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+                >
+                  Credit
+                </button>
+              )}
+              {showMarkPaid && (
+                <button
+                  onClick={() => onMarkPaid(payment.id)}
+                  className="text-xs font-medium text-brand-600 border border-brand-200 px-2.5 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
+                >
+                  Mark Paid
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

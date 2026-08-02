@@ -161,6 +161,34 @@ Deno.serve(async (req) => {
       // recognise what the single line covers.
       : rows.map((r) => labelFor(r.type)).join(' + ')
 
+    // Debit cards are refused for rent.
+    //
+    // Networks prohibit surcharging debit anywhere in the US, so a debit rent
+    // payment can never recover Stripe's 2.9% + 30c — about $15.53 on a $525
+    // share, straight off the platform, every month. A merchant isn't obliged
+    // to accept every funding type, and refusing costs the tenant nothing:
+    // bank transfer is cheaper for them than a card would have been anyway.
+    //
+    // Only enforceable when the card is already saved (the funding type is
+    // recorded at setup). A brand-new card entered at checkout isn't knowable
+    // until the charge exists — stripe-webhook refunds that surcharge as the
+    // backstop, and the funding type it learns is stored so this check catches
+    // the next attempt.
+    if (paymentMethod === 'card') {
+      const { data: payer } = await admin
+        .from('profiles')
+        .select('stripe_default_pm_funding')
+        .eq('id', tenantId)
+        .maybeSingle()
+      if (payer?.stripe_default_pm_funding === 'debit') {
+        return json({
+          error: 'Your saved card is a debit card, which we can\'t accept for rent. '
+            + 'Pay by bank transfer instead — it\'s the cheapest option — or add a credit card.',
+          code: 'debit_not_accepted',
+        }, { status: 400 })
+      }
+    }
+
     // Look up the landlord's tier + Connect status from the lease.
     const { data: ctxRows } = await admin.rpc('lease_payout_context', { lease_uuid: leaseId })
     const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows

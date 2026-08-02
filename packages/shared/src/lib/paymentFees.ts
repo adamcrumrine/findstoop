@@ -47,11 +47,13 @@ export const CARD_FIXED_CENTS = 30
  * thing that draws scrutiny for very little money. Rent is far above the line;
  * only incidental charges sit below it.
  *
- * STILL UNSOLVED: card networks prohibit surcharging DEBIT cards anywhere, and
- * Stripe doesn't reveal the funding type until the charge is under way. Any
- * debit payment here is surcharged in breach of that rule. Fixing it properly
- * means confirming the PaymentIntent, reading `card.funding`, and refunding the
- * surcharge when it comes back 'debit'.
+ * DEBIT: card networks prohibit surcharging debit anywhere in the US, and
+ * Stripe doesn't reveal the funding type until the charge exists — so the
+ * surcharge is collected before we can tell. stripe-webhook refunds it on
+ * payment_intent.succeeded once `card.funding` reads 'debit'. The refund comes
+ * out of the platform balance, leaving the landlord whole and the platform
+ * absorbing Stripe's cost on that payment. Debit rent is therefore a LOSS,
+ * roughly 2.9% + 30c of the amount; bank transfer is the rail to push.
  */
 export const CARD_SURCHARGE_PCT = 3.0
 

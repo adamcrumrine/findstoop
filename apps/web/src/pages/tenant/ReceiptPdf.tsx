@@ -197,8 +197,10 @@ export default function TenantReceiptPdf() {
               charged by the processor at payment time; the recorded rent
               amount above is what the landlord received toward the lease. */}
           <p className="text-xs text-mute mb-10">
-            Amount shown is the amount applied to your lease. If you paid by card, the 3% card
-            processing fee appears separately on your card statement.
+            Amount shown is the amount applied to your lease. Any processing fee appears separately
+            on your statement. Debit cards are never surcharged — if you paid by debit, the fee is
+            refunded automatically once your bank confirms the card type, so you may see the charge
+            and its refund as two lines.
           </p>
 
           {/* Footer */}

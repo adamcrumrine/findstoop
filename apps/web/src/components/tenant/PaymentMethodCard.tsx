@@ -39,6 +39,7 @@ interface State {
   pm_brand: string | null
   pm_last4: string | null
   pm_bank_name: string | null
+  pm_funding: string | null
 }
 
 const INITIAL: State = {
@@ -50,6 +51,7 @@ const INITIAL: State = {
   pm_brand: null,
   pm_last4: null,
   pm_bank_name: null,
+  pm_funding: null,
 }
 
 export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodChange, landlordBrand }: Props) {
@@ -66,7 +68,7 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('autopay_enabled, payment_method_setup_at, stripe_default_payment_method_id, payment_complimentary, stripe_default_pm_type, stripe_default_pm_brand, stripe_default_pm_last4, stripe_default_pm_bank_name')
+      .select('autopay_enabled, payment_method_setup_at, stripe_default_payment_method_id, payment_complimentary, stripe_default_pm_type, stripe_default_pm_brand, stripe_default_pm_last4, stripe_default_pm_bank_name, stripe_default_pm_funding')
       .eq('id', tenantId)
       .maybeSingle()
     setState((s) => ({
@@ -79,6 +81,7 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
       pm_brand: data?.stripe_default_pm_brand ?? null,
       pm_last4: data?.stripe_default_pm_last4 ?? null,
       pm_bank_name: data?.stripe_default_pm_bank_name ?? null,
+      pm_funding: data?.stripe_default_pm_funding ?? null,
     }))
     setLoading(false)
   }
@@ -171,6 +174,20 @@ export default function PaymentMethodCard({ tenantId, onAutopayChange, onMethodC
             cards add 3%. You'll see the exact amount before you pay.
           </p>
         </div>
+
+        {/* Debit is refused for rent — the networks forbid surcharging it, so
+            every debit payment would cost us Stripe's cut with no way to
+            recover it. Say so here, where they can fix it calmly, rather than
+            letting them discover it as an error on the 1st of the month. */}
+        {hasMethod && state.pm_funding === 'debit' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
+            <p className="font-semibold">This is a debit card — we can't use it for rent.</p>
+            <p className="mt-0.5">
+              Add a US bank account instead. It's the cheapest way to pay (0.8%, never more
+              than $5) and works with auto-pay. A credit card also works.
+            </p>
+          </div>
+        )}
 
         {hasMethod ? (
           <div className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">

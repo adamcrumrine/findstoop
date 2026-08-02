@@ -57,6 +57,78 @@ function paymentIdsFromMetadata(md: Stripe.Metadata | null | undefined): string[
   return one ? [one] : []
 }
 
+/**
+ * Refund the surcharge when the card turns out to be a debit card.
+ *
+ * Card-network rules prohibit surcharging debit anywhere in the US — there is
+ * no state where it's allowed and no disclosure that cures it. Stripe doesn't
+ * reveal the funding type until the charge exists, so the surcharge is already
+ * collected by the time we can tell. The only compliant response is to give it
+ * back, which is what this does.
+ *
+ * The refund comes out of the platform balance, not the landlord's transfer:
+ * the surcharge WAS the application fee, so returning it leaves the landlord
+ * with exactly their rent and the platform absorbing Stripe's processing cost
+ * on that payment. That's the real price of accepting debit, and it's the
+ * correct place for it to land — the landlord didn't choose the card.
+ *
+ * Deliberately does nothing when the landlord already absorbed the fee
+ * (feePaidBy=landlord): the tenant was never surcharged, so there is nothing
+ * to return.
+ */
+async function refundSurchargeIfDebit(pi: Stripe.PaymentIntent): Promise<void> {
+  const surchargeCents = Math.round(Number(pi.metadata?.surchargeAmount ?? '0') * 100)
+  if (!(surchargeCents > 0)) return
+  if (pi.metadata?.feePaidBy === 'landlord') return
+
+  const chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id
+  if (!chargeId) return
+
+  let funding: string | null = null
+  try {
+    const charge = await stripe.charges.retrieve(chargeId)
+    funding = charge.payment_method_details?.card?.funding ?? null
+  } catch {
+    // Can't read the funding type — leave the charge alone rather than issue a
+    // refund we can't justify.
+    return
+  }
+  if (funding !== 'debit') return
+
+  try {
+    await stripe.refunds.create({
+      payment_intent: pi.id,
+      amount: surchargeCents,
+      // Do NOT reverse the transfer: the landlord keeps the rent. Only the
+      // platform's application fee is given back.
+      reverse_transfer: false,
+      metadata: {
+        reason: 'debit_surcharge_refund',
+        platform: 'findstoop',
+        findstoop_payment_ids: pi.metadata?.findstoop_payment_ids ?? pi.metadata?.findstoop_payment_id ?? '',
+      },
+    }, {
+      // Redelivery must not refund twice.
+      idempotencyKey: `debit-surcharge:${pi.id}`,
+    })
+    await logApiCall({
+      function_name: 'stripe-webhook', vendor: 'stripe', status_code: 200,
+      reference_id: pi.id,
+      error_message: `debit surcharge refunded: ${surchargeCents} cents`,
+      metadata: { event_type: 'payment_intent.succeeded', charge_id: chargeId },
+    })
+  } catch (err) {
+    // Log loudly — an un-refunded debit surcharge is a compliance exposure,
+    // not a cosmetic failure, and someone has to be able to find it.
+    await logApiCall({
+      function_name: 'stripe-webhook', vendor: 'stripe', status_code: 500,
+      reference_id: pi.id,
+      error_message: `DEBIT SURCHARGE REFUND FAILED (${surchargeCents} cents): ${err instanceof Error ? err.message : 'unknown'}`,
+      metadata: { event_type: 'payment_intent.succeeded', charge_id: chargeId },
+    })
+  }
+}
+
 // A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
 // bounced days later (insufficient funds, closed account). The cron's
 // autopay-failure alert only covers charge-time declines; this covers the
@@ -504,6 +576,10 @@ Deno.serve(async (req) => {
             .eq('id', tenantId)
             .is('payment_method_setup_at', null)
         }
+        // Only knowable now: Stripe doesn't expose the card's funding type
+        // until the charge exists. Debit can't legally be surcharged, so if
+        // that's what this was, give the surcharge back.
+        await refundSurchargeIfDebit(pi)
         break
       }
       case 'payment_intent.processing': {
@@ -560,12 +636,18 @@ Deno.serve(async (req) => {
           let pmBrand: string | null = null
           let pmLast4: string | null = null
           let pmBankName: string | null = null
+          // Debit can't legally be surcharged, so a saved debit card would
+          // lose Stripe's cut every month it's used. Capture the funding type
+          // now — this is the earliest moment it exists — so the pay screen
+          // can refuse it once instead of bleeding on every renewal.
+          let pmFunding: string | null = null
           try {
             const pm = await stripe.paymentMethods.retrieve(pmId)
             pmType = pm.type ?? null
             pmBrand = pm.card?.brand ?? null
             pmLast4 = pm.card?.last4 ?? pm.us_bank_account?.last4 ?? null
             pmBankName = pm.us_bank_account?.bank_name ?? null
+            pmFunding = pm.card?.funding ?? null
           } catch { /* non-fatal — UI falls back to a generic label */ }
 
           await admin.from('profiles').update({
@@ -575,6 +657,7 @@ Deno.serve(async (req) => {
             stripe_default_pm_brand: pmBrand,
             stripe_default_pm_last4: pmLast4,
             stripe_default_pm_bank_name: pmBankName,
+            stripe_default_pm_funding: pmFunding,
           }).eq('id', tenantId)
         }
         break

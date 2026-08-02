@@ -774,7 +774,7 @@ Deno.serve(async (req) => {
         id, amount, tenant_id, lease_id, scheduled_for, due_date, type, initiated_at,
         tenant:profiles!payments_tenant_id_fkey(
           autopay_enabled, payment_complimentary, stripe_customer_id, stripe_default_payment_method_id,
-          stripe_default_pm_type, email, full_name
+          stripe_default_pm_type, stripe_default_pm_funding, email, full_name
         ),
         lease:leases!payments_lease_id_fkey(
           unit:units(unit_number, property:properties(name))
@@ -821,6 +821,44 @@ Deno.serve(async (req) => {
           } catch { pmType = null }
         }
         const isCard = pmType !== 'us_bank_account' // unknown type ⇒ treat as card (never under-charge the surcharge rail)
+
+        // Never autopay a debit card. Debit can't legally be surcharged, so
+        // each charge would lose Stripe's 2.9% + 30c — and autopay repeats it
+        // every month with nobody watching, which is exactly how a small
+        // leak becomes a large one. Skip and tell the tenant to switch;
+        // failing loudly once beats bleeding quietly for a year.
+        if (isCard && tenant.stripe_default_pm_funding === 'debit') {
+          autopaySkipped++
+          if (tenant?.email) {
+            const lease = Array.isArray((row as any).lease) ? (row as any).lease[0] : (row as any).lease
+            const unit = lease && (Array.isArray(lease.unit) ? lease.unit[0] : lease.unit)
+            const property = unit && (Array.isArray(unit.property) ? unit.property[0] : unit.property)
+            await fireTrigger({
+              triggerKey: 'autopay_failed',
+              userId: row.tenant_id,
+              recipientEmail: tenant.email,
+              bccEmail: await bccForLease(row.lease_id),
+              brand: await brandForLease(row.lease_id),
+              dedupToken: `autopay_debit:${row.id}:${new Date().toISOString().split('T')[0]}`,
+              push: {
+                title: 'Update your rent payment method',
+                body: 'We can\'t auto-pay rent with a debit card. Switch to a bank account or credit card.',
+                url: '/tenant/pay-rent',
+                tag: `autopay-debit-${row.id}`,
+              },
+              smsBody: `Action needed: we can't auto-pay rent with a debit card. Add a bank account (cheapest) or a credit card: ${APP_URL}/tenant/pay-rent`,
+              templateVars: {
+                first_name: (tenant.full_name?.split(' ')[0]) ?? 'there',
+                amount: Number(row.amount),
+                property_name: property?.name ?? 'your rental',
+                unit_number: unit?.unit_number ?? '',
+                pay_url: `${APP_URL}/tenant/pay-rent`,
+              },
+            })
+          }
+          continue
+        }
+
         const rentCents = Math.round(Number(row.amount) * 100)
         // Same per-tenant absorption switch the pay screen honours. Autopay
         // charging a fee the tenant was told they don't pay is the worst

@@ -16,7 +16,19 @@ export interface DashboardStats {
   totalUnits: number
   occupiedUnits: number
   vacantUnits: number
+  /** Charges DUE this month that have settled. Deliberately not "cash that
+   *  arrived this month" — see the note on the calculation below. */
   rentCollectedThisMonth: number
+  /** Due this month and in flight: ACH takes 3–5 business days to settle, so
+   *  this is money the tenant has genuinely sent that isn't collected yet.
+   *  Without it, a household that has all paid by ACH looks delinquent. */
+  rentProcessingThisMonth: number
+  /** Due this month, nothing started. The number that actually needs chasing. */
+  rentOutstandingThisMonth: number
+  /** Settled this month against charges from EARLIER months — back-rent and
+   *  catch-up. Real income, but it isn't this month's collection, so it's
+   *  reported separately rather than folded into the headline. */
+  priorMonthCollectedThisMonth: number
   outstandingPayments: number
   openMaintenanceRequests: number
 }
@@ -167,13 +179,36 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
+  // "Collected this month" used to mean any payment whose paid_at fell in this
+  // month, whatever period it was FOR. Recording a batch of back-rent — say an
+  // import backfill of last season's tenants — then showed up as this month's
+  // collection, under a header naming the current month. A landlord reading
+  // "did my tenants pay this month?" got an answer to a different question.
+  //
+  // Now the headline is scoped to charges DUE this month, and money settled
+  // against earlier months is reported separately as back-rent. Both are real
+  // income; only one answers the question the dashboard appears to ask.
+  const dueThisMonth = (p: Payment) => {
+    const anchor = (p as Payment & { scheduled_for?: string | null }).scheduled_for ?? p.due_date
+    if (!anchor) return false
+    // Compare on the YYYY-MM prefix: a DATE column parsed as a Date is shifted
+    // into the previous day (and occasionally the previous MONTH, on the 1st)
+    // in any negative UTC offset.
+    return anchor.slice(0, 7) === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }
+  const sum = (rows: Payment[]) => rows.reduce((s, p) => s + Number(p.amount), 0)
+  const thisMonthCharges = allPayments.filter(dueThisMonth)
+
   const stats: DashboardStats = {
     totalUnits: units.length,
     occupiedUnits: units.filter((u) => u.status === 'occupied').length,
     vacantUnits: units.filter((u) => u.status === 'vacant').length,
-    rentCollectedThisMonth: allPayments
-      .filter((p) => p.status === 'completed' && p.paid_at && p.paid_at >= startOfMonth)
-      .reduce((sum, p) => sum + Number(p.amount), 0),
+    rentCollectedThisMonth: sum(thisMonthCharges.filter((p) => p.status === 'completed')),
+    rentProcessingThisMonth: sum(thisMonthCharges.filter((p) => p.status === 'processing')),
+    rentOutstandingThisMonth: sum(thisMonthCharges.filter((p) => p.status === 'pending')),
+    priorMonthCollectedThisMonth: sum(allPayments.filter((p) =>
+      p.status === 'completed' && p.paid_at && p.paid_at >= startOfMonth && !dueThisMonth(p),
+    )),
     outstandingPayments: allPayments
       .filter((p) => p.status === 'pending')
       .reduce((sum, p) => sum + Number(p.amount), 0),

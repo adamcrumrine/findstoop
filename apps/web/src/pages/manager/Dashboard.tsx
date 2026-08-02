@@ -508,7 +508,23 @@ export default function ManagerDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <MonthlyDonut payments={allPayments} loading={loading} />
         <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Rent Collected" value={formatUsd(stats.rentCollectedThisMonth)} loading={loading} accent="brand" sub="this month" />
+          {/* "Collected" counts only charges DUE this month that have settled.
+              Money in flight gets its own line rather than being lumped in
+              (overstates) or omitted (makes payers look delinquent), and
+              back-rent settled this month is called out for what it is. */}
+          <StatCard
+            label="Rent Collected"
+            value={formatUsd(stats.rentCollectedThisMonth)}
+            loading={loading}
+            accent="brand"
+            sub={
+              stats.rentProcessingThisMonth > 0
+                ? `${formatUsd(stats.rentProcessingThisMonth)} still clearing`
+                : stats.priorMonthCollectedThisMonth > 0
+                  ? `+ ${formatUsd(stats.priorMonthCollectedThisMonth)} back-rent`
+                  : 'due this month'
+            }
+          />
           <StatCard label="Total Units"    value={stats.totalUnits} loading={loading} />
           {pastDueThisMonth > 0 ? (
             <StatCard label="Past Due" value={formatUsd(pastDueThisMonth)} loading={loading} accent="red" sub="needs attention · this month" />

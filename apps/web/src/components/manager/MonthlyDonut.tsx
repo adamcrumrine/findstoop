@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
-import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus } from '@findstoop/shared/lib/paymentRails'
 import { formatUsd } from '@findstoop/shared/lib/format'
 import type { Payment } from '@findstoop/shared/types/payment'
 import { brandColor } from '../../lib/brand'
@@ -41,9 +41,20 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
     const start = new Date(cursor)
     const end = new Date(cursor); end.setMonth(end.getMonth() + 1)
 
+    // Bucket by the month the charge is FOR, never by when cash arrived.
+    // paymentAnchor falls back to paid_at, so July rent settled on Aug 1 was
+    // landing in August's chart — a backfill of last season's tenants showed
+    // up as this month's collection. A breakdown headed "August 2026" has to
+    // mean August's obligations.
+    //
+    // Compared as a YYYY-MM string: a DATE column parsed via `new Date` is
+    // UTC midnight, which is the previous day locally in the US — and on the
+    // 1st of the month, the previous MONTH.
+    const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`
     const inMonth = (p: Payment) => {
-      const d = new Date(paymentAnchor(p))
-      return d >= start && d < end
+      const anchor = (p as Payment & { scheduled_for?: string | null }).scheduled_for
+        ?? p.due_date ?? p.created_at
+      return typeof anchor === 'string' && anchor.slice(0, 7) === monthKey
     }
 
     // Collapse rows that represent the SAME obligation — a stray duplicate from

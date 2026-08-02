@@ -16,6 +16,8 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import FormField, { inputClass, selectClass } from '../../components/shared/FormField'
 import { CreditCard, CalendarClock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import MultiSelect from '../../components/shared/MultiSelect'
+import { useScope, inScope } from '../../lib/scope'
 
 
 
@@ -487,10 +489,14 @@ export default function ManagerPayments() {
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
   const { payments, loading, add, markPaid, update, regenerateSchedule, reload } = usePayments(leaseIds)
 
-  const [filterStatus, setFilterStatus] = useState<PaymentStatus | 'all'>('all')
-  const [filterType, setFilterType] = useState<PaymentType | 'all'>('all')
-  const [filterPropertyId, setFilterPropertyId] = useState<string | 'all'>('all')
-  const [filterLeaseStatus, setFilterLeaseStatus] = useState<'all' | 'active' | 'pending' | 'expired' | 'terminated'>('all')
+  // Multi-select throughout: chasing money means "failed AND past due", which
+  // a single <select> forced a manager to check one status at a time.
+  const [filterStatus, setFilterStatus] = useState<string[]>([])
+  const [filterType, setFilterType] = useState<string[]>([])
+  const [filterLeaseStatus, setFilterLeaseStatus] = useState<string[]>([])
+  // Property + unit come from the shared layout scope, so the selection
+  // survives navigating to Maintenance or Leases.
+  const scope = useScope()
   const [addOpen, setAddOpen] = useState(false)
   const [billBackOpen, setBillBackOpen] = useState(false)
   const [markPaidTarget, setMarkPaidTarget] = useState<Payment | null>(null)
@@ -639,17 +645,18 @@ export default function ManagerPayments() {
 
   const filtered = useMemo(() =>
     payments.filter((p) => {
-      if (filterStatus !== 'all' && p.status !== filterStatus) return false
-      if (filterType !== 'all' && p.type !== filterType) return false
+      // Empty selection means "not filtering", never "match nothing" — a
+      // manager who just unticked the last box wants the list back.
+      if (filterStatus.length > 0 && !filterStatus.includes(p.status)) return false
+      if (filterType.length > 0 && !filterType.includes(p.type)) return false
       const lease = leaseMap[p.lease_id]
-      if (filterLeaseStatus !== 'all' && lease?.status !== filterLeaseStatus) return false
-      if (filterPropertyId !== 'all') {
-        const propId = lease ? unitToProperty[lease.unit_id] : undefined
-        if (propId !== filterPropertyId) return false
-      }
+      if (filterLeaseStatus.length > 0 && !filterLeaseStatus.includes(lease?.status ?? '')) return false
+      // Property/unit now come from the shared portfolio scope in the layout,
+      // so the choice persists when the manager moves to Maintenance or Leases.
+      if (!inScope(scope, { unitId: lease?.unit_id ?? null })) return false
       return true
     }),
-    [payments, filterStatus, filterType, filterLeaseStatus, filterPropertyId, leaseMap, unitToProperty]
+    [payments, filterStatus, filterType, filterLeaseStatus, scope, leaseMap]
   )
 
   // Attention-first: unsettled payments ascending (most overdue → due now →
@@ -659,7 +666,7 @@ export default function ManagerPayments() {
   // every lease's pre-generated schedule on top, hiding what's actually due.
   const sorted = useMemo(() => ledgerOrder(filtered), [filtered])
   const [visibleCount, setVisibleCount] = useState(50)
-  useEffect(() => { setVisibleCount(50) }, [filterStatus, filterType, filterLeaseStatus, filterPropertyId])
+  useEffect(() => { setVisibleCount(50) }, [filterStatus, filterType, filterLeaseStatus, scope.propertyId, scope.unitId])
   const visible = sorted.slice(0, visibleCount)
 
   const propertyNameById = useMemo(
@@ -820,57 +827,41 @@ export default function ManagerPayments() {
       {/* Late-rent series prompts — one per lease with overdue rent (5+ days). */}
       {!loading && <LatePaymentBanner payments={payments} leases={leases} units={units} />}
 
-      {/* Filters */}
+      {/* Property and unit filters moved to the layout scope bar so they hold
+          across pages. What stays here is what only this page understands. */}
       {!loading && payments.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          <select
-            value={filterPropertyId}
-            onChange={(e) => setFilterPropertyId(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All Properties</option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <select
-            value={filterLeaseStatus}
-            onChange={(e) => setFilterLeaseStatus(e.target.value as 'all' | 'active' | 'pending' | 'expired' | 'terminated')}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All Lease Statuses</option>
-            <option value="active">Active lease</option>
-            <option value="pending">Pending lease</option>
-            <option value="expired">Expired lease</option>
-            <option value="terminated">Terminated lease</option>
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as PaymentStatus | 'all')}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All Payment Statuses</option>
-            <option value="pending">Upcoming / Scheduled</option>
-            <option value="processing">Processing</option>
-            <option value="completed">Paid</option>
-            <option value="failed">Failed</option>
-          </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as PaymentType | 'all')}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All Types</option>
-            <option value="rent">Rent</option>
-            <option value="fee">Fee</option>
-            <option value="fine">Fine</option>
-            <option value="late_fee">Late Fee</option>
-            <option value="utility">Utility</option>
-            <option value="pet_fee">Pet Fee</option>
-            <option value="pet_deposit">Pet Deposit</option>
-            <option value="credit">Credit</option>
-            <option value="other">Other / Misc</option>
-          </select>
+          <MultiSelect allLabel="All lease statuses" noun="lease statuses"
+            selected={filterLeaseStatus} onChange={setFilterLeaseStatus}
+            options={[
+              { value: "active", label: "Active lease" },
+              { value: "pending", label: "Pending lease" },
+              { value: "expired", label: "Expired lease" },
+              { value: "terminated", label: "Terminated lease" },
+            ]} />
+          <MultiSelect allLabel="All payment statuses" noun="statuses"
+            selected={filterStatus} onChange={setFilterStatus}
+            options={[
+              { value: "pending", label: "Upcoming / Scheduled" },
+              { value: "processing", label: "Processing" },
+              { value: "completed", label: "Paid" },
+              { value: "failed", label: "Failed" },
+              { value: "refunded", label: "Refunded" },
+              { value: "disputed", label: "Disputed" },
+            ]} />
+          <MultiSelect allLabel="All types" noun="types"
+            selected={filterType} onChange={setFilterType}
+            options={[
+              { value: "rent", label: "Rent" },
+              { value: "fee", label: "Fee" },
+              { value: "fine", label: "Fine" },
+              { value: "late_fee", label: "Late Fee" },
+              { value: "utility", label: "Utility" },
+              { value: "pet_fee", label: "Pet Fee" },
+              { value: "pet_deposit", label: "Pet Deposit" },
+              { value: "credit", label: "Credit" },
+              { value: "other", label: "Other / Misc" },
+            ]} />
         </div>
       )}
 

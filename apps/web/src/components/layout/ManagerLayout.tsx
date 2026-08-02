@@ -9,6 +9,8 @@ import {
 import Avatar from '../shared/Avatar'
 import FeedbackModal from '../manager/FeedbackModal'
 import NotificationsBell from '../manager/NotificationsBell'
+import ScopeBar from '../manager/ScopeBar'
+import { ScopeProvider } from '../../lib/scope'
 import { MessageCircleQuestion } from 'lucide-react'
 import { BRAND } from '../../lib/brand'
 
@@ -120,6 +122,7 @@ export default function ManagerLayout() {
     }`
 
   return (
+    <ScopeProvider>
     <div className="flex h-dvh bg-gray-50 overflow-hidden">
       <a
         href="#main-content"
@@ -232,6 +235,10 @@ export default function ManagerLayout() {
             </div>
           )}
           <div className="relative z-10">
+            {/* Portfolio scope sits above the outlet so it's on every page and
+                survives navigation — picking a property on Payments and then
+                opening Maintenance used to lose it. */}
+            <ScopeBar />
             <Outlet />
           </div>
         </main>
@@ -318,5 +325,6 @@ export default function ManagerLayout() {
 
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
+    </ScopeProvider>
   )
 }

@@ -470,7 +470,7 @@ function UpdatePaymentForm({ onCancel, onSuccess }: { onCancel: () => void; onSu
       )}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 leading-relaxed">
         <strong className="font-semibold">Card surcharge:</strong>{' '}
-        Switching to a card adds a 3% processing fee on each future invoice. ACH (US bank account) has no surcharge.
+        Processing is added to each future invoice: 3% on a card, 0.8% capped at $5 on a US bank account.
       </div>
       <div className="flex gap-3">
         <button

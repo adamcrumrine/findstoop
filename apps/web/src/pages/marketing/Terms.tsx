@@ -56,9 +56,9 @@ export default function Terms() {
             and is non-refundable except as required by law.
           </p>
           <p className="mt-2">
-            <strong>Card surcharge.</strong> If you pay your subscription by credit or debit card, a 3% surcharge is added
-            to recover the card-processing fees. ACH bank payment has no surcharge. The Service displays the total before
-            you confirm.
+            <strong>Processing fees.</strong> Payment-processing costs are added to your subscription invoice: 3% if you
+            pay by credit or debit card, or 0.8% capped at $5 per invoice if you pay by US bank account (ACH). The
+            Service displays the total before you confirm.
           </p>
         </Sec>
 

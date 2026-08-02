@@ -4,6 +4,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { X, Loader2, Lock, CheckCircle2, Landmark, CreditCard, ChevronLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { CARD_SURCHARGE_PCT, cardSurchargeCents } from '@findstoop/shared/lib/billing'
+import { payerFeeCents, ACH_SURCHARGE_PCT, ACH_SURCHARGE_CAP_CENTS } from '@findstoop/shared/lib/paymentFees'
 import { BRAND, brandColor } from '../../lib/brand'
 import ModalShell from '../shared/ModalShell'
 
@@ -107,13 +108,14 @@ export default function SubscribeModal({
           </p>
         </div>
 
-        {/* Step 1: pick the payment rail (decides whether the 3% card
-            surcharge applies — the server bakes it into the invoice). */}
+        {/* Step 1: pick the payment rail. Both carry a processing fee now —
+            the server bakes whichever applies into the invoice. */}
         {!clientSecret ? (
           <div className="p-6 space-y-3">
             <p className="text-sm text-mute leading-relaxed">
-              How would you like to pay? Bank transfer (ACH) has no processing fee;
-              cards add a {CARD_SURCHARGE_PCT}% fee on each invoice to cover card-network costs.
+              How would you like to pay? Processing is passed through either way — bank
+              transfer costs {ACH_SURCHARGE_PCT}%, capped at ${(ACH_SURCHARGE_CAP_CENTS / 100).toFixed(2)} per
+              invoice; cards cost {CARD_SURCHARGE_PCT}% with no cap.
             </p>
             <button
               type="button"
@@ -126,9 +128,13 @@ export default function SubscribeModal({
                 : <Landmark className="w-5 h-5 text-brand-600" strokeWidth={1.75} />}
               <span className="flex-1">
                 <span className="block text-sm font-semibold text-ink">US bank account (ACH)</span>
-                <span className="block text-xs text-mute mt-0.5">No processing fee</span>
+                <span className="block text-xs text-mute mt-0.5">
+                  +{ACH_SURCHARGE_PCT}% processing fee, max ${(ACH_SURCHARGE_CAP_CENTS / 100).toFixed(2)}
+                </span>
               </span>
-              <span className="text-sm font-semibold text-ink">${fmtCents(baseCents)}{intervalLabel}</span>
+              <span className="text-sm font-semibold text-ink">
+                ${fmtCents(baseCents + payerFeeCents('us_bank_account', baseCents))}{intervalLabel}
+              </span>
             </button>
             <button
               type="button"

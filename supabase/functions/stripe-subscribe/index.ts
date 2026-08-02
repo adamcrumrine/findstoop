@@ -23,8 +23,10 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 })
 
 // Must match stripe-webhook / create-payment-intent (and
-// packages/shared/src/lib/billing.ts).
+// packages/shared/src/lib/paymentFees.ts). Both rails pass through.
 const CARD_SURCHARGE_PCT = 3.0
+const ACH_SURCHARGE_PCT = 0.8
+const ACH_SURCHARGE_CAP_CENTS = 500
 // Single-tier pricing: $9/unit/mo, $90/unit/yr. No free units, no tiers.
 const PRICE_MONTHLY = Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY') ?? ''
 const PRICE_YEARLY  = Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY')  ?? ''
@@ -213,13 +215,23 @@ Deno.serve(async (req) => {
     // handler, which re-checks the default PM each cycle.
     const price = await stripe.prices.retrieve(chosenPriceId)
     const subtotalCents = (price.unit_amount ?? 0) * quantity
-    const surchargeCents = payWith === 'card' ? Math.round(subtotalCents * (CARD_SURCHARGE_PCT / 100)) : 0
+    // Both rails are passed through — ACH was previously exempt, leaving the
+    // platform to absorb Stripe's 0.8% on every bank-paid subscription.
+    // 'legacy' (no rail declared) can't be priced without knowing which card
+    // the customer will use, so it stays uncharged rather than guessing high.
+    const isCard = payWith === 'card'
+    const surchargeCents =
+      isCard ? Math.round(subtotalCents * (CARD_SURCHARGE_PCT / 100))
+      : payWith === 'ach' ? Math.min(Math.round(subtotalCents * (ACH_SURCHARGE_PCT / 100)), ACH_SURCHARGE_CAP_CENTS)
+      : 0
     if (surchargeCents > 0) {
       await stripe.invoiceItems.create({
         customer: customerId,
         currency: 'usd',
         amount: surchargeCents,
-        description: `${CARD_SURCHARGE_PCT}% card processing fee`,
+        description: isCard
+          ? `${CARD_SURCHARGE_PCT}% card processing fee`
+          : `${ACH_SURCHARGE_PCT}% bank transfer processing fee`,
         metadata: { findstoop_surcharge: 'true', platform: 'findstoop' },
       })
     }

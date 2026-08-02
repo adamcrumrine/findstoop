@@ -28,8 +28,11 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY') ?? '')
 const RESEND_FROM = Deno.env.get('RESEND_FROM_EMAIL') ?? 'noreply@findstoop.com'
 
 // Must match create-payment-intent / stripe-subscribe (and
-// packages/shared/src/lib/billing.ts): card charges carry a 3% surcharge.
+// packages/shared/src/lib/paymentFees.ts). Every processing cost is passed to
+// the payer on both rails — cards 3%, bank transfers 0.8% capped at $5.
 const CARD_SURCHARGE_PCT = 3.0
+const ACH_SURCHARGE_PCT = 0.8
+const ACH_SURCHARGE_CAP_CENTS = 500
 
 // A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
 // bounced days later (insufficient funds, closed account). The cron's
@@ -254,8 +257,8 @@ Deno.serve(async (req) => {
         break
       }
       case 'invoice.created': {
-        // Card-surcharge policy for manager subscriptions: renewal invoices
-        // get a surcharge line item when the subscription will charge a card.
+        // Processing pass-through for manager subscriptions: renewal invoices
+        // get a fee line item matching whichever rail will be charged.
         // Stripe creates subscription-cycle invoices as drafts and waits
         // ~1 hour before finalizing, which is the window to add the item.
         // (The FIRST invoice is handled at subscription-create time in
@@ -289,14 +292,27 @@ Deno.serve(async (req) => {
         }
         if (!pmId) break
         const pm = await stripe.paymentMethods.retrieve(pmId)
-        if (pm.type !== 'card') break
+        if (pm.type !== 'card' && pm.type !== 'us_bank_account') break
+
+        // Both rails are passed through. ACH used to be exempt, which meant
+        // the platform absorbed Stripe's 0.8% on every subscription renewal —
+        // the last place a processing cost was being eaten rather than billed.
+        const isCard = pm.type === 'card'
+        const amount = isCard
+          ? Math.round(subtotal * (CARD_SURCHARGE_PCT / 100))
+          : Math.min(Math.round(subtotal * (ACH_SURCHARGE_PCT / 100)), ACH_SURCHARGE_CAP_CENTS)
+        // A percentage of a small subtotal rounds to zero; Stripe rejects a
+        // zero-amount invoice item, and a $0.00 line would be noise anyway.
+        if (amount <= 0) break
 
         await stripe.invoiceItems.create({
           customer: customerId,
           invoice: inv.id,
           currency: inv.currency ?? 'usd',
-          amount: Math.round(subtotal * (CARD_SURCHARGE_PCT / 100)),
-          description: `${CARD_SURCHARGE_PCT}% card processing fee`,
+          amount,
+          description: isCard
+            ? `${CARD_SURCHARGE_PCT}% card processing fee`
+            : `${ACH_SURCHARGE_PCT}% bank transfer processing fee`,
           metadata: { findstoop_surcharge: 'true', platform: 'findstoop' },
         })
         break

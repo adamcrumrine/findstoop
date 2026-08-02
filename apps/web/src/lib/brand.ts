@@ -260,6 +260,17 @@ export const IS_WHITE_LABEL = Boolean(BRAND.whiteLabel)
  * brandColor('500') → 'rgb(0 130 117)'.
  */
 export function brandColor(step: keyof Brand['colors']): string {
+  // Read the LIVE CSS variable, not the build-time palette. applyBrandTheme
+  // re-points --brand-* at runtime for hostname brands, so anything drawn
+  // from the static object (chart fills, Stripe Elements theming) disagreed
+  // with everything styled by Tailwind — a donut slice in one brand's colour
+  // sitting next to its legend swatch in another's.
+  if (typeof document !== 'undefined') {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue(`--brand-${step}`)
+      .trim()
+    if (v) return `rgb(${v})`
+  }
   return `rgb(${BRAND.colors[step]})`
 }
 

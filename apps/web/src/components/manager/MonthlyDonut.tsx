@@ -12,13 +12,20 @@ import { brandColor } from '../../lib/brand'
 // labels + colors the rest of the app shows.
 interface DonutSlice { label: string; value: number; cls: string; color: string }
 
+// Every label rowStatus can return must appear here AND in `order` below —
+// anything missing is silently dropped from the chart, so the total quietly
+// stops matching the month's charges. 'Due today' was added to rowStatus
+// without being added here, which hid every payment due on the current date.
 const STATUS_COLORS: Record<string, { cls: string; color: string }> = {
   'Paid':       { cls: 'bg-brand-500',  color: brandColor('500') },
   'Processing': { cls: 'bg-amber-500',  color: '#F59E0B' },
   'Scheduled':  { cls: 'bg-blue-500',   color: '#3B82F6' },
+  'Due today':  { cls: 'bg-orange-500', color: '#F97316' },
   'Upcoming':   { cls: 'bg-gray-400',   color: '#9CA3AF' },
   'Past due':   { cls: 'bg-red-500',    color: '#DC2626' },
   'Failed':     { cls: 'bg-red-600',    color: '#B91C1C' },
+  'Disputed':   { cls: 'bg-red-700',    color: '#991B1B' },
+  'Refunded':   { cls: 'bg-gray-300',   color: '#D1D5DB' },
 }
 
 interface Props {
@@ -76,10 +83,21 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
       const status = rowStatus(p).label
       totals[status] = (totals[status] ?? 0) + Number(p.amount)
     }
-    const order = ['Paid', 'Processing', 'Scheduled', 'Upcoming', 'Past due', 'Failed']
-    const out: DonutSlice[] = order
+    // Least-to-most urgent left to right. Any label rowStatus produces that
+    // isn't listed gets appended rather than dropped, so the chart can never
+    // silently under-report the month again.
+    const order = ['Paid', 'Processing', 'Scheduled', 'Upcoming', 'Due today', 'Past due', 'Failed', 'Disputed', 'Refunded']
+    const known = new Set(order)
+    const extras = Object.keys(totals).filter((k) => !known.has(k))
+    const out: DonutSlice[] = [...order, ...extras]
       .filter((k) => (totals[k] ?? 0) > 0)
-      .map((k) => ({ label: k, value: totals[k], ...STATUS_COLORS[k] }))
+      .map((k) => ({
+        label: k,
+        value: totals[k],
+        // Neutral fallback so an unmapped status still renders with its real
+        // amount instead of an invisible slice.
+        ...(STATUS_COLORS[k] ?? { cls: 'bg-gray-500', color: '#6B7280' }),
+      }))
     const tot = Object.values(totals).reduce((a, b) => a + b, 0)
     return { slices: out, total: tot }
   }, [payments, cursor])

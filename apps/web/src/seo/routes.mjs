@@ -92,7 +92,7 @@ export const ROUTES = [
   {
     path: '/',
     title: 'Property management for landlords with a handful of units',
-    description: 'List vacancies, screen applicants, sign leases, and accept rent online — built for landlords who own a handful of properties, not a hundred. $9 per unit per month.',
+    description: 'List vacancies, screen applicants, sign leases, and accept rent online — built for landlords who own a handful of properties, not a hundred. $5 per unit per month.',
     lastmod: '2026-07-14', changefreq: 'weekly', priority: 1.0,
   },
   {
@@ -115,8 +115,8 @@ export const ROUTES = [
   },
   {
     path: '/pricing',
-    title: 'Pricing — $9 per unit per month',
-    description: 'Simple per-unit pricing — $9 per unit per month, $90 per unit per year. Every feature included. Applicants pay $5 for verified pre-qualification. No setup fees, no upsells.',
+    title: 'Pricing — $5 per unit per month',
+    description: 'Simple per-unit pricing — $5 per unit per month, $50 per unit per year. Every feature included. Applicants pay $5 for verified pre-qualification. No setup fees, no upsells.',
     lastmod: '2026-07-14', changefreq: 'monthly', priority: 0.9,
   },
   {
@@ -281,7 +281,7 @@ for (const r of ROUTES) {
         name: 'When do I start paying?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `You can sign up, add properties, and invite tenants without paying anything. Billing only starts once your first lease goes active — that's when the unit counts as a "paid unit" at $9/month.`,
+          text: `You can sign up, add properties, and invite tenants without paying anything. Billing only starts once your first lease goes active — that's when the unit counts as a "paid unit" at $5/month.`,
         },
       },
       {
@@ -313,7 +313,7 @@ for (const r of ROUTES) {
         name: `Why isn't there a free tier?`,
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `We could offer one, but every other landlord platform with a free tier monetizes by charging your tenants — surcharges, screening reports, optional "speed-up" fees. We'd rather charge a flat, honest $9/unit/mo and keep the experience clean for your renters.`,
+          text: `We could offer one, but every other landlord platform with a free tier monetizes by charging your tenants — surcharges, screening reports, optional "speed-up" fees. We'd rather charge a flat, honest $5/unit/mo and keep the experience clean for your renters.`,
         },
       },
       {
@@ -321,7 +321,7 @@ for (const r of ROUTES) {
         name: `Annual prepay — what's the catch?`,
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `No catch other than the non-refundable bit: prepaying $90/unit for the year saves you 16.7% over monthly. If you cancel mid-year, you keep access through the end of the prepaid term — but no refund. Units you remove mid-year don't generate a credit.`,
+          text: `No catch other than the non-refundable bit: prepaying $50/unit for the year saves you 16.7% over monthly. If you cancel mid-year, you keep access through the end of the prepaid term — but no refund. Units you remove mid-year don't generate a credit.`,
         },
       },
     ],

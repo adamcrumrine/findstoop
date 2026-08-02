@@ -4,6 +4,8 @@
 
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Clock, BookOpen } from 'lucide-react'
+import { formatUsd } from '@findstoop/shared/lib/format'
+import { PER_UNIT_MONTHLY } from '@findstoop/shared/lib/pricing'
 import { BRAND, brandColor } from '../../lib/brand'
 
 interface EducationArticleProps {
@@ -76,7 +78,7 @@ export default function EducationArticle({
         <p className="text-sm uppercase tracking-wider text-brand-700 font-bold mb-1">Try {BRAND.name}</p>
         <h3 className="text-xl font-bold text-ink">Everything in this article — automated.</h3>
         <p className="mt-2 text-sm text-mute">
-          $5 per unit per month, every feature included. Applicants pay $5 for verified pre-qualification with a Tenability™ score.
+          {formatUsd(PER_UNIT_MONTHLY)} per unit per month, every feature included. Applicants pay $5 for verified pre-qualification with a Tenability™ score.
         </p>
         <Link
           to="/register"

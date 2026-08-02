@@ -144,8 +144,10 @@ export default function SubscribeModal({
                 ? <Loader2 className="w-5 h-5 animate-spin text-brand-600" strokeWidth={1.75} />
                 : <CreditCard className="w-5 h-5 text-brand-600" strokeWidth={1.75} />}
               <span className="flex-1">
-                <span className="block text-sm font-semibold text-ink">Card / Apple Pay / Google Pay</span>
-                <span className="block text-xs text-mute mt-0.5">+{CARD_SURCHARGE_PCT}% processing fee per invoice</span>
+                <span className="block text-sm font-semibold text-ink">Credit card / Apple Pay / Google Pay</span>
+                <span className="block text-xs text-mute mt-0.5">
+                  +{CARD_SURCHARGE_PCT}% processing fee per invoice · debit cards not accepted
+                </span>
               </span>
               <span className="text-sm font-semibold text-ink">
                 ${fmtCents(baseCents + cardSurchargeCents(baseCents))}{intervalLabel}

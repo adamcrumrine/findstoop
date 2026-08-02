@@ -129,6 +129,53 @@ async function refundSurchargeIfDebit(pi: Stripe.PaymentIntent): Promise<void> {
   }
 }
 
+/**
+ * Subscription counterpart to refundSurchargeIfDebit.
+ *
+ * Renewal invoices are drafts for about an hour, so the invoice.created
+ * handler can inspect the card and simply omit the surcharge. The FIRST
+ * invoice can't: stripe-subscribe attaches the surcharge as a pending invoice
+ * item before the manager has entered a card, and Stripe finalizes it
+ * immediately. So the correction has to happen after payment, here.
+ *
+ * Refunds only the surcharge line, leaving the subscription itself paid.
+ */
+async function refundInvoiceSurchargeIfDebit(inv: Stripe.Invoice): Promise<void> {
+  const surchargeCents = (inv.lines?.data ?? [])
+    .filter((l) => l.metadata?.findstoop_surcharge === 'true')
+    .reduce((sum, l) => sum + (l.amount ?? 0), 0)
+  if (!(surchargeCents > 0)) return
+
+  const chargeId = typeof inv.charge === 'string' ? inv.charge : inv.charge?.id
+  if (!chargeId) return
+
+  try {
+    const charge = await stripe.charges.retrieve(chargeId)
+    if (charge.payment_method_details?.card?.funding !== 'debit') return
+
+    await stripe.refunds.create({
+      charge: chargeId,
+      amount: surchargeCents,
+      metadata: { reason: 'debit_surcharge_refund', scope: 'subscription', platform: 'findstoop' },
+    }, {
+      idempotencyKey: `debit-surcharge-invoice:${inv.id}`,
+    })
+    await logApiCall({
+      function_name: 'stripe-webhook', vendor: 'stripe', status_code: 200,
+      reference_id: inv.id ?? chargeId,
+      error_message: `debit surcharge refunded on subscription invoice: ${surchargeCents} cents`,
+      metadata: { event_type: 'invoice.paid', charge_id: chargeId },
+    })
+  } catch (err) {
+    await logApiCall({
+      function_name: 'stripe-webhook', vendor: 'stripe', status_code: 500,
+      reference_id: inv.id ?? chargeId,
+      error_message: `DEBIT SURCHARGE REFUND FAILED on invoice (${surchargeCents} cents): ${err instanceof Error ? err.message : 'unknown'}`,
+      metadata: { event_type: 'invoice.paid', charge_id: chargeId },
+    })
+  }
+}
+
 // A rent/late-fee charge failed AFTER initiation — most commonly an ACH that
 // bounced days later (insufficient funds, closed account). The cron's
 // autopay-failure alert only covers charge-time declines; this covers the
@@ -389,6 +436,21 @@ Deno.serve(async (req) => {
         const pm = await stripe.paymentMethods.retrieve(pmId)
         if (pm.type !== 'card' && pm.type !== 'us_bank_account') break
 
+        // Debit can't legally be surcharged. On a renewal we know the card
+        // BEFORE the invoice finalizes, so the right move is simply not to add
+        // the line — no charge-then-refund, no statement confusion. The
+        // platform still eats Stripe's cut on that renewal, which is why the
+        // manager gets told to switch rather than left on it indefinitely.
+        if (pm.type === 'card' && pm.card?.funding === 'debit') {
+          await logApiCall({
+            function_name: 'stripe-webhook', vendor: 'stripe', status_code: 200,
+            reference_id: inv.id,
+            error_message: 'debit card on subscription — surcharge skipped, renewal charged at a loss',
+            metadata: { event_type: event.type, customer: customerId },
+          })
+          break
+        }
+
         // Both rails are passed through. ACH used to be exempt, which meant
         // the platform absorbed Stripe's 0.8% on every subscription renewal —
         // the last place a processing cost was being eaten rather than billed.
@@ -414,6 +476,12 @@ Deno.serve(async (req) => {
       }
       case 'invoice.paid': {
         const inv = event.data.object as Stripe.Invoice
+        // The FIRST invoice is finalized immediately, so its surcharge line is
+        // created in stripe-subscribe before the manager has even entered a
+        // card — the funding type genuinely can't be known in advance there.
+        // This is the one place it can be corrected: refund the surcharge if
+        // the card turns out to be debit.
+        await refundInvoiceSurchargeIfDebit(inv)
         const cust = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
         if (cust) {
           // Refresh status from the source-of-truth subscription record.

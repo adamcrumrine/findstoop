@@ -14,7 +14,7 @@ import { BRAND } from '../../lib/brand'
 
 // Single-tier pricing: $5 per active unit per month, billed from unit 1.
 // (Annual prepay variant: $50/unit/year — non-refundable.)
-const PER_UNIT = 9
+import { PER_UNIT_MONTHLY as PER_UNIT, PER_UNIT_ANNUAL, ANNUAL_DISCOUNT_PCT } from '@findstoop/shared/lib/pricing'
 
 interface BillingState {
   activeUnits: number
@@ -251,7 +251,7 @@ export default function Billing() {
         <p className="text-sm text-mute mt-1">
           {state.complimentary
             ? `All ${BRAND.name} features unlocked at no charge.`
-            : `${formatUsd(PER_UNIT)} per active unit per month. Or save 16.7% with annual prepay (${formatUsd(PER_UNIT * 10)}/unit/year, non-refundable).`}
+            : `${formatUsd(PER_UNIT)} per active unit per month. Or save 16.7% with annual prepay (${formatUsd(PER_UNIT_ANNUAL)}/unit/year, non-refundable).`}
         </p>
       </header>
 
@@ -347,7 +347,7 @@ export default function Billing() {
                 selectedPlan === 'annual' ? 'bg-brand-500 text-white' : 'text-ink hover:bg-gray-50'
               }`}
             >
-              Annual · $50/unit/yr <span className="text-xs opacity-80">(save 16.7%)</span>
+              Annual · {formatUsd(PER_UNIT_ANNUAL)}/unit/yr <span className="text-xs opacity-80">(save {ANNUAL_DISCOUNT_PCT}%)</span>
             </button>
           </div>
           {selectedPlan === 'annual' && (
@@ -391,8 +391,8 @@ export default function Billing() {
             <p className="text-xs text-mute mt-1">
               {state.paidUnits === 0
                 ? selectedPlan === 'annual'
-                  ? `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. Annual prepay billed at $50/unit once your first lease activates.`
-                  : `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. $5/unit/mo, billed only on active units.`
+                  ? `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. Annual prepay billed at ${formatUsd(PER_UNIT_ANNUAL)}/unit once your first lease activates.`
+                  : `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. ${formatUsd(PER_UNIT)}/unit/mo, billed only on active units.`
                 : selectedPlan === 'annual'
                   ? `One-time charge of ${formatUsd(state.paidUnits * 90)} for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'} for the year.`
                   : `Add a payment method to bill ${formatUsd(monthlyCost)}/mo for ${state.paidUnits} active unit${state.paidUnits === 1 ? '' : 's'}.`}
@@ -431,7 +431,7 @@ export default function Billing() {
             </p>
             <p className="text-sm text-mute mt-1">
               {state.interval === 'year'
-                ? `${formatUsd(PER_UNIT * 10)} per active unit per year, billed up front from unit 1.`
+                ? `${formatUsd(PER_UNIT_ANNUAL)} per active unit per year, billed up front from unit 1.`
                 : `${formatUsd(PER_UNIT)} per active unit per month, billed from unit 1.`}
               {' '}Includes every platform feature, ACH and card billing for your tenants, free ACH for your tenants, lease e-sign, maintenance tracking, and more.
             </p>
@@ -446,7 +446,7 @@ export default function Billing() {
                 <>
                   <li>· Cancel any time; monthly subscriptions stop at the end of the current billing period</li>
                   <li>· Add or remove units freely — we prorate the difference</li>
-                  <li>· Annual prepay available at {formatUsd(PER_UNIT * 10)}/unit/year (16.7% off the monthly rate) — non-refundable</li>
+                  <li>· Annual prepay available at {formatUsd(PER_UNIT_ANNUAL)}/unit/year (16.7% off the monthly rate) — non-refundable</li>
                 </>
               )}
             </ul>
@@ -528,7 +528,7 @@ function getStatusInfo(status: string | null, subscriptionId: string | null, com
   if (!subscriptionId || !status) {
     return {
       heading: 'Subscription required',
-      subtitle: `${BRAND.name} is $5 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through ${BRAND.name}.`,
+      subtitle: `${BRAND.name} is ${formatUsd(PER_UNIT)} per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through ${BRAND.name}.`,
       Icon: AlertTriangle,
       bannerCls: 'bg-red-50 border-red-200',
       iconCls: 'text-red-700',

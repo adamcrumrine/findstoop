@@ -35,6 +35,9 @@ export interface DashboardStats {
 
 export interface DashboardData {
   stats: DashboardStats
+  /** Latest attempted payments on leases that are still active. Ended leases
+   *  are excluded — their history lives in Payments and the reports, not on a
+   *  live activity feed. */
   recentPayments: Payment[]
   /** Every payment across the manager's leases — used by the monthly
    *  donut chart so it can recompute per month without re-fetching. */
@@ -110,8 +113,19 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
         setUpcomingRenewals(renewals)
 
         const leaseIds = allLeases.map((l) => l.id)
+        // "Recent Payments" answers "what's happening with my properties right
+        // now", so it only draws from leases that are still running. Ended
+        // leases keep their payment history — it stays in Payments and in the
+        // reports — but it doesn't belong on a live activity feed.
+        //
+        // This matters because paid_at is when the row was RECORDED, not when
+        // the money moved: marking a departed household's back-rent as paid
+        // stamps it with today and it jumps to the top of the feed. Ten July
+        // charges from two expired 301/303 leases pushed every genuinely
+        // current payment off the list that way.
+        const currentLeaseIds = allLeases.filter((l) => l.status === 'active').map((l) => l.id)
         const [recent, all, sigsRes] = await Promise.all([
-          getRecentPayments(leaseIds, 5),
+          getRecentPayments(currentLeaseIds, 5),
           getPaymentsByLeaseIds(leaseIds),
           // Fetch all signatures across the manager's leases. We use this to
           // identify leases where the tenant has signed but the manager

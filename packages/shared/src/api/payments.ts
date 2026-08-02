@@ -68,6 +68,10 @@ export async function getSiblingChargesDue(tenantId: string, payment: Payment): 
 // (completed / processing / failed). Pending and upcoming rows belong in
 // the donut + the tenant's pay-rent page, not here. Sorted most-recent-first
 // by when the money actually moved (paid_at), falling back to initiated_at.
+//
+// Pass only the lease ids you want on the feed; the caller decides scope. The
+// dashboard passes active leases only, because paid_at is the recording time
+// and back-dated history recorded today would otherwise outrank live activity.
 export async function getRecentPayments(leaseIds: string[], limit = 5): Promise<Payment[]> {
   if (leaseIds.length === 0) return []
   const { data, error } = await supabase

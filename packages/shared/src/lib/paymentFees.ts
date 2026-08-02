@@ -119,7 +119,9 @@ export function railOptions(amountCents: number): RailOption[] {
       'Clears in 3–5 business days',
       `${ACH_SURCHARGE_PCT}% of the amount, never more than $${(ACH_SURCHARGE_CAP_CENTS / 100).toFixed(2)}`,
     ),
-    build('card', 'Debit or credit card', 'Posts immediately', `${CARD_SURCHARGE_PCT}% of the amount, no cap`),
+    // "Credit card", not "debit or credit" — debit is refused for rent, so
+    // offering it by name invites a payment we're going to turn away.
+    build('card', 'Credit card', 'Posts immediately', `${CARD_SURCHARGE_PCT}% of the amount, no cap · debit cards not accepted`),
   ]
   options.sort((a, b) => a.feeCents - b.feeCents || a.totalCents - b.totalCents)
   options[0].recommended = true

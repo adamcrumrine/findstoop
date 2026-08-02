@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, Wrench, type LucideIcon } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { payerFeeCents } from '@findstoop/shared/lib/paymentFees'
 import { formatUsd, formatUsdCents, formatPhone } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor, upcomingPaymentWindow } from '@findstoop/shared/lib/paymentRails'
 import type { Profile } from '@findstoop/shared/types/profile'
@@ -241,6 +243,8 @@ export default function TenantDetail() {
         </section>
       )}
 
+      <FeeAbsorption tenantId={id!} />
+
       {/* Leases */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6">
         <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">Leases</h2>
@@ -319,4 +323,107 @@ function fmtDate(d: string | null): string | null {
   const [y, m, day] = d.split('-').map(Number)
   if (!y || !m || !day) return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
   return new Date(y, m - 1, day).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+// ── Who pays the processing fee, per tenant ────────────────────────────────
+// Default is pass-through: the tenant sees the fee added at checkout. This
+// switches it per tenant per lease, because roommates in one unit sign at
+// different times under different terms — grandfathering the person who was
+// promised free bank transfers shouldn't mean grandfathering the whole house.
+//
+// Absorbing doesn't cancel the fee. Stripe still takes it; it comes out of the
+// landlord's transfer instead of the tenant's payment. The copy says so
+// plainly, with the real dollar figure, so the choice is made with the cost in
+// view rather than as an abstract kindness.
+function FeeAbsorption({ tenantId }: { tenantId: string }) {
+  interface Row {
+    lease_id: string
+    landlord_absorbs_fees: boolean
+    rent_share: number | null
+    lease: { rent_amount: number | null; status: string | null; unit: { unit_number: string | null } | null } | null
+  }
+  const [rows, setRows] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  const load = async () => {
+    const { data } = await supabase
+      .from('lease_tenants')
+      .select('lease_id, landlord_absorbs_fees, rent_share, lease:leases(rent_amount, status, unit:units(unit_number))')
+      .eq('tenant_id', tenantId)
+    setRows(((data ?? []) as unknown as Row[]).filter((r) => r.lease?.status === 'active'))
+    setLoading(false)
+  }
+  useEffect(() => { void load() }, [tenantId])
+
+  const toggle = async (leaseId: string, next: boolean) => {
+    setSaving(leaseId)
+    // Optimistic — the switch should feel immediate; a failure reverts it.
+    setRows((rs) => rs.map((r) => (r.lease_id === leaseId ? { ...r, landlord_absorbs_fees: next } : r)))
+    const { error } = await supabase.rpc('set_tenant_fee_absorption', {
+      p_lease_id: leaseId, p_tenant_id: tenantId, p_absorb: next,
+    })
+    setSaving(null)
+    if (error) {
+      setRows((rs) => rs.map((r) => (r.lease_id === leaseId ? { ...r, landlord_absorbs_fees: !next } : r)))
+      toast.error(error.message)
+    } else {
+      toast.success(next ? "You'll cover this tenant's processing fee" : 'Processing fee passes through to this tenant')
+    }
+  }
+
+  if (loading || rows.length === 0) return null
+
+  return (
+    <section className="bg-white rounded-2xl border border-gray-200 p-6">
+      <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-1">Processing fees</h2>
+      <p className="text-xs text-mute mb-4 leading-relaxed">
+        By default the tenant pays Stripe's fee on top of their rent. Turn this on to
+        cover it yourself — the fee still applies, it just comes out of your deposit
+        instead of their payment.
+      </p>
+      <div className="space-y-3">
+        {rows.map((r) => {
+          // The amount this tenant actually pays: their own share on a
+          // self-serve split, otherwise the lease rent.
+          const amount = Number(r.rent_share ?? r.lease?.rent_amount ?? 0)
+          const cents = Math.round(amount * 100)
+          const bank = payerFeeCents('us_bank_account', cents)
+          const card = payerFeeCents('card', cents)
+          return (
+            <div key={r.lease_id} className="flex items-start justify-between gap-4 border border-gray-200 rounded-xl px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink">
+                  {r.lease?.unit?.unit_number ? `Unit ${r.lease.unit.unit_number}` : 'Lease'}
+                  {amount > 0 && <span className="text-mute font-normal"> · {formatUsd(amount)}/mo</span>}
+                </p>
+                <p className="text-xs text-mute mt-0.5">
+                  {r.landlord_absorbs_fees
+                    ? `You pay the fee — ${formatUsdCents(bank / 100)} by bank, ${formatUsdCents(card / 100)} by card, each month.`
+                    : `They pay the fee — ${formatUsdCents(bank / 100)} by bank, ${formatUsdCents(card / 100)} by card.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={r.landlord_absorbs_fees}
+                aria-label="I cover the processing fee"
+                disabled={saving === r.lease_id}
+                onClick={() => toggle(r.lease_id, !r.landlord_absorbs_fees)}
+                className={`shrink-0 mt-0.5 w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                  r.landlord_absorbs_fees ? 'bg-brand-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    r.landlord_absorbs_fees ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
 }

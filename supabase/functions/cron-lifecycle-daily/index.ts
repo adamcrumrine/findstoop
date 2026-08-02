@@ -822,7 +822,18 @@ Deno.serve(async (req) => {
         }
         const isCard = pmType !== 'us_bank_account' // unknown type ⇒ treat as card (never under-charge the surcharge rail)
         const rentCents = Math.round(Number(row.amount) * 100)
-        const surchargeCents = payerFeeCents(isCard, rentCents)
+        // Same per-tenant absorption switch the pay screen honours. Autopay
+        // charging a fee the tenant was told they don't pay is the worst
+        // version of getting this wrong — nobody is watching when it happens.
+        const { data: ltRow } = await admin
+          .from('lease_tenants')
+          .select('landlord_absorbs_fees')
+          .eq('lease_id', row.lease_id)
+          .eq('tenant_id', row.tenant_id)
+          .maybeSingle()
+        const landlordAbsorbs = ltRow?.landlord_absorbs_fees === true
+        const feeCents = payerFeeCents(isCard, rentCents)
+        const surchargeCents = landlordAbsorbs ? 0 : feeCents
 
         const { data: ctxRows } = await admin.rpc('lease_payout_context', { lease_uuid: row.lease_id })
         const ctx = Array.isArray(ctxRows) ? ctxRows[0] : ctxRows
@@ -847,7 +858,9 @@ Deno.serve(async (req) => {
           payment_method_types: [isCard ? 'card' : 'us_bank_account'],
           off_session: true,
           confirm: true,
-          description: isCard ? 'Rent + card processing fee (autopay)' : 'Rent payment via ACH (autopay)',
+          description: landlordAbsorbs
+            ? 'Rent payment (autopay)'
+            : isCard ? 'Rent + card processing fee (autopay)' : 'Rent + bank transfer fee (autopay)',
           ...(isCard
             ? { statement_descriptor_suffix: descriptor }
             : { statement_descriptor: descriptor }),
@@ -858,6 +871,8 @@ Deno.serve(async (req) => {
             findstoop_autopay: 'true',
             rentAmount: String(row.amount),
             surchargeAmount: (surchargeCents / 100).toFixed(2),
+            processingFeeAmount: (feeCents / 100).toFixed(2),
+            feePaidBy: landlordAbsorbs ? 'landlord' : 'tenant',
             paymentMethod: isCard ? 'card' : 'us_bank_account',
             connectMode: connectReady && connectAccountId ? 'destination' : 'platform',
           },
@@ -865,9 +880,9 @@ Deno.serve(async (req) => {
         if (connectReady && connectAccountId) {
           params.transfer_data = { destination: connectAccountId }
           params.on_behalf_of = connectAccountId
-          // Landlord receives exactly the rent; the surcharge stays on the
-          // platform balance (same as create-payment-intent).
-          if (surchargeCents > 0) params.application_fee_amount = surchargeCents
+          // The full fee, not the tenant-charged portion — when the landlord
+          // absorbs, this is the line that actually makes them bear it.
+          if (feeCents > 0) params.application_fee_amount = feeCents
         }
 
         const intent = await stripe.paymentIntents.create(params, {

@@ -133,9 +133,29 @@ Deno.serve(async (req) => {
     const connectReady: boolean = !!ctx?.charges_enabled
     const descriptor = statementDescriptor(ctx?.company_name, ctx?.manager_name)
 
-    // Calculate the actual charge based on method
+    // Whether the landlord has chosen to absorb this tenant's processing fee.
+    // Per-tenant, not per-lease: roommates on a shared house sign at different
+    // times under different terms, and a landlord grandfathering one of them
+    // shouldn't have to grandfather the whole unit.
+    const { data: ltRow } = await admin
+      .from('lease_tenants')
+      .select('landlord_absorbs_fees')
+      .eq('lease_id', leaseId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    // Legacy leases predate lease_tenants and have no row — pass through, the
+    // long-standing default. Absorbing is always an explicit opt-in.
+    const landlordAbsorbs = ltRow?.landlord_absorbs_fees === true
+
+    // Calculate the actual charge based on method.
+    //
+    // Absorbing does not make the fee vanish — Stripe takes it either way. It
+    // moves who it comes from: the tenant is charged rent alone, and the fee
+    // is still held back as the application fee, so it lands on the landlord's
+    // side of the transfer instead of on the tenant's card.
     const rentCents = Math.round(amount * 100)
-    const surchargeCents = payerFeeCents(paymentMethod, rentCents)
+    const feeCents = payerFeeCents(paymentMethod, rentCents)
+    const surchargeCents = landlordAbsorbs ? 0 : feeCents
     const totalCents = rentCents + surchargeCents
 
     // Build PaymentIntent params. If the landlord has Connect set up, use
@@ -163,9 +183,11 @@ Deno.serve(async (req) => {
       // A lease can bill more than rent (recurring pet rent, one-off fees), so
       // name the actual charge — "Rent + fee" on a $5 pet charge reads as an
       // error on the tenant's statement.
-      description: paymentMethod === 'card'
-        ? `${chargeLabel} + ${CARD_SURCHARGE_PCT}% card processing fee`
-        : `${chargeLabel} + bank transfer processing fee`,
+      description: landlordAbsorbs
+        ? chargeLabel
+        : paymentMethod === 'card'
+          ? `${chargeLabel} + ${CARD_SURCHARGE_PCT}% card processing fee`
+          : `${chargeLabel} + bank transfer processing fee`,
       metadata: {
         // findstoop_payment_id lets the webhook flip THIS existing pending row
         // to completed (it matches on this first). The client no longer inserts
@@ -176,6 +198,10 @@ Deno.serve(async (req) => {
         tenantId,
         rentAmount: String(amount),
         surchargeAmount: String((surchargeCents / 100).toFixed(2)),
+        // The fee still exists when it's absorbed — recording it separately so
+        // the landlord can see what absorbing actually cost them.
+        processingFeeAmount: String((feeCents / 100).toFixed(2)),
+        feePaidBy: landlordAbsorbs ? 'landlord' : 'tenant',
         paymentMethod,
         platform: 'findstoop',
         connectMode: connectReady && connectAccountId ? 'destination' : 'platform',
@@ -193,9 +219,12 @@ Deno.serve(async (req) => {
     if (connectReady && connectAccountId) {
       params.transfer_data = { destination: connectAccountId }
       params.on_behalf_of = connectAccountId
-      // Landlord receives exactly the rent; the surcharge stays on the
-      // platform balance (where the Stripe processing fee is debited from).
-      if (surchargeCents > 0) params.application_fee_amount = surchargeCents
+      // feeCents, not surchargeCents. When the landlord absorbs, the tenant
+      // was charged rent alone, so holding back the full fee here is exactly
+      // what makes the landlord bear it: they receive rent minus the fee.
+      // Using surchargeCents would zero the application fee and quietly move
+      // the cost back onto the platform.
+      if (feeCents > 0) params.application_fee_amount = feeCents
     }
 
     // Idempotency key keyed on the payment row + method: a double-clicked

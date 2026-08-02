@@ -444,14 +444,43 @@ export default function TenantPayRent() {
     return () => { cancelled = true }
   }, [profile?.id, nextPayment?.id, paid])
 
+  // Whether this tenant's landlord has chosen to absorb the processing fee.
+  // The server is the authority (create-payment-intent re-reads it), but the
+  // pay screen has to agree or it quotes a total that never gets charged —
+  // and quoting a fee to someone who was promised they wouldn't pay one is
+  // exactly the conversation the toggle exists to prevent.
+  const [landlordAbsorbsFees, setLandlordAbsorbsFees] = useState(false)
+  useEffect(() => {
+    if (!profile?.id || !lease?.id) return
+    let cancelled = false
+    supabase
+      .from('lease_tenants')
+      .select('landlord_absorbs_fees')
+      .eq('lease_id', lease.id)
+      .eq('tenant_id', profile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setLandlordAbsorbsFees(data?.landlord_absorbs_fees === true)
+      })
+    return () => { cancelled = true }
+  }, [profile?.id, lease?.id])
+
   const rentAmount = Number(nextPayment?.amount ?? 0)
   // Shared helper matches the server's cent-rounding exactly, so the amount
   // shown here always equals what create-payment-intent charges.
   const rentCents = Math.round(rentAmount * 100)
-  const feeOptions = useMemo(() => railOptions(rentCents), [rentCents])
+  const feeOptions = useMemo(
+    // When the landlord absorbs, every option costs the tenant the same, so
+    // the comparison collapses to "pick whichever you like" — zero the fees
+    // rather than showing numbers they won't be charged.
+    () => railOptions(rentCents).map((o) => (
+      landlordAbsorbsFees ? { ...o, feeCents: 0, totalCents: rentCents } : o
+    )),
+    [rentCents, landlordAbsorbsFees],
+  )
   const cheaper = feeOptions[0]
   const costlier = feeOptions[feeOptions.length - 1]
-  const surcharge = payerFeeCents(method, rentCents) / 100
+  const surcharge = landlordAbsorbsFees ? 0 : payerFeeCents(method, rentCents) / 100
   const totalToCharge = +(rentAmount + surcharge).toFixed(2)
 
   // What settling this month's charges in one transaction would save versus
@@ -461,6 +490,7 @@ export default function TenantPayRent() {
   // surcharge is a flat percentage, so the same bundling saves about two
   // cents; the banner below suppresses itself rather than pretend otherwise.
   const bundleSavingCents = useMemo(() => {
+    if (landlordAbsorbsFees) return 0
     if (siblingCharges.length === 0) return 0
     const amounts = [rentCents, ...siblingCharges.map((c) => Math.round(Number(c.amount) * 100))]
     return combineSavings(method, amounts).savingsCents
@@ -744,8 +774,13 @@ export default function TenantPayRent() {
                     )
                   })}
                 </div>
+                {landlordAbsorbsFees && (
+                  <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
+                    Your landlord covers the processing fee — you pay exactly {formatUsdCents(rentAmount)} either way.
+                  </p>
+                )}
                 {/* State the size of the choice once, in dollars. */}
-                {cheaper && costlier && costlier.feeCents > cheaper.feeCents && (
+                {!landlordAbsorbsFees && cheaper && costlier && costlier.feeCents > cheaper.feeCents && (
                   <p className={isGhost ? 'text-xs text-mute text-center' : 'text-xs text-white/80 text-center'}>
                     {method === cheaper.rail
                       ? `You're on the cheapest option — ${formatUsdCents((costlier.feeCents - cheaper.feeCents) / 100)} less than paying by card.`

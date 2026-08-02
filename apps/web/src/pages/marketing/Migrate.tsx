@@ -285,7 +285,7 @@ export default function Migrate() {
             </Faq>
             <Faq q="Does it cost anything to migrate?">
               No. The import wizard is free for everyone — landlord subscribers and trial accounts alike.
-              You only pay our standard $9 per unit per month once you activate the imported leases.
+              You only pay our standard $5 per unit per month once you activate the imported leases.
             </Faq>
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function Migrate() {
             Ready to move? Five minutes and you're in.
           </h2>
           <p className="mt-3 text-white/70">
-            $9 per unit per month. Every feature included. Bring your portfolio with you.
+            $5 per unit per month. Every feature included. Bring your portfolio with you.
           </p>
           <Link
             to="/register"

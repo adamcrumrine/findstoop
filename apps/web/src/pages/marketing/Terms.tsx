@@ -50,7 +50,7 @@ export default function Terms() {
 
         <Sec title="4. Subscriptions (landlords)">
           <p>
-            Landlords subscribe at $9 per active unit per month (or $90 per unit per year). Charges are based on the number
+            Landlords subscribe at $5 per active unit per month (or $50 per unit per year). Charges are based on the number
             of units in your portfolio at the start of each billing cycle. Subscriptions auto-renew until cancelled. You can
             cancel anytime from your billing settings; cancellation takes effect at the end of the current billing period
             and is non-refundable except as required by law.

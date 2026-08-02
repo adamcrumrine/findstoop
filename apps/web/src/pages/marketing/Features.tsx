@@ -35,7 +35,7 @@ const features: Feature[] = [
     Icon: CreditCard,
     status: 'live',
     title: 'Rent collection that runs itself',
-    body: 'Tenants pay by ACH (free) or card. Reminders go out automatically. Late fees apply on schedule. Stripe Connect routes funds direct to the landlord\'s bank — we never touch the money.',
+    body: 'Tenants pay by bank transfer (0.8%, capped at $5) or card (3%). Reminders go out automatically. Late fees apply on schedule. Stripe Connect routes funds direct to the landlord\'s bank — we never touch the money.',
     bullets: ['Auto-reminders before due date', 'Late-fee rules you configure once', 'Stripe Connect — funds straight to your bank'],
   },
   {
@@ -105,7 +105,7 @@ export default function Features() {
                 {BRAND.name} bundles the workflow you've been duct-taping together —
                 with a verified-pre-qualification product no one else in the small-landlord
                 space offers at $5. Every feature is on at one flat price for the landlord —
-                $9 per active unit per month. No tier ladder.
+                $5 per active unit per month. No tier ladder.
               </p>
             </div>
             <div>

@@ -1,6 +1,6 @@
 // Creates a PaymentIntent for a tenant rent payment.
 //
-// Pricing rules (single-tier $9/unit/mo model):
+// Pricing rules (single-tier $5/unit/mo model):
 //   • Every Stripe processing cost is passed to the payer. The subscription is
 //     the platform's margin; processing is a pass-through, and neither Stoop
 //     nor the landlord absorbs a card or ACH fee.

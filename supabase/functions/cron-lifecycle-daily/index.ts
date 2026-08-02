@@ -303,7 +303,7 @@ const TEMPLATES: Record<string, { subject: (v: any) => string; html: (v: any, br
       <ol style="padding-left:20px;line-height:1.8">
         <li><strong>Add your first property</strong> — pin an address, a unit, the rent.</li>
         <li><strong>Invite your tenants by email</strong> — they keep their lease history when they accept.</li>
-        <li><strong>Turn on rent collection</strong> — your tenants pay by ACH (free) or card; deposits hit your bank in 1–3 days.</li>
+        <li><strong>Turn on rent collection</strong> — your tenants pay by bank transfer or card; deposits hit your bank in 1–3 days.</li>
       </ol>
       ${payButton(v.login_url, 'Open your dashboard')}
       <p style="color:#8E8E93;font-size:13px">Your first two units are free, forever. Past that, units 3 through 50 are $3 each per month.</p>

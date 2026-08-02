@@ -351,6 +351,12 @@ TERMS AND CONDITIONS
 
 Rent is payable to ${entity} through the Stoop online portal, or by any other method the Lessor approves in writing (ACH, certified funds, etc.).
 
+Payment processing fees. Paying online costs money to process, and that cost is passed through to the Lessee unless the Lessor elects to cover it. The Lessee should expect to pay the Monthly Rent plus a processing fee on each online payment. As of the date of this Lease, the fee is 0.8% of the payment amount, capped at $5.00 per transaction, for a bank transfer (ACH); and 3% of the payment amount, with no cap, for a debit or credit card. Bank transfer is ordinarily the less expensive of the two, and often substantially so.
+
+The exact fee is shown in dollars before the Lessee confirms any payment, and the Lessee is charged only the amount displayed. Because the fee is charged per transaction rather than per charge, the Lessee may reduce it by settling rent and any other amounts due the same month in a single payment. The Lessee may avoid processing fees altogether by paying through an alternative method the Lessor approves in writing under this section.
+
+A processing fee is not rent. It is not credited toward the Monthly Rent, is not treated as rent for any purpose under this Lease, and no late fee accrues on an unpaid processing fee. Fee rates are set by the payment processor and may change; any change applies only to payments made after the change takes effect and never to a payment the Lessee has already confirmed.
+
 All payments received are applied in this order: (a) returned-check fees, (b) late fees, (c) damage charges, (d) past-due rent, (e) current rent.
 
 2. Late Fees

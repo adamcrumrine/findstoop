@@ -14,7 +14,7 @@
 // Usage:
 //   useSeo({
 //     title: 'Pricing',
-//     description: 'Simple per-unit pricing — $9/unit/month. Every feature included.',
+//     description: 'Simple per-unit pricing — $5/unit/month. Every feature included.',
 //     path: '/pricing',
 //   })
 

@@ -444,7 +444,7 @@ export default function ManagerDashboard() {
               <p className="font-semibold text-red-900">Action required — set up {BRAND.name} billing</p>
               <p className="text-sm text-red-800 mt-0.5 leading-relaxed">
                 You have at least one signed lease. To unlock the formatted lease PDF, open your tenant's portal (rent payments, maintenance, documents), and start collecting rent through {BRAND.name}, set up your subscription now.
-                $9/unit per month, billed only on active units.
+                $5/unit per month, billed only on active units.
               </p>
               <Link
                 to="/manager/billing"

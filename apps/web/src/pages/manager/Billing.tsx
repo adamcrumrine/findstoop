@@ -12,8 +12,8 @@ import SubscribeModal, { type SubscriptionBreakdown } from '../../components/man
 import ManageBillingModal from '../../components/manager/ManageBillingModal'
 import { BRAND } from '../../lib/brand'
 
-// Single-tier pricing: $9 per active unit per month, billed from unit 1.
-// (Annual prepay variant: $90/unit/year — non-refundable.)
+// Single-tier pricing: $5 per active unit per month, billed from unit 1.
+// (Annual prepay variant: $50/unit/year — non-refundable.)
 const PER_UNIT = 9
 
 interface BillingState {
@@ -48,7 +48,7 @@ async function fetchBillingState(managerId: string): Promise<BillingState> {
   const interval = intervalRaw === 'month' || intervalRaw === 'year' ? intervalRaw : null
   return {
     activeUnits: active,
-    paidUnits: active,  // every active unit is billable at $9/mo — no free quota
+    paidUnits: active,  // every active unit is billable at $5/mo — no free quota
     status: profileRes.data?.subscription_status ?? null,
     quantity: profileRes.data?.subscription_quantity ?? 0,
     currentPeriodEnd: profileRes.data?.subscription_current_period_end ?? null,
@@ -347,7 +347,7 @@ export default function Billing() {
                 selectedPlan === 'annual' ? 'bg-brand-500 text-white' : 'text-ink hover:bg-gray-50'
               }`}
             >
-              Annual · $90/unit/yr <span className="text-xs opacity-80">(save 16.7%)</span>
+              Annual · $50/unit/yr <span className="text-xs opacity-80">(save 16.7%)</span>
             </button>
           </div>
           {selectedPlan === 'annual' && (
@@ -391,8 +391,8 @@ export default function Billing() {
             <p className="text-xs text-mute mt-1">
               {state.paidUnits === 0
                 ? selectedPlan === 'annual'
-                  ? `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. Annual prepay billed at $90/unit once your first lease activates.`
-                  : `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. $9/unit/mo, billed only on active units.`
+                  ? `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. Annual prepay billed at $50/unit once your first lease activates.`
+                  : `Set up billing now to unlock the formatted lease PDF, tenant portal, and rent payments. $5/unit/mo, billed only on active units.`
                 : selectedPlan === 'annual'
                   ? `One-time charge of ${formatUsd(state.paidUnits * 90)} for ${state.paidUnits} unit${state.paidUnits === 1 ? '' : 's'} for the year.`
                   : `Add a payment method to bill ${formatUsd(monthlyCost)}/mo for ${state.paidUnits} active unit${state.paidUnits === 1 ? '' : 's'}.`}
@@ -528,7 +528,7 @@ function getStatusInfo(status: string | null, subscriptionId: string | null, com
   if (!subscriptionId || !status) {
     return {
       heading: 'Subscription required',
-      subtitle: `${BRAND.name} is $9 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through ${BRAND.name}.`,
+      subtitle: `${BRAND.name} is $5 per active unit per month, billed from unit 1. Subscribe to unlock the formatted lease PDF, open the tenant portal for your renters, and process rent payments through ${BRAND.name}.`,
       Icon: AlertTriangle,
       bannerCls: 'bg-red-50 border-red-200',
       iconCls: 'text-red-700',

@@ -5,6 +5,7 @@ import { X, Loader2, Lock, CheckCircle2, Landmark, CreditCard, ChevronLeft } fro
 import toast from 'react-hot-toast'
 import { CARD_SURCHARGE_PCT, cardSurchargeCents } from '@findstoop/shared/lib/billing'
 import { payerFeeCents, ACH_SURCHARGE_PCT, ACH_SURCHARGE_CAP_CENTS } from '@findstoop/shared/lib/paymentFees'
+import { PER_UNIT_MONTHLY, PER_UNIT_ANNUAL } from '@findstoop/shared/lib/pricing'
 import { BRAND, brandColor } from '../../lib/brand'
 import ModalShell from '../shared/ModalShell'
 
@@ -38,9 +39,6 @@ interface Props {
   plan: 'monthly' | 'annual'
   quantity: number
 }
-
-const PER_UNIT_MONTHLY = 9
-const PER_UNIT_ANNUAL  = 90
 
 function fmtCents(cents: number): string {
   return (cents / 100).toLocaleString('en-US', {

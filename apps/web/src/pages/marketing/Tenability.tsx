@@ -52,7 +52,7 @@ export default function Tenability() {
               to="/register"
               className="inline-flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-medium px-6 py-3 rounded-lg transition-colors"
             >
-              Get started — $9 / unit / month
+              Get started — $5 / unit / month
               <ArrowRight className="w-4 h-4" strokeWidth={2} />
             </Link>
             <Link
@@ -267,7 +267,7 @@ export default function Tenability() {
             </Faq>
             <Faq q="Who pays — landlord or applicant?">
               The applicant pays for their Tenability™ fee directly — $5 for Standard, $25 for Pro. Landlords
-              pay $9 per unit per month for the {BRAND.name} platform and never pay for individual applications.
+              pay $5 per unit per month for the {BRAND.name} platform and never pay for individual applications.
             </Faq>
             <Faq q="How long does scoring take?">
               Typically under 60 seconds from the moment the applicant finishes uploading their income docs and
@@ -288,7 +288,7 @@ export default function Tenability() {
             Stop calling employers. Start screening with Tenability™.
           </h2>
           <p className="mt-3 text-white/70">
-            $9 per unit per month. Applicants pay $5 for pre-qualification. No setup fees, no upsell ladder.
+            $5 per unit per month. Applicants pay $5 for pre-qualification. No setup fees, no upsell ladder.
           </p>
           <Link
             to="/register"

@@ -1,4 +1,4 @@
-// Starts (or manages) a landlord's $9/unit subscription.
+// Starts (or manages) a landlord's $5/unit subscription.
 // - Verifies caller via Supabase JWT.
 // - Lazily creates a Stripe Customer the first time.
 // - If the manager has an active subscription → returns a billing-portal URL.
@@ -7,13 +7,14 @@
 //   client can render its own (FindStoop-branded) PaymentElement.
 //
 // Payment method is chosen by the manager BEFORE checkout (body.payWith):
-//   • 'ach'  → us_bank_account only, no surcharge.
-//   • 'card' → card only (incl. Apple Pay & Google Pay), plus the card
-//     surcharge: a pending invoice item is created before the subscription so
-//     the FIRST invoice carries it, and the stripe-webhook invoice.created
-//     handler adds it to every renewal invoice while the default PM is a card.
+//   • 'ach'  → us_bank_account only, 0.8% capped at $5.
+//   • 'card' → card only (incl. Apple Pay & Google Pay), 3%.
+// Either way a pending invoice item is created before the subscription so the
+// FIRST invoice carries the fee, and the stripe-webhook invoice.created
+// handler adds it to every renewal, re-reading the default PM each cycle.
 // Legacy clients that omit payWith get the old both-rails behavior with no
-// first-invoice surcharge (renewals are still surcharged by the webhook).
+// first-invoice fee — the rail isn't known until checkout, so there's nothing
+// to price (renewals are still charged by the webhook).
 
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -27,7 +28,7 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 const CARD_SURCHARGE_PCT = 3.0
 const ACH_SURCHARGE_PCT = 0.8
 const ACH_SURCHARGE_CAP_CENTS = 500
-// Single-tier pricing: $9/unit/mo, $90/unit/yr. No free units, no tiers.
+// Single-tier pricing: $5/unit/mo, $50/unit/yr. No free units, no tiers.
 const PRICE_MONTHLY = Deno.env.get('STRIPE_PRICE_PREMIUM_MONTHLY') ?? ''
 const PRICE_YEARLY  = Deno.env.get('STRIPE_PRICE_PREMIUM_YEARLY')  ?? ''
 const FREE_UNITS    = parseInt(Deno.env.get('FINDSTOOP_FREE_UNITS') ?? '0', 10)

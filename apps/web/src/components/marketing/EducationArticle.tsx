@@ -76,7 +76,7 @@ export default function EducationArticle({
         <p className="text-sm uppercase tracking-wider text-brand-700 font-bold mb-1">Try {BRAND.name}</p>
         <h3 className="text-xl font-bold text-ink">Everything in this article — automated.</h3>
         <p className="mt-2 text-sm text-mute">
-          $9 per unit per month, every feature included. Applicants pay $5 for verified pre-qualification with a Tenability™ score.
+          $5 per unit per month, every feature included. Applicants pay $5 for verified pre-qualification with a Tenability™ score.
         </p>
         <Link
           to="/register"

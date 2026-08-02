@@ -94,7 +94,7 @@ const stoop: Brand = {
   titleSuffix: ' · Stoop',
   tagline: 'Property management built for landlords with a handful of units',
   description:
-    'Run your rentals like a pro without becoming one. Stoop combines listings, verified pre-qualification, e-sign leases, rent collection, and maintenance in one tool — $9 per unit per month.',
+    'Run your rentals like a pro without becoming one. Stoop combines listings, verified pre-qualification, e-sign leases, rent collection, and maintenance in one tool — $5 per unit per month.',
   origin: 'https://findstoop.com',
   domain: 'findstoop.com',
   fileSlug: 'findstoop',

@@ -215,7 +215,7 @@ export default function SignLease() {
       return
     }
     // Manager-side signing: when their subscription is active, surface the
-    // updated monthly bill (this unit's $9 added to the existing total) as
+    // updated monthly bill (this unit's $5 added to the existing total) as
     // a confirmation step. Skip when no subscription yet (the paywall flow
     // upstream catches that case and routes to billing setup first).
     if ((profile.role === 'manager' || profile.role === 'admin') && subscriptionActive) {
@@ -381,7 +381,7 @@ export default function SignLease() {
               subscription now.
             </p>
             <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-mute">
-              $9 per active unit per month, billed only on active units.
+              $5 per active unit per month, billed only on active units.
               Stripe-secured, cancel anytime.
             </div>
             <div className="mt-5 flex gap-3">
@@ -420,7 +420,7 @@ export default function SignLease() {
             <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
               <h2 className="text-lg font-semibold text-ink">Confirm new monthly bill</h2>
               <p className="text-sm text-mute mt-1">
-                Signing this lease activates the unit. Your {BRAND.name} subscription will charge $9/unit/month on active units.
+                Signing this lease activates the unit. Your {BRAND.name} subscription will charge $5/unit/month on active units.
               </p>
               <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-1">
                 <div className="flex justify-between text-mute">

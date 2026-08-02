@@ -3,9 +3,8 @@ import { Check, ArrowRight, Sparkles } from 'lucide-react'
 import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
-// Single-tier pricing: $9/unit/mo, $90/unit/yr.
-const PER_UNIT_MONTHLY = 9
-const PER_UNIT_ANNUAL  = 90 // effective $7.50/mo, 16.7% discount, non-refundable
+// Single-tier pricing — rates live in shared/lib/pricing.ts.
+import { PER_UNIT_MONTHLY, PER_UNIT_ANNUAL, ANNUAL_DISCOUNT_PCT } from '@findstoop/shared/lib/pricing'
 
 const includedAtThisPrice = [
   'Unlimited properties and units',
@@ -85,7 +84,7 @@ export default function Pricing() {
                 <p className="text-sm text-mute mt-2">
                   Or <strong className="text-ink">${PER_UNIT_ANNUAL}/unit/year</strong> with
                   annual prepay (effective ${(PER_UNIT_ANNUAL / 12).toFixed(2)}/mo —
-                  16.7% off; non-refundable).
+                  {' '}{ANNUAL_DISCOUNT_PCT}% off; non-refundable).
                 </p>
                 <Link
                   to="/register"

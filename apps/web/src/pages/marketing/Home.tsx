@@ -41,7 +41,7 @@ export default function Home() {
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
                 <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-                $9 per unit per month. Every feature included.
+                $5 per unit per month. Every feature included.
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-ink leading-[1.05] tracking-tight">
                 Run your rentals like a pro — without <span className="text-brand-500">becoming one.</span>
@@ -103,7 +103,7 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
             <Stat number="$5" label="verified pre-qualification per applicant" />
             <Stat number="0–100" label="AI Tenability™ on every applicant" />
-            <Stat number="$9" label="per unit / month for landlords, every feature" />
+            <Stat number="$5" label="per unit / month for landlords, every feature" />
             <Stat number="50-state" label="lease templates included" />
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function Home() {
         eyebrow="Rent collection"
         status="live"
         title="Stop refreshing your bank app on the first of the month."
-        body="Tenants pay by ACH (free) or by card. Reminders go out automatically three days before rent is due. Late fees apply themselves on the timeline you set, in the amount you set."
+        body="Tenants pay by bank transfer (0.8%, capped at $5) or by card (3%). Reminders go out automatically three days before rent is due. Late fees apply themselves on the timeline you set, in the amount you set."
         learnMore="/features"
         Icon={CreditCard}
         illustrationName="payments"
@@ -192,16 +192,17 @@ export default function Home() {
               One plan. Every feature. No upsell ladder.
             </h2>
             <p className="mt-4 text-lg text-mute">
-              $9 per active unit per month. Every feature included, ACH free for your
-              tenants. Pay monthly or save 16.7% with annual prepay.
+              $5 per active unit per month. Every feature included. Payment processing is passed
+              through to whoever pays, so it never comes out of your rent. Pay monthly or save
+              16.7% with annual prepay.
             </p>
           </div>
 
           <PlanCard
             name={BRAND.name}
-            price="$9"
+            price="$5"
             priceSub="/ unit / month"
-            tagline="Or $90/unit/year with annual prepay (non-refundable). Every feature included."
+            tagline="Or $50/unit/year with annual prepay (non-refundable). Every feature included."
             cta="Get started"
             ctaHref="/register"
             features={[

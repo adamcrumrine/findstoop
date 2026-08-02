@@ -113,6 +113,35 @@ export default function ManagerSettings() {
     return () => { cancelled = true }
   }, [profile?.id, searchParams.get('connect')])
 
+  // Reconcile the Connect flags against Stripe whenever this page opens.
+  //
+  // Those columns are a cache, and the only thing that used to refresh them
+  // was the account.updated webhook — which never arrives, because connected
+  // account events go only to endpoints registered with connect=true. Hawk's
+  // account was live at Stripe for hours (charges, payouts, verified bank)
+  // while the app still showed "not connected" and kept routing rent into the
+  // platform balance. Nothing surfaced the disagreement.
+  //
+  // statusOnly never creates an account, so opening Settings is safe for a
+  // landlord who has never clicked Connect.
+  useEffect(() => {
+    if (!profile?.id) return
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase.functions.invoke('stripe-connect-link', {
+        body: { statusOnly: true },
+      })
+      if (cancelled || error || !data?.connected) return
+      setConnect((prev) => ({
+        ...prev,
+        hasAccount: true,
+        chargesEnabled: data.chargesEnabled === true,
+        payoutsEnabled: data.payoutsEnabled === true,
+      }))
+    })()
+    return () => { cancelled = true }
+  }, [profile?.id, searchParams.get('connect')])
+
   // Return-from-onboarding feedback
   useEffect(() => {
     const flag = searchParams.get('connect')

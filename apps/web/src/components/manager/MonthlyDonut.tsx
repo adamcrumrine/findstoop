@@ -16,14 +16,20 @@ interface DonutSlice { label: string; value: number; cls: string; color: string 
 // anything missing is silently dropped from the chart, so the total quietly
 // stops matching the month's charges. 'Due today' was added to rowStatus
 // without being added here, which hid every payment due on the current date.
-// Three states earn a colour: money in (brand), money moving (amber), money
-// in trouble (red). Everything merely owed-but-not-yet-paid is grey — it is
-// the normal state of rent for most of a month and colouring it implies a
-// problem that doesn't exist. The grey ramp darkens as the obligation gets
-// closer, so the legend still separates them.
+// Two families of colour, plus red for trouble.
+//
+// Money arriving is brand-coloured: settled at full strength, still clearing
+// at a lighter tint of the same hue — processing rent is the same money one
+// step earlier, not a different category, and an amber warning tone made a
+// normal ACH transfer look like something had gone wrong.
+//
+// Everything merely owed-but-unpaid is grey; that's the normal state of rent
+// for most of a month, and colouring it implies a problem that doesn't
+// exist. The grey ramp darkens as the obligation approaches so the legend
+// still separates them.
 const STATUS_COLORS: Record<string, { cls: string; color: string }> = {
   'Paid':       { cls: 'bg-brand-500',  color: brandColor('500') },
-  'Processing': { cls: 'bg-amber-500',  color: '#F59E0B' },
+  'Processing': { cls: 'bg-brand-300',  color: brandColor('300') },
   'Scheduled':  { cls: 'bg-gray-500',   color: '#6B7280' },
   'Due today':  { cls: 'bg-gray-400',   color: '#9CA3AF' },
   'Upcoming':   { cls: 'bg-gray-300',   color: '#D1D5DB' },

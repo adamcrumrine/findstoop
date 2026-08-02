@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import MultiSelect from '../../components/shared/MultiSelect'
+import { useScope, inScope } from '../../lib/scope'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
@@ -146,10 +148,12 @@ export default function ManagerTenants() {
   const [resending, setResending] = useState(false)
   // Filter state: property dropdown + lease-status dropdown + free-text
   // search across name/email/phone.
-  const [filterPropertyId, setFilterPropertyId] = useState<'all' | string>('all')
+  const scope = useScope()
   // Default to "active" — landlords almost always want to see current
   // renters on first load. They can switch to "Any" to see upcoming/expired.
-  const [filterStatus, setFilterStatus] = useState<'all' | LeaseStatus | 'no_lease'>('active')
+  // Defaults to current residents; "active AND upcoming" is the natural
+  // question when a turnover is coming, so it takes an array.
+  const [filterStatus, setFilterStatus] = useState<string[]>(['active'])
   const [filterQuery, setFilterQuery] = useState('')
 
   const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
@@ -168,22 +172,18 @@ export default function ManagerTenants() {
       const tenantLeases = getLeasesForTenant(t.id)
       // Property filter — tenant matches if any of their leases is on
       // a unit at the selected property.
-      if (filterPropertyId !== 'all') {
-        const anyLeaseAtProp = tenantLeases.some((l) => {
-          const unit = unitMap[l.unit_id]
-          return unit && unit.property_id === filterPropertyId
-        })
-        if (!anyLeaseAtProp) return false
-      }
+      // A tenant is in scope if ANY of their leases is — someone renting two
+      // units shouldn't vanish because you filtered to one of them.
+      if (scope.isNarrowed && !tenantLeases.some((l) => inScope(scope, { unitId: l.unit_id }))) return false
       // Status filter — "no_lease" means tenant exists but has zero leases
       // (e.g., invited but never assigned). Otherwise match if any lease
       // on the tenant has the selected status.
-      if (filterStatus !== 'all') {
-        if (filterStatus === 'no_lease') {
-          if (tenantLeases.length > 0) return false
-        } else {
-          if (!tenantLeases.some((l) => l.status === filterStatus)) return false
-        }
+      if (filterStatus.length > 0) {
+        const wantsNoLease = filterStatus.includes('no_lease')
+        const statuses = filterStatus.filter((f) => f !== 'no_lease')
+        const matchesLease = statuses.length > 0 && tenantLeases.some((l) => statuses.includes(l.status))
+        const matchesNoLease = wantsNoLease && tenantLeases.length === 0
+        if (!matchesLease && !matchesNoLease) return false
       }
       if (q) {
         const hay = `${t.full_name ?? ''} ${t.email ?? ''} ${t.phone ?? ''}`.toLowerCase()
@@ -191,7 +191,7 @@ export default function ManagerTenants() {
       }
       return true
     })
-  }, [tenants, filterPropertyId, filterStatus, filterQuery, getLeasesForTenant, unitMap])
+  }, [tenants, scope, filterStatus, filterQuery, getLeasesForTenant])
 
   const validateInvite = () => {
     const e: Partial<InviteFormData> = {}
@@ -286,29 +286,20 @@ export default function ManagerTenants() {
           tenant list is empty so the empty state isn't cluttered. */}
       {!loading && tenants.length > 0 && (
         <div className="flex gap-2 flex-wrap items-center bg-white border border-gray-200 rounded-xl p-2.5">
-          <select
-            value={filterPropertyId}
-            onChange={(e) => setFilterPropertyId(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">All properties</option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>{p.name ?? p.address}</option>
-            ))}
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as 'all' | LeaseStatus | 'no_lease')}
-            className="text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">Any lease status</option>
-            <option value="active">Active</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="pending">Pending</option>
-            <option value="expired">Expired</option>
-            <option value="terminated">Terminated</option>
-            <option value="no_lease">No lease yet</option>
-          </select>
+          <MultiSelect
+            allLabel="Any lease status"
+            noun="statuses"
+            selected={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "upcoming", label: "Upcoming" },
+              { value: "pending", label: "Pending" },
+              { value: "expired", label: "Expired" },
+              { value: "terminated", label: "Terminated" },
+              { value: "no_lease", label: "No lease yet" },
+            ]}
+          />
           <input
             type="search"
             placeholder="Search by name, email, or phone…"
@@ -317,10 +308,10 @@ export default function ManagerTenants() {
             onChange={(e) => setFilterQuery(e.target.value)}
             className="flex-1 min-w-[200px] text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
-          {(filterPropertyId !== 'all' || filterStatus !== 'all' || filterQuery) && (
+          {(scope.isNarrowed || filterStatus.length > 0 || filterQuery) && (
             <button
               type="button"
-              onClick={() => { setFilterPropertyId('all'); setFilterStatus('all'); setFilterQuery('') }}
+              onClick={() => { scope.clear(); setFilterStatus([]); setFilterQuery('') }}
               className="text-xs text-mute hover:text-ink px-2"
             >
               Clear
@@ -348,7 +339,7 @@ export default function ManagerTenants() {
           <p className="text-sm text-gray-500">No tenants match the current filter.</p>
           <button
             type="button"
-            onClick={() => { setFilterPropertyId('all'); setFilterStatus('all'); setFilterQuery('') }}
+            onClick={() => { scope.clear(); setFilterStatus([]); setFilterQuery('') }}
             className="mt-2 text-sm font-medium text-brand-700 hover:text-brand-800"
           >
             Clear filter

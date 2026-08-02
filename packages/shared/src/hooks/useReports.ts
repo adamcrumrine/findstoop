@@ -141,7 +141,19 @@ function computeMaintenanceStats(requests: MaintenanceRequest[]): MaintenanceSta
   }
 }
 
-export function useReports(managerId: string | undefined): ReportsData {
+/**
+ * Portfolio reports.
+ *
+ * `scopeUnitIds` narrows every metric to a property or unit; null means the
+ * whole portfolio. Passing it here rather than filtering the finished charts
+ * keeps occupancy, revenue and maintenance computed from one population — a
+ * partially-filtered dashboard is worse than an unfiltered one, because the
+ * tiles silently disagree.
+ */
+export function useReports(managerId: string | undefined, scopeUnitIds?: string[] | null): ReportsData {
+  // Array identity changes every render; key on contents so the effect only
+  // refires when the scope genuinely moves.
+  const scopeKey = (scopeUnitIds ?? []).join(",")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenue[]>([])
@@ -162,7 +174,12 @@ export function useReports(managerId: string | undefined): ReportsData {
       if (properties.length === 0) { setLoading(false); return }
 
       const propertyIds = properties.map((p) => p.id)
-      const units = await getUnits(propertyIds)
+      const allUnits = await getUnits(propertyIds)
+      // Narrow to the manager's current portfolio scope. Applied here rather
+      // than to the finished charts so occupancy, revenue and maintenance are
+      // all computed from the same population — filtering only some of them
+      // would put a 100%-occupancy tile next to a portfolio-wide revenue line.
+      const units = scopeUnitIds ? allUnits.filter((u) => scopeUnitIds.includes(u.id)) : allUnits
       const unitIds = units.map((u) => u.id)
 
       const [leases, maintenance] = await Promise.all([
@@ -190,7 +207,7 @@ export function useReports(managerId: string | undefined): ReportsData {
     } finally {
       setLoading(false)
     }
-  }, [managerId])
+  }, [managerId, scopeKey])
 
   useEffect(() => { load() }, [load])
   useForegroundRefresh(load)

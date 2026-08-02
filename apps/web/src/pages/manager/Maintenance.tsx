@@ -9,10 +9,26 @@ import Modal from '../../components/shared/Modal'
 import FormField, { selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
+import MultiSelect from '../../components/shared/MultiSelect'
+import { useScope, inScope } from '../../lib/scope'
+import { toggle, isExactly } from '../../lib/multiSelect'
 import {
   Wrench, AlertTriangle, Clock, CheckCircle2, ImageIcon, Search,
-  Building2, Sparkles, Loader2,
+  Sparkles, Loader2,
 } from 'lucide-react'
+
+const STATUS_OPTIONS = [
+  { value: 'open',        label: 'Open' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'resolved',    label: 'Resolved' },
+  { value: 'closed',      label: 'Closed' },
+]
+const PRIORITY_OPTIONS = [
+  { value: 'emergency', label: 'Emergency' },
+  { value: 'high',      label: 'High' },
+  { value: 'medium',    label: 'Medium' },
+  { value: 'low',       label: 'Low' },
+]
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
   low: 'Low',
@@ -83,9 +99,11 @@ export default function ManagerMaintenance() {
 
   const loading = propsLoading || unitsLoading || reqLoading
 
-  const [filterStatus, setFilterStatus] = useState<MaintenanceStatus | 'all' | 'active'>('active')
-  const [filterPriority, setFilterPriority] = useState<MaintenancePriority | 'all'>('all')
-  const [filterPropertyId, setFilterPropertyId] = useState<string | 'all'>('all')
+  // Defaults to the open queue — the reason a manager opens this page. Empty
+  // array would mean "everything", which buries live requests under history.
+  const [filterStatus, setFilterStatus] = useState<string[]>(['open', 'in_progress'])
+  const [filterPriority, setFilterPriority] = useState<string[]>([])
+  const scope = useScope()
   const [search, setSearch] = useState('')
   const [selectedRequest, setSelectedRequest] = useState<(typeof requests)[0] | null>(null)
 
@@ -183,17 +201,9 @@ export default function ManagerMaintenance() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return requests
-      .filter((r) => {
-        if (filterStatus === 'all')    return true
-        if (filterStatus === 'active') return r.status === 'open' || r.status === 'in_progress'
-        return r.status === filterStatus
-      })
-      .filter((r) => filterPriority === 'all' || r.priority === filterPriority)
-      .filter((r) => {
-        if (filterPropertyId === 'all') return true
-        const unit = unitMap[r.unit_id]
-        return unit?.property_id === filterPropertyId
-      })
+      .filter((r) => filterStatus.length === 0 || filterStatus.includes(r.status))
+      .filter((r) => filterPriority.length === 0 || filterPriority.includes(r.priority))
+      .filter((r) => inScope(scope, { unitId: r.unit_id }))
       .filter((r) => {
         if (!term) return true
         return (
@@ -210,7 +220,7 @@ export default function ManagerMaintenance() {
         if (pri !== 0) return pri
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
-  }, [requests, filterStatus, filterPriority, filterPropertyId, search, unitMap])
+  }, [requests, filterStatus, filterPriority, scope, search, unitMap])
 
   const hasAnyRequests = requests.length > 0
 
@@ -222,21 +232,6 @@ export default function ManagerMaintenance() {
           <h1 className="text-2xl font-bold text-gray-900">Maintenance</h1>
           <p className="text-sm text-gray-500 mt-0.5">Track and resolve requests across your properties.</p>
         </div>
-        {properties.length > 1 && (
-          <div className="flex items-center gap-2">
-            <Building2 className="w-3.5 h-3.5 text-mute" strokeWidth={1.75} />
-            <select
-              className={`${selectClass} text-sm py-1.5 pr-7`}
-              value={filterPropertyId}
-              onChange={(e) => setFilterPropertyId(e.target.value)}
-            >
-              <option value="all">All properties</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* ── Stat strip ──────────────────────────────────────────────
@@ -245,10 +240,10 @@ export default function ManagerMaintenance() {
           jumps the status filter so the strip doubles as a quick
           status chooser. */}
       <div className="grid grid-cols-4 md:gap-3 gap-1 bg-white md:bg-transparent rounded-xl md:rounded-none border md:border-0 border-gray-100 overflow-hidden">
-        <StatTile Icon={Wrench}        label="Open"           shortLabel="Open"    value={stats.open}              tone="amber"   onClick={() => setFilterStatus('open')}        active={filterStatus === 'open'} />
-        <StatTile Icon={Clock}         label="In progress"    shortLabel="Active"  value={stats.inProgress}        tone="blue"    onClick={() => setFilterStatus('in_progress')} active={filterStatus === 'in_progress'} />
-        <StatTile Icon={AlertTriangle} label="Emergency"      shortLabel="Urgent"  value={stats.emergency}         tone={stats.emergency > 0 ? 'red' : 'gray'} onClick={() => { setFilterPriority('emergency'); setFilterStatus('active') }} active={filterPriority === 'emergency'} />
-        <StatTile Icon={CheckCircle2}  label="Resolved (mo.)" shortLabel="Done"    value={stats.resolvedThisMonth} tone="emerald" onClick={() => setFilterStatus('resolved')}    active={filterStatus === 'resolved'} />
+        <StatTile Icon={Wrench}        label="Open"           shortLabel="Open"    value={stats.open}              tone="amber"   onClick={() => setFilterStatus(['open'])}        active={isExactly(filterStatus, ['open'])} />
+        <StatTile Icon={Clock}         label="In progress"    shortLabel="Active"  value={stats.inProgress}        tone="blue"    onClick={() => setFilterStatus(['in_progress'])} active={isExactly(filterStatus, ['in_progress'])} />
+        <StatTile Icon={AlertTriangle} label="Emergency"      shortLabel="Urgent"  value={stats.emergency}         tone={stats.emergency > 0 ? 'red' : 'gray'} onClick={() => { setFilterPriority(['emergency']); setFilterStatus(['open', 'in_progress']) }} active={filterPriority.includes('emergency')} />
+        <StatTile Icon={CheckCircle2}  label="Resolved (mo.)" shortLabel="Done"    value={stats.resolvedThisMonth} tone="emerald" onClick={() => setFilterStatus(['resolved'])}    active={isExactly(filterStatus, ['resolved'])} />
       </div>
 
       {/* ── Filters + search ────────────────────────────────────────────
@@ -259,69 +254,61 @@ export default function ManagerMaintenance() {
           chip-style picker pattern. */}
       <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-3">
         {/* Mobile compact controls */}
-        <div className="sm:hidden grid grid-cols-2 gap-2">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            aria-label="Filter by status"
-          >
-            <option value="active">Active (open + in progress)</option>
-            <option value="all">Any status</option>
-            <option value="open">Open</option>
-            <option value="in_progress">In progress</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value as MaintenancePriority | 'all')}
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            aria-label="Filter by priority"
-          >
-            <option value="all">Any priority</option>
-            <option value="emergency">Emergency</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+        <div className="sm:hidden flex gap-2">
+          <MultiSelect allLabel="Any status" noun="statuses"
+            selected={filterStatus} onChange={setFilterStatus}
+            options={STATUS_OPTIONS} />
+          <MultiSelect allLabel="Any priority" noun="priorities"
+            selected={filterPriority} onChange={setFilterPriority}
+            options={PRIORITY_OPTIONS} />
         </div>
 
         {/* Desktop pill rows */}
         <div className="hidden sm:flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] uppercase tracking-wider text-mute font-semibold mr-1">Status</span>
-          {([
-            { id: 'active',      label: 'Active' },
-            { id: 'all',         label: 'All' },
-            { id: 'open',        label: 'Open' },
-            { id: 'in_progress', label: 'In progress' },
-            { id: 'resolved',    label: 'Resolved' },
-            { id: 'closed',      label: 'Closed' },
-          ] as const).map((s) => (
+          <button
+            type="button"
+            onClick={() => setFilterStatus([])}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filterStatus.length === 0 ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+            }`}
+          >
+            All
+          </button>
+          {STATUS_OPTIONS.map((s2: { value: string; label: string }) => (
             <button
-              key={s.id}
+              key={s2.value}
               type="button"
-              onClick={() => setFilterStatus(s.id)}
+              onClick={() => toggle(filterStatus, setFilterStatus, s2.value)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                filterStatus === s.id ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+                filterStatus.includes(s2.value) ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
               }`}
             >
-              {s.label}
+              {s2.label}
             </button>
           ))}
         </div>
         <div className="hidden sm:flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] uppercase tracking-wider text-mute font-semibold mr-1">Priority</span>
-          {(['all', 'emergency', 'high', 'medium', 'low'] as const).map((p) => (
+          <button
+            type="button"
+            onClick={() => setFilterPriority([])}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filterPriority.length === 0 ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+            }`}
+          >
+            All
+          </button>
+          {PRIORITY_OPTIONS.map((o) => (
             <button
-              key={p}
+              key={o.value}
               type="button"
-              onClick={() => setFilterPriority(p)}
-              className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
-                filterPriority === p ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
+              onClick={() => toggle(filterPriority, setFilterPriority, o.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                filterPriority.includes(o.value) ? 'bg-ink text-white' : 'bg-gray-100 text-mute hover:bg-gray-200'
               }`}
             >
-              {p === 'all' ? 'All' : PRIORITY_LABEL[p as MaintenancePriority]}
+              {o.label}
             </button>
           ))}
         </div>
@@ -345,7 +332,7 @@ export default function ManagerMaintenance() {
       ) : !hasAnyRequests ? (
         <EmptyStateNoRequests propertyCount={properties.length} unitCount={units.length} />
       ) : filtered.length === 0 ? (
-        <EmptyStateNoMatches onClear={() => { setFilterStatus('all'); setFilterPriority('all'); setFilterPropertyId('all'); setSearch('') }} />
+        <EmptyStateNoMatches onClear={() => { setFilterStatus([]); setFilterPriority([]); scope.clear(); setSearch('') }} />
       ) : (
         <div className="space-y-3">
           {filtered.map((req) => {

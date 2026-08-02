@@ -7,6 +7,8 @@ import {
   Users as UsersIcon, Copy, Archive, ArchiveRestore, Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useScope, inScope } from '../../lib/scope'
+import { passes, toggle } from '../../lib/multiSelect'
 
 type AppStatus = 'submitted' | 'under_review' | 'approved' | 'declined' | 'withdrawn'
 type ScreeningStatus = 'not_ordered' | 'requested' | 'in_progress' | 'complete' | 'failed'
@@ -71,7 +73,8 @@ export default function Applications() {
   const { profile } = useAuth()
   const [apps, setApps] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<AppStatus | 'all'>('all')
+  const [filter, setFilter] = useState<string[]>([])
+  const scope = useScope()
   const [showArchived, setShowArchived] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -92,8 +95,8 @@ export default function Applications() {
     [apps, showArchived],
   )
   const filtered = useMemo(
-    () => filter === 'all' ? visible : visible.filter((a) => a.status === filter),
-    [visible, filter],
+    () => visible.filter((a) => passes(filter, a.status) && inScope(scope, { unitId: a.unit_id })),
+    [visible, filter, scope],
   )
   const archivedCount = useMemo(() => apps.filter((a) => a.archived_at != null).length, [apps])
   const selected = useMemo(
@@ -195,17 +198,24 @@ export default function Applications() {
 
       {/* Filters */}
       <div className="flex gap-2 mb-4 flex-wrap items-center">
-        {(['all', 'submitted', 'under_review', 'approved', 'declined'] as const).map((s) => (
+        <button
+          onClick={() => setFilter([])}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            filter.length === 0 ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+          }`}
+        >
+          All ({visible.length})
+        </button>
+        {(['submitted', 'under_review', 'approved', 'declined'] as const).map((st) => (
           <button
-            key={s}
-            onClick={() => setFilter(s)}
+            key={st}
+            onClick={() => toggle(filter, setFilter, st)}
+            aria-pressed={filter.includes(st)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
-              filter === s ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+              filter.includes(st) ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
             }`}
           >
-            {s === 'all' ? `All (${visible.length})` :
-             s === 'under_review' ? `Reviewing (${visible.filter((a) => a.status === s).length})` :
-             `${STATUS_LABEL[s]} (${visible.filter((a) => a.status === s).length})`}
+            {STATUS_LABEL[st] ?? st} ({visible.filter((a) => a.status === st).length})
           </button>
         ))}
 
@@ -228,7 +238,7 @@ export default function Applications() {
       {filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <ClipboardList className="w-12 h-12 mx-auto mb-3 text-mute-400" strokeWidth={1.5} />
-          <p className="font-semibold text-ink">No applications {filter === 'all' ? 'yet' : `in ${STATUS_LABEL[filter as AppStatus] ?? filter}`}</p>
+          <p className="font-semibold text-ink">No applications {filter.length === 0 ? 'yet' : `in ${filter.map((f) => STATUS_LABEL[f as AppStatus] ?? f).join(', ')}`}</p>
           <p className="text-sm text-mute mt-1">Share an apply link on a vacant unit to start collecting applications.</p>
         </div>
       ) : (

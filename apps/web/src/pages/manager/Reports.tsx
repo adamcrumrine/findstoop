@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Download, Wallet } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useReports } from '@findstoop/shared/hooks/useReports'
+import { useScope } from '../../lib/scope'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -89,6 +90,7 @@ const CustomTooltip = ({ active, payload, label, currency }: any) => {
 
 export default function ManagerReports() {
   const { user } = useAuth()
+  const scope = useScope()
   const {
     monthlyRevenue,
     occupancy,
@@ -99,7 +101,7 @@ export default function ManagerReports() {
     activeLeases,
     loading,
     error,
-  } = useReports(user?.id)
+  } = useReports(user?.id, scope.unitIdsInScope)
 
   if (loading) return <Skeleton />
 

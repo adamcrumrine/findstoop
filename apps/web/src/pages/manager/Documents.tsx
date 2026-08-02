@@ -11,6 +11,9 @@ import FormField, { inputClass, selectClass } from '../../components/shared/Form
 import GeneratedDocumentsList from '../../components/documents/GeneratedDocumentsList'
 import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import toast from 'react-hot-toast'
+import MultiSelect from '../../components/shared/MultiSelect'
+import { useScope, inScope } from '../../lib/scope'
+import { passes } from '../../lib/multiSelect'
 import {
   ClipboardList, FilePlus2, Search, Megaphone, FileText,
   Folder, Paperclip, Download, Trash2, type LucideIcon,
@@ -76,7 +79,8 @@ export default function ManagerDocuments() {
   // common scan dimension) and default status is "active" so the page
   // opens on what's current.
   const [groupBy, setGroupBy] = useState<'type' | 'tenant' | 'property'>('type')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'pending' | 'expired' | 'terminated'>('all')
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const scope = useScope()
 
   // Upload form
   const [selectedLeaseId, setSelectedLeaseId] = useState('')
@@ -160,9 +164,12 @@ export default function ManagerDocuments() {
   // Narrow by lease status first, then group what remains. Status filter
   // is a separate control from grouping — it answers "show me documents
   // tied to leases in this state" rather than reorganizing the layout.
-  const visibleDocs = statusFilter === 'all'
-    ? documents
-    : documents.filter((d) => getLeaseStatus(d.lease_id) === statusFilter)
+  // Documents hang off a lease, so scope resolves through the lease's unit.
+  const visibleDocs = documents.filter((d) => {
+    if (!passes(statusFilter, getLeaseStatus(d.lease_id))) return false
+    const lease = leases.find((l) => l.id === d.lease_id)
+    return inScope(scope, { unitId: lease?.unit_id ?? null })
+  })
 
   // Build groups based on the current groupBy dimension. Each group has a
   // stable label + a list of documents. Sorted with a sensible per-dim
@@ -290,18 +297,19 @@ export default function ManagerDocuments() {
         </div>
         <div className="sm:w-44">
           <p className="text-[10px] uppercase tracking-wider text-mute font-semibold mb-1.5">Lease status</p>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className={selectClass}
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="pending">Pending</option>
-            <option value="expired">Expired</option>
-            <option value="terminated">Terminated</option>
-          </select>
+          <MultiSelect
+            allLabel="All statuses"
+            noun="statuses"
+            selected={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "upcoming", label: "Upcoming" },
+              { value: "pending", label: "Pending" },
+              { value: "expired", label: "Expired" },
+              { value: "terminated", label: "Terminated" },
+            ]}
+          />
         </div>
       </div>
 

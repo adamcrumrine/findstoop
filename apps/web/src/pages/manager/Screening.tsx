@@ -10,6 +10,7 @@ import {
   IdCard, FileText, Hourglass, XCircle, CreditCard, ExternalLink, Info,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useScope, inScope } from '../../lib/scope'
 import { supabase } from '../../lib/supabase'
 import { scoreBand, affordability } from '../../lib/screening'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
@@ -51,7 +52,7 @@ interface OrderRow {
     employer: string | null
     job_title: string | null
     monthly_income: number | null
-    unit?: { unit_number: string; rent_amount: number; property?: { name: string } | null } | null
+    unit?: { id: string; unit_number: string; rent_amount: number; property?: { name: string } | null } | null
   }
 }
 
@@ -79,6 +80,7 @@ export default function Screening() {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'complete' | 'in_progress'>('all')
+  const scope = useScope()
 
   useEffect(() => {
     if (!user) return
@@ -100,7 +102,7 @@ export default function Screening() {
           application:applications!screening_orders_application_id_fkey (
             first_name, last_name, email, employer, job_title, monthly_income,
             unit:units!applications_unit_id_fkey (
-              unit_number, rent_amount,
+              id, unit_number, rent_amount,
               property:properties!units_property_id_fkey ( name )
             )
           )
@@ -115,8 +117,9 @@ export default function Screening() {
   }, [user])
 
   const filtered = useMemo(() => {
-    if (filter === 'complete')    return orders.filter((o) => o.state === 'complete')
-    if (filter === 'in_progress') return orders.filter((o) => o.state !== 'complete' && o.state !== 'failed')
+    const scoped = orders.filter((o) => inScope(scope, { unitId: o.application?.unit?.id ?? null }))
+    if (filter === 'complete')    return scoped.filter((o) => o.state === 'complete')
+    if (filter === 'in_progress') return scoped.filter((o) => o.state !== 'complete' && o.state !== 'failed')
     return orders
   }, [orders, filter])
 

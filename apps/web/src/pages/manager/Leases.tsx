@@ -17,6 +17,8 @@ import LeaseWizard from '../../components/manager/LeaseWizard'
 import RenewalAdvisor from '../../components/manager/RenewalAdvisor'
 import DepositReturnAdvisor from '../../components/manager/DepositReturnAdvisor'
 import DepositReturnWizard from '../../components/manager/DepositReturnWizard'
+import { useScope, inScope } from '../../lib/scope'
+import { toggle, passes } from '../../lib/multiSelect'
 
 function Skeleton() {
   return (
@@ -334,7 +336,10 @@ export default function ManagerLeases() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases, loading, update, reload } = useLeases(unitIds)
 
-  const [filterStatus, setFilterStatus] = useState<LeaseStatus | 'all'>('all')
+  // Multi-select: "active AND upcoming" is the natural question when planning
+  // turnover, and a single select made it two passes.
+  const [filterStatus, setFilterStatus] = useState<string[]>([])
+  const scope = useScope()
   const [wizardOpen, setWizardOpen] = useState(false)
   // Lease currently open in the Deposit Return wizard (null = closed).
   const [depositLease, setDepositLease] = useState<LeaseWithTenant | null>(null)
@@ -383,7 +388,10 @@ export default function ManagerLeases() {
   const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
   const propertyMap = useMemo(() => Object.fromEntries(properties.map((p) => [p.id, p])), [properties])
 
-  const filtered = filterStatus === 'all' ? leases : leases.filter((l) => l.status === filterStatus)
+  const filtered = useMemo(
+    () => leases.filter((l) => passes(filterStatus, l.status) && inScope(scope, { unitId: l.unit_id })),
+    [leases, filterStatus, scope],
+  )
 
   const handleStatusUpdate = async (id: string, status: LeaseStatus) => {
     try {
@@ -456,62 +464,42 @@ export default function ManagerLeases() {
       {/* Filter — native dropdown on mobile (compact + native picker UX),
           pill row on sm+ where horizontal room is no problem. */}
       {!loading && leases.length > 0 && (() => {
-        const opts = (['all', 'active', 'upcoming', 'pending', 'expired', 'terminated'] as const)
-        const countFor = (s: LeaseStatus | 'all') =>
-          s === 'all' ? leases.length : leases.filter((l) => l.status === s).length
+        const opts = (['active', 'upcoming', 'pending', 'expired', 'terminated'] as const)
+        const countFor = (st: LeaseStatus) => leases.filter((l) => l.status === st).length
         return (
-          <>
-            {/* Mobile — single select */}
-            <div className="sm:hidden">
-              <label className="sr-only" htmlFor="lease-filter">Filter leases by status</label>
-              <div className="relative inline-flex items-center">
-                {filterStatus !== 'all' && (
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setFilterStatus([])}
+              className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                filterStatus.length === 0
+                  ? 'bg-brand-600 text-white border border-brand-600'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              all <span className={filterStatus.length === 0 ? 'text-white/80 ml-1' : 'text-gray-400 ml-1'}>({leases.length})</span>
+            </button>
+            {opts.map((st) => {
+              const active = filterStatus.includes(st)
+              return (
+                <button
+                  key={st}
+                  onClick={() => toggle(filterStatus, setFilterStatus, st)}
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize whitespace-nowrap ${
+                    active
+                      ? 'bg-brand-600 text-white border border-brand-600'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
                   <span
-                    className={`absolute left-3 w-2 h-2 rounded-full ${statusDot[filterStatus as LeaseStatus]} pointer-events-none`}
+                    className={`inline-block w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : statusDot[st]}`}
                     aria-hidden="true"
                   />
-                )}
-                <select
-                  id="lease-filter"
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as LeaseStatus | 'all')}
-                  className={`text-sm font-medium border border-gray-200 rounded-lg py-2 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 capitalize ${filterStatus !== 'all' ? 'pl-7' : 'pl-3'}`}
-                >
-                  {opts.map((s) => (
-                    <option key={s} value={s} className="capitalize">
-                      {s} ({countFor(s)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* sm+ — full pill row */}
-            <div className="hidden sm:flex gap-2 flex-wrap">
-              {opts.map((s) => {
-                const active = filterStatus === s
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setFilterStatus(s)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize whitespace-nowrap ${
-                      active
-                        ? 'bg-brand-600 text-white border border-brand-600'
-                        : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    {s !== 'all' && (
-                      <span
-                        className={`inline-block w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : statusDot[s as LeaseStatus]}`}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span>{s} <span className={active ? 'text-white/80' : 'text-gray-400'}>({countFor(s)})</span></span>
-                  </button>
-                )
-              })}
-            </div>
-          </>
+                  <span>{st} <span className={active ? 'text-white/80' : 'text-gray-400'}>({countFor(st)})</span></span>
+                </button>
+              )
+            })}
+          </div>
         )
       })()}
 

@@ -15,6 +15,14 @@ import { useScope, ALL } from '../../lib/scope'
 // they aren't about a property.
 const SHOWN_ON = [
   '/manager/payments',
+  '/manager/maintenance',
+  '/manager/leases',
+  '/manager/tenants',
+  '/manager/documents',
+  '/manager/messages',
+  '/manager/applications',
+  '/manager/screening',
+  '/manager/reports',
 ]
 
 const selectClass =

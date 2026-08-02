@@ -4,6 +4,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
+import { useScope, inScope } from '../../lib/scope'
 import { useConversations, useMessages } from '@findstoop/shared/hooks/useMessages'
 import { findOrCreateDirectConversation, createGroupConversation, uploadChatImage } from '@findstoop/shared/api/messages'
 import type { ConversationSummary } from '@findstoop/shared/api/messages'
@@ -458,6 +459,7 @@ export default function ManagerMessages() {
   const { units } = useUnits(propertyIds)
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
+  const scope = useScope()
   const unitMap = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
   const propertyMap = useMemo(() => Object.fromEntries(properties.map((p) => [p.id, p])), [properties])
 
@@ -474,8 +476,9 @@ export default function ManagerMessages() {
 
   // Active + pending leases — expired/terminated leases aren't messaged.
   const pickableLeases = useMemo(
-    () => leases.filter((l) => l.status === 'active' || l.status === 'pending'),
-    [leases],
+    () => leases.filter((l) =>
+      (l.status === 'active' || l.status === 'pending') && inScope(scope, { unitId: l.unit_id })),
+    [leases, scope],
   )
 
   // Step 2 of the picker — load every tenant on the selected lease.

@@ -16,16 +16,22 @@ interface DonutSlice { label: string; value: number; cls: string; color: string 
 // anything missing is silently dropped from the chart, so the total quietly
 // stops matching the month's charges. 'Due today' was added to rowStatus
 // without being added here, which hid every payment due on the current date.
+// Three states earn a colour: money in (brand), money moving (amber), money
+// in trouble (red). Everything merely owed-but-not-yet-paid is grey — it is
+// the normal state of rent for most of a month and colouring it implies a
+// problem that doesn't exist. The grey ramp darkens as the obligation gets
+// closer, so the legend still separates them.
 const STATUS_COLORS: Record<string, { cls: string; color: string }> = {
   'Paid':       { cls: 'bg-brand-500',  color: brandColor('500') },
   'Processing': { cls: 'bg-amber-500',  color: '#F59E0B' },
-  'Scheduled':  { cls: 'bg-blue-500',   color: '#3B82F6' },
-  'Due today':  { cls: 'bg-orange-500', color: '#F97316' },
-  'Upcoming':   { cls: 'bg-gray-400',   color: '#9CA3AF' },
+  'Scheduled':  { cls: 'bg-gray-500',   color: '#6B7280' },
+  'Due today':  { cls: 'bg-gray-400',   color: '#9CA3AF' },
+  'Upcoming':   { cls: 'bg-gray-300',   color: '#D1D5DB' },
+  'Refunded':   { cls: 'bg-gray-200',   color: '#E5E7EB' },
+  // Reserved for things that actually need the landlord to act.
   'Past due':   { cls: 'bg-red-500',    color: '#DC2626' },
   'Failed':     { cls: 'bg-red-600',    color: '#B91C1C' },
   'Disputed':   { cls: 'bg-red-700',    color: '#991B1B' },
-  'Refunded':   { cls: 'bg-gray-300',   color: '#D1D5DB' },
 }
 
 interface Props {

@@ -7,6 +7,14 @@ export interface AuthState {
   profile: Profile | null
   role: UserRole | null
   loading: boolean
+  /**
+   * The profile fetch failed after retries. Distinct from profile === null,
+   * which also means "not signed in" — a route guard that cannot tell those
+   * apart will treat a network blip as a wrong-role user and redirect.
+   */
+  profileError: string | null
+  /** Re-attempt the profile fetch for the current session. */
+  retryProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<Profile>
   signUp: (email: string, password: string, role: UserRole, fullName: string) => Promise<void>
   signInWithGoogle: (role: UserRole) => Promise<void>

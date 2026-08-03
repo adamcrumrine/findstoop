@@ -9,6 +9,7 @@ function useAuthState(): AuthState {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const mounted = useRef(true)
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
@@ -81,20 +82,39 @@ function useAuthState(): AuthState {
       }
       lastHandledUserId = sessionUserId
 
-      try {
-        if (session!.user.app_metadata?.provider === 'google') {
-          const meta = (session!.user.user_metadata ?? {}) as Record<string, string>
-          const reconciled = await ensureProfile(session!.user.id, session!.user.email ?? '', meta)
-          if (mounted.current) setProfile(reconciled)
-        } else {
-          const p = await fetchProfile(session!.user.id)
-          if (mounted.current) setProfile(p)
+      // Retry before giving up. This used to swallow the error and leave
+      // profile null, which every route guard reads as "wrong role" — so one
+      // flaky request on a page refresh bounced the user to the dashboard
+      // instead of the page they were on. A tenant got sent to the MANAGER
+      // dashboard, because defaultPathForRole(undefined) lands there.
+      let lastErr: unknown = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (!mounted.current) return
+        try {
+          if (session!.user.app_metadata?.provider === 'google') {
+            const meta = (session!.user.user_metadata ?? {}) as Record<string, string>
+            const reconciled = await ensureProfile(session!.user.id, session!.user.email ?? '', meta)
+            if (mounted.current) { setProfile(reconciled); setProfileError(null) }
+          } else {
+            const p = await fetchProfile(session!.user.id)
+            if (mounted.current) { setProfile(p); setProfileError(null) }
+          }
+          lastErr = null
+          break
+        } catch (err) {
+          lastErr = err
+          // Brief backoff — a refresh after a laptop wakes often catches the
+          // network still coming up.
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
         }
-      } catch {
-        // Profile fetch failure should not block the app.
-      } finally {
-        if (source === 'init' && mounted.current) setLoading(false)
       }
+      if (lastErr && mounted.current) {
+        // Allow this user to be re-attempted rather than short-circuited by
+        // the lastHandledUserId guard on the next auth event.
+        lastHandledUserId = null
+        setProfileError(lastErr instanceof Error ? lastErr.message : 'Could not load your profile')
+      }
+      if (source === 'init' && mounted.current) setLoading(false)
     }
 
     // Initial session — runs in our own context, not under the GoTrue lock,
@@ -250,11 +270,30 @@ function useAuthState(): AuthState {
     }
   }, [user])
 
+  // Re-attempt the profile fetch for whoever is currently signed in. Given to
+  // the error screen so a user can recover in place instead of being sent
+  // somewhere else and losing the page they were on.
+  const retryProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
+    setProfileError(null)
+    try {
+      const p = await fetchProfile(session.user.id)
+      if (mounted.current) setProfile(p)
+    } catch (err) {
+      if (mounted.current) {
+        setProfileError(err instanceof Error ? err.message : 'Could not load your profile')
+      }
+    }
+  }
+
   return useMemo<AuthState>(() => ({
     user,
     profile,
     role: profile?.role ?? null,
     loading,
+    profileError,
+    retryProfile,
     signIn,
     signUp,
     signInWithGoogle,
@@ -265,7 +304,7 @@ function useAuthState(): AuthState {
     sendSmsCode,
     verifySmsCode,
     verifyBackupCode,
-  }), [user, profile, loading])
+  }), [user, profile, loading, profileError])
 }
 
 // ── Provider — mount once at app root ────────────────────────────────────────

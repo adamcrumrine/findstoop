@@ -928,14 +928,22 @@ export default function ManagerPayments() {
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl border border-gray-200 px-4 pb-1">
+          <div className="bg-white rounded-xl border border-gray-200 px-4 pb-1 overflow-hidden">
             {visible.map((p, i) => {
               const month = formatMonthYear(paymentAnchor(p))
               const prevMonth = i > 0 ? formatMonthYear(paymentAnchor(visible[i - 1])) : null
               return (
                 <Fragment key={p.id}>
                   {month !== prevMonth && (
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 pt-3">{month}</p>
+                    /* A month boundary is the strongest structure in this list —
+                       it decides which rent a row belongs to — and it was
+                       text-gray-400, lighter than the tenant names underneath
+                       it. Now a full-bleed dark bar: negative margins cancel
+                       the card padding so it spans edge to edge and reads as a
+                       divider rather than another line of text. */
+                    <p className="-mx-4 mt-3 px-4 py-1.5 bg-gray-700 text-white text-[11px] font-semibold uppercase tracking-wider">
+                      {month}
+                    </p>
                   )}
                   <PaymentRow
                     payment={p}

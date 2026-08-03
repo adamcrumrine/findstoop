@@ -365,7 +365,6 @@ function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMi
   const isScheduled = !!(payment as Payment & { scheduled_for?: string | null }).scheduled_for
   const showScheduledIcon = isScheduled
   const showRecurringIcon = tenantAutopay && payment.status === 'pending'
-  const anchor = paymentAnchor(payment)
 
   const commitEdit = async () => {
     const next = Number(draftAmount)
@@ -414,11 +413,14 @@ function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMi
         )}
       </div>
 
-      <p className="text-xs text-gray-500 mt-0.5 truncate">
-        {tenantName}
-        {propertyLabel && <> · {propertyLabel}</>}
-        {' · '}{formatMonthYear(payment.due_date ?? anchor)}
-      </p>
+      {/* Who, then where — on separate lines rather than one truncated string.
+          The month is deliberately gone: these rows are grouped under a month
+          heading, so repeating it in every row spent the width that was
+          cutting the tenant name off. */}
+      <p className="text-sm text-ink mt-1 truncate">{tenantName}</p>
+      {propertyLabel && (
+        <p className="text-xs text-gray-500 truncate">{propertyLabel}</p>
+      )}
       {payment.memo && (
         <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
       )}

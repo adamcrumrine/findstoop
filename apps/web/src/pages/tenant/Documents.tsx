@@ -166,12 +166,25 @@ function TenantDocumentsInner({ onRetry }: { onRetry: () => void }) {
     }
   }
 
+  // Does this lease already have a real uploaded lease PDF? Leases imported
+  // from another platform (or signed off-platform and attached) carry the
+  // executed document as a `documents` row of type='lease'. Legal notices use
+  // an `app://` route rather than a storage path, so those don't count.
+  const hasUploadedLease = documents.some(
+    (d) => d.type === 'lease' && !!d.storage_url && !d.storage_url.startsWith('app://')
+  )
+
   // Synthetic "Lease Agreement" entry — rendered at the top of the list once
   // the tenant has a signed lease. It points at the existing /lease-pdf/:id
   // route which provides a printable / save-as-PDF view of the executed
   // lease. We don't write a row to the documents table because the lease IS
   // the canonical source of truth; this is just a surfaced shortcut.
-  const synthetic: Document[] = lease?.signed_at
+  //
+  // Suppressed when an uploaded lease PDF exists: /lease-pdf/:id renders the
+  // Stoop template, so on an imported lease this row showed the tenant a
+  // second, generic "lease" alongside the one they actually signed — with
+  // boilerplate terms (utility split, etc.) that were never their deal.
+  const synthetic: Document[] = lease?.signed_at && !hasUploadedLease
     ? [{
         id: 'lease-agreement',
         lease_id: lease.id,

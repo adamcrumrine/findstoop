@@ -305,6 +305,15 @@ export function generateLeaseText(inputs: LeaseInputs): string {
     ? `The Lessee has the Lessor's written approval for pet(s) under this Lease. A monthly pet fee of $40.00 per dog applies, due with rent. No cats are permitted. All pets must be leashed when outdoors, supervised when not inside the home, and secured during any maintenance visit. Pet waste left on the Property incurs a $25.00 cleanup fee per occurrence. Damage caused by pets is the Lessee's responsibility regardless of the deposit.`
     : `The Lessee has no pets and will not allow pets at the Property for any length of time, including for short visits by guests.`
 
+  // Per-tenancy utility split. Clause 6 states a default allocation; when the
+  // landlord has recorded utility notes for this lease, they are appended as a
+  // controlling paragraph so the generated document reflects the actual deal
+  // instead of the boilerplate. Empty/whitespace notes render nothing.
+  const utilityNotes = inputs.utility_notes?.trim()
+  const utilityNotesClause = utilityNotes
+    ? `\n\nThe following terms were agreed for this tenancy and control over the allocation stated above to the extent they conflict: ${utilityNotes}`
+    : ''
+
   // State-specific notes block (appended at the end for reference).
   const stateNotesBlock = notes ? `
 STATE-SPECIFIC NOTES — ${stateName.toUpperCase()}
@@ -381,7 +390,7 @@ If the Lessor cancels the Lease before move-in for any reason other than the Les
 
 The Lessee is responsible for arranging and paying for the following services for the duration of the tenancy: electric, natural gas, water and sewer, internet and cable, sidewalk snow removal, and trash and recycling containers. The Lessee must place all tenant-paid utilities into the Lessee's name effective the lease start date and keep them in service through the move-out date.
 
-The Lessor is responsible for landscaping. Landscaping handled by the Lessor includes mowing, leaf and debris removal, weed control in beds, and trimming of bushes and small trees. Grass will be kept below 6 inches in height. The Lessee is responsible for keeping all outdoor areas free of trash and personal items so that landscaping can be performed.
+The Lessor is responsible for landscaping. Landscaping handled by the Lessor includes mowing, leaf and debris removal, weed control in beds, and trimming of bushes and small trees. Grass will be kept below 6 inches in height. The Lessee is responsible for keeping all outdoor areas free of trash and personal items so that landscaping can be performed.${utilityNotesClause}
 
 7. Use and Occupancy
 

@@ -13,6 +13,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { generateLeaseText, getStateNotes } from '@findstoop/shared/lib/leaseTemplates'
+import { getSignedUrl } from '@findstoop/shared/api/documents'
 import type { Lease } from '@findstoop/shared/types/lease'
 import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
@@ -44,13 +45,18 @@ export default function LeasePdf() {
   const [signerProfiles, setSignerProfiles] = useState<Record<string, Profile>>({})
   const [billingActive, setBillingActive] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  // Storage path of an uploaded/externally-signed lease PDF, if one exists.
+  // When set, THAT document is the executed lease and the generated template
+  // below is not — see the redirect effect.
+  const [uploadedLeasePath, setUploadedLeasePath] = useState<string | null>(null)
+  const [uploadedLeaseFailed, setUploadedLeaseFailed] = useState(false)
 
   useEffect(() => {
     if (!id) return
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const [leaseRes, sigsRes, ltRes] = await Promise.all([
+      const [leaseRes, sigsRes, ltRes, docRes] = await Promise.all([
         supabase
           .from('leases')
           .select(`
@@ -71,8 +77,19 @@ export default function LeasePdf() {
           .eq('lease_id', id)
           .order('is_primary', { ascending: false })
           .order('sort_order', { ascending: true }),
+        // Most recent uploaded lease document. Standard legal notices store an
+        // `app://` route rather than a storage path — those are not the lease.
+        supabase
+          .from('documents')
+          .select('storage_url')
+          .eq('lease_id', id)
+          .eq('type', 'lease')
+          .order('created_at', { ascending: false })
+          .limit(1),
       ])
       if (cancelled) return
+      const docPath = ((docRes.data ?? [])[0] as { storage_url?: string } | undefined)?.storage_url ?? ''
+      setUploadedLeasePath(docPath && !docPath.startsWith('app://') ? docPath : null)
       if (leaseRes.error || !leaseRes.data) {
         setLease(null)
       } else {
@@ -114,6 +131,28 @@ export default function LeasePdf() {
     })()
     return () => { cancelled = true }
   }, [id])
+
+  // When the lease was imported from (or signed on) another platform, the
+  // uploaded PDF is the agreement the parties actually executed. Rendering the
+  // Stoop template instead would show boilerplate — a generic utility split,
+  // generic clauses — that was never part of their deal. Send the viewer to
+  // the real document.
+  useEffect(() => {
+    if (!uploadedLeasePath) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Same bucket + signing path the Documents tab uses, so this inherits
+        // the storage RLS that already governs tenant lease downloads.
+        const url = await getSignedUrl(uploadedLeasePath, 60)
+        if (cancelled) return
+        window.location.replace(url)
+      } catch {
+        if (!cancelled) setUploadedLeaseFailed(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [uploadedLeasePath])
 
   const leaseText = useMemo(() => {
     if (!lease) return ''
@@ -191,6 +230,44 @@ export default function LeasePdf() {
         <Link to="/" className="mt-4 inline-block text-sm font-medium text-brand-600 hover:underline">
           ← Home
         </Link>
+      </div>
+    )
+  }
+
+  // Uploaded lease → we are handing off to the real PDF. Deliberately placed
+  // ahead of the signature/billing gate: an externally-executed lease belongs
+  // to the parties regardless of the landlord's subscription state, and the
+  // Documents tab already lets tenants download it directly.
+  if (uploadedLeasePath && !uploadedLeaseFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-mute gap-3">
+        <Loader2 className="w-6 h-6 animate-spin" strokeWidth={1.75} />
+        <p className="text-sm">Opening the signed lease…</p>
+      </div>
+    )
+  }
+
+  // Couldn't produce a link to the executed document. Show that plainly rather
+  // than falling through to the generated template, which would present
+  // boilerplate as if it were their agreement.
+  if (uploadedLeasePath && uploadedLeaseFailed) {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-4 text-center">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
+          <FileSignature className="w-10 h-10 text-amber-700 mx-auto mb-3" strokeWidth={1.5} />
+          <h1 className="text-lg font-semibold text-amber-900">Couldn't open the signed lease</h1>
+          <p className="text-sm text-amber-800 mt-2">
+            The executed lease for this tenancy is an uploaded document and we couldn't
+            generate a link to it just now. Try again, or open it from the Documents tab.
+          </p>
+          <Link
+            to={profile.role === 'tenant' ? '/tenant/documents' : `/manager/review-lease/${lease.id}`}
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-amber-900 bg-white border border-amber-300 hover:bg-amber-100 px-4 py-2 rounded-lg"
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+            {profile.role === 'tenant' ? 'Back to documents' : 'Back to review'}
+          </Link>
+        </div>
       </div>
     )
   }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, Wrench, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Loader2, UserCircle, Phone, Mail, BadgeCheck, AlertCircle, Briefcase, ShieldAlert, Home, Calendar, FileText, MessageSquare, Wrench, Pencil, type LucideIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import EditTenantModal from '../../components/manager/EditTenantModal'
 import { payerFeeCents } from '@findstoop/shared/lib/paymentFees'
 import { formatUsd, formatUsdCents, formatPhone } from '@findstoop/shared/lib/format'
 import { rowStatus, paymentAnchor, upcomingPaymentWindow } from '@findstoop/shared/lib/paymentRails'
@@ -26,6 +27,7 @@ export default function TenantDetail() {
   const [openRequests, setOpenRequests] = useState<MaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -130,16 +132,35 @@ export default function TenantDetail() {
               <p className="text-sm text-ink mt-3 leading-relaxed whitespace-pre-line">{tenant.about_me}</p>
             )}
           </div>
-          <Link
-            to={`/manager/messages?tenantId=${tenant.id}`}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium"
-            title="Open 1:1 chat"
-          >
-            <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
-            Message
-          </Link>
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-ink text-sm font-medium"
+              title="Edit name, email, or phone"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.75} />
+              Edit
+            </button>
+            <Link
+              to={`/manager/messages?tenantId=${tenant.id}`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium"
+              title="Open 1:1 chat"
+            >
+              <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+              Message
+            </Link>
+          </div>
         </div>
       </section>
+
+      {editing && (
+        <EditTenantModal
+          tenant={tenant}
+          onClose={() => setEditing(false)}
+          onSaved={(patch) => setTenant((prev) => (prev ? { ...prev, ...patch } : prev))}
+        />
+      )}
 
       {/* Bio */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">

@@ -40,34 +40,70 @@ function daysBetween(iso: string): number {
   return Math.floor((today.getTime() - due.getTime()) / 86_400_000)
 }
 
+export interface OverduePartition {
+  /** Leases to prompt a notice on, most overdue first. */
+  overdue: OverdueLease[]
+  /** Leases held back because Stoop isn't collecting their rent. */
+  paused: { count: number; amount: number }
+}
+
+/**
+ * Most-overdue pending rent payment per lease (5+ days late), split into the
+ * ones worth acting on and the ones being held back.
+ *
+ * Leases with collections paused are held back rather than dropped. They're
+ * imported tenancies that never moved onto Stoop, so their pending rows aren't
+ * debts this system is collecting — prompting a Pay-or-Quit notice against one
+ * would be wrong, and possibly served on someone who has been paying their
+ * landlord by check all along. But hiding overdue rent with no trace is its own
+ * failure, so they're counted and disclosed instead of vanishing.
+ */
+export function partitionOverdue(
+  payments: Payment[],
+  leases: Pick<LeaseWithTenant, 'id' | 'unit_id' | 'profile' | 'collections_paused_at'>[],
+  units: Pick<Unit, 'id' | 'unit_number'>[],
+): OverduePartition {
+  const byLease = new Map<string, Payment>()
+  for (const p of payments) {
+    if (p.type !== 'rent' || p.status !== 'pending' || !p.due_date) continue
+    if (daysBetween(p.due_date) < 5) continue
+    const cur = byLease.get(p.lease_id)
+    if (!cur || (cur.due_date! > p.due_date)) byLease.set(p.lease_id, p)
+  }
+  const out: OverdueLease[] = []
+  let pausedCount = 0
+  let pausedAmount = 0
+  for (const [leaseId, p] of byLease) {
+    const lease = leases.find((l) => l.id === leaseId)
+    if (!lease) continue
+    if (lease.collections_paused_at) {
+      pausedCount += 1
+      pausedAmount += Number(p.amount)
+      continue
+    }
+    const unit = units.find((u) => u.id === lease.unit_id)
+    out.push({
+      leaseId,
+      tenantName: lease.profile?.full_name ?? lease.profile?.email ?? 'Tenant',
+      unitLabel: unit?.unit_number ?? null,
+      daysLate: daysBetween(p.due_date!),
+      amount: Number(p.amount),
+    })
+  }
+  return {
+    overdue: out.sort((a, b) => b.daysLate - a.daysLate),
+    paused: { count: pausedCount, amount: pausedAmount },
+  }
+}
+
 export default function LatePaymentBanner({ payments, leases, units }: Props) {
   const navigate = useNavigate()
   const [series, setSeries] = useState<Record<string, LatePaymentSeries>>({})
 
-  // Most-overdue pending rent payment per lease (5+ days late).
-  const overdue = useMemo<OverdueLease[]>(() => {
-    const byLease = new Map<string, Payment>()
-    for (const p of payments) {
-      if (p.type !== 'rent' || p.status !== 'pending' || !p.due_date) continue
-      if (daysBetween(p.due_date) < 5) continue
-      const cur = byLease.get(p.lease_id)
-      if (!cur || (cur.due_date! > p.due_date)) byLease.set(p.lease_id, p)
-    }
-    const out: OverdueLease[] = []
-    for (const [leaseId, p] of byLease) {
-      const lease = leases.find((l) => l.id === leaseId)
-      if (!lease) continue
-      const unit = units.find((u) => u.id === lease.unit_id)
-      out.push({
-        leaseId,
-        tenantName: lease.profile?.full_name ?? lease.profile?.email ?? 'Tenant',
-        unitLabel: unit?.unit_number ?? null,
-        daysLate: daysBetween(p.due_date!),
-        amount: Number(p.amount),
-      })
-    }
-    return out.sort((a, b) => b.daysLate - a.daysLate)
-  }, [payments, leases, units])
+  const { overdue, paused } = useMemo(
+    () => partitionOverdue(payments, leases, units),
+    [payments, leases, units],
+  )
 
   const overdueKey = overdue.map((o) => o.leaseId).join(',')
   useEffect(() => {
@@ -79,7 +115,7 @@ export default function LatePaymentBanner({ payments, leases, units }: Props) {
     return () => { cancelled = true }
   }, [overdueKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (overdue.length === 0) return null
+  if (overdue.length === 0 && paused.count === 0) return null
 
   return (
     <div className="space-y-2">
@@ -123,6 +159,16 @@ export default function LatePaymentBanner({ payments, leases, units }: Props) {
           </div>
         )
       })}
+
+      {/* Disclosed, not hidden. Deliberately quiet — grey, no icon, no button:
+          this is a note about leases Stoop isn't collecting on, not a task. */}
+      {paused.count > 0 && (
+        <p className="text-xs text-mute px-1">
+          {paused.count} {paused.count === 1 ? 'lease' : 'leases'} with overdue rent
+          {' '}({formatUsd(paused.amount)}) {paused.count === 1 ? 'is' : 'are'} not shown —
+          {' '}collections are paused until those tenants set up online payments.
+        </p>
+      )}
     </div>
   )
 }

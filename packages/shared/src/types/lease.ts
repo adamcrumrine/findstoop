@@ -29,6 +29,14 @@ export interface Lease {
   // this tenant. Optional: the column is added by an additive migration and is
   // simply absent (undefined) until it's applied. See lib/studentFeatures.ts.
   is_student?: boolean | null
+  // Set when this lease isn't being collected through Stoop yet — an imported
+  // tenancy whose tenants never onboarded and still pay their landlord some
+  // other way. Suppresses the late-notice prompt, automated late fees, and
+  // rent reminders, so imported schedules don't read as delinquencies.
+  // Cleared automatically once a tenant sets up a payment method. Optional:
+  // added by an additive migration, absent (undefined) until it's applied.
+  collections_paused_at?: string | null
+  collections_paused_reason?: string | null
   created_at: string
   // Optional embed when the lease is fetched with property info — used by the
   // tenant dashboard to show "Property name · Unit X".

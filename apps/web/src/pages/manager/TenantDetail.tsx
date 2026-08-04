@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import EditTenantModal from '../../components/manager/EditTenantModal'
 import { payerFeeCents } from '@findstoop/shared/lib/paymentFees'
 import { formatUsd, formatUsdCents, formatPhone } from '@findstoop/shared/lib/format'
-import { rowStatus, paymentAnchor, upcomingPaymentWindow } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, paymentAnchor, upcomingPaymentWindow, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
 import type { Profile } from '@findstoop/shared/types/profile'
 import type { Lease } from '@findstoop/shared/types/lease'
 import type { Payment } from '@findstoop/shared/types/payment'
@@ -205,6 +205,7 @@ export default function TenantDetail() {
           // into the future. Sorting descending here showed the far end of a
           // year's generated schedule and hid the payment actually due now.
           const recent = upcomingPaymentWindow(payments, 5)
+          const pausedLeases = pausedLeaseIds(leases)
           return (
             <>
               <div className="grid grid-cols-2 gap-3 mb-4">
@@ -226,7 +227,7 @@ export default function TenantDetail() {
               </div>
               <div className="divide-y divide-gray-100">
                 {recent.map((p) => {
-                  const status = rowStatus(p)
+                  const status = rowStatus(p, undefined, pausedLeases.has(p.lease_id))
                   return (
                     <div key={p.id} className="flex items-center justify-between py-2 gap-3">
                       <div className="min-w-0">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { upcomingPaymentWindow, ledgerOrder, rowStatus, parseLocalDay } from '@findstoop/shared/lib/paymentRails'
+import { upcomingPaymentWindow, ledgerOrder, rowStatus, parseLocalDay, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
 import type { Payment } from '@findstoop/shared/types/payment'
 
 // Minimal Payment factory — only the fields paymentAnchor/status read.
@@ -161,5 +161,79 @@ describe('ledgerOrder', () => {
 
   it('empty input is safe', () => {
     expect(ledgerOrder([], TODAY)).toEqual([])
+  })
+
+  // The regression: cutting history at TODAY meant a payment vanished the
+  // morning after it was marked paid. On 301/303 E 14th Ave, rent settled on
+  // Aug 1 and Aug 2 dropped behind ~100 future rows and reappeared under a
+  // second "AUG 2026" divider, so the manager reported it as missing.
+  it('keeps this month\'s settled rent with the rest of this month', () => {
+    const MID_AUG = new Date(2026, 7, 4) // 2026-08-04 local
+    const rows = [
+      pay('2026-08-01', 'completed', '2026-08-01'), // Savannah — paid Aug 1
+      pay('2026-08-01', 'pending'),                 // a roommate, still owing
+      pay('2026-08-01', 'completed', '2026-08-04'), // Maya — paid today
+      pay('2026-07-01', 'completed', '2026-07-01'), // last month: history
+    ]
+    const order = ledgerOrder(rows, MID_AUG)
+    expect(order.map((p) => p.paid_at ?? p.due_date)).toEqual([
+      '2026-08-01', // settled Aug 1 — still filed under August
+      '2026-08-01', // the unpaid roommate
+      '2026-08-04', // settled today
+      '2026-07-01', // only the earlier month sinks to history
+    ])
+  })
+
+  it('still sinks earlier months below everything current', () => {
+    const MID_AUG = new Date(2026, 7, 4)
+    const rows = [
+      pay('2026-06-01', 'completed', '2026-06-15'),
+      pay('2027-07-01', 'pending'),
+    ]
+    expect(ledgerOrder(rows, MID_AUG).map((p) => p.due_date)).toEqual(['2027-07-01', '2026-06-01'])
+  })
+})
+
+// Imported leases for tenants who never onboarded still carry pending rent
+// rows. Stoop was never asked to collect that money, so painting it red states
+// something untrue — and it is the same red used for tenants who really are
+// behind, which devalues the signal on both.
+describe('rowStatus on a lease that is not on Stoop rails', () => {
+  const TODAY = new Date(2026, 7, 4)
+
+  it('reads Paused instead of Past due', () => {
+    const overdue = pay('2026-07-01', 'pending')
+    expect(rowStatus(overdue, TODAY).label).toBe('Past due')
+    expect(rowStatus(overdue, TODAY, true).label).toBe('Paused')
+  })
+
+  it('covers rent due today as well as rent already late', () => {
+    expect(rowStatus(pay('2026-08-04', 'pending'), TODAY, true).label).toBe('Paused')
+  })
+
+  it('does not rewrite money that actually moved', () => {
+    // A paused lease can still have a payment recorded against it — say the
+    // landlord marks a check paid. That is real, and it stays Paid.
+    expect(rowStatus(pay('2026-07-01', 'completed', '2026-07-02'), TODAY, true).label).toBe('Paid')
+  })
+
+  it('leaves future rent alone — it was never alarming', () => {
+    expect(rowStatus(pay('2026-09-01', 'pending'), TODAY, true).label).toBe('Upcoming')
+  })
+
+  it('silences only the paused lease, never the portfolio', () => {
+    const overdue = pay('2026-07-01', 'pending')
+    expect(rowStatus(overdue, TODAY, false).label).toBe('Past due')
+  })
+})
+
+describe('pausedLeaseIds', () => {
+  it('collects only the leases carrying a pause timestamp', () => {
+    const ids = pausedLeaseIds([
+      { id: 'a', collections_paused_at: '2026-08-04T00:17:39Z' },
+      { id: 'b', collections_paused_at: null },
+      { id: 'c' },
+    ])
+    expect([...ids]).toEqual(['a'])
   })
 })

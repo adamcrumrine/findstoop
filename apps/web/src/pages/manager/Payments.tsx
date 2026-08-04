@@ -6,7 +6,7 @@ import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
 import { formatUsd, formatUsdCents, formatLocalDate, formatMonthYear } from '@findstoop/shared/lib/format'
-import { rowStatus, paymentAnchor, ledgerOrder } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, paymentAnchor, ledgerOrder, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
 import type { Payment, PaymentType, PaymentStatus } from '@findstoop/shared/types/payment'
@@ -341,13 +341,16 @@ interface PaymentRowProps {
   // multi-primary rent split whose group total no longer equals lease.rent.
   // Computed by the parent across (lease_id, due_date) groups.
   splitMismatch: { groupSum: number; expected: number } | null
+  // This row's lease has collections paused — imported rent for a tenant who
+  // never moved onto Stoop. Keeps the pill out of the red.
+  collectionsPaused: boolean
   onMarkPaid: (id: string) => void
   onApplyCredit: (payment: Payment) => void
   onUpdateAmount: (id: string, amount: number) => Promise<void>
 }
 
-function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMismatch, onMarkPaid, onApplyCredit, onUpdateAmount }: PaymentRowProps) {
-  const status = rowStatus(payment)
+function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMismatch, collectionsPaused, onMarkPaid, onApplyCredit, onUpdateAmount }: PaymentRowProps) {
+  const status = rowStatus(payment, undefined, collectionsPaused)
   // Mark Paid + Credit available on any pending row — managers regularly
   // collect off-platform (cash, check, Venmo) and need to flip future months,
   // and they may want to credit a future month for in-kind work (mulch, etc.).
@@ -507,6 +510,7 @@ export default function ManagerPayments() {
   const unitIds = useMemo(() => units.map((u) => u.id), [units])
   const { leases } = useLeases(unitIds)
   const leaseIds = useMemo(() => leases.map((l) => l.id), [leases])
+  const pausedLeases = useMemo(() => pausedLeaseIds(leases), [leases])
   const { payments, loading, add, markPaid, update, regenerateSchedule, reload } = usePayments(leaseIds)
 
   // Multi-select throughout: chasing money means "failed AND past due", which
@@ -818,7 +822,7 @@ export default function ManagerPayments() {
       {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <div className="lg:col-span-2">
-            <MonthlyDonut payments={filtered} loading={loading} />
+            <MonthlyDonut payments={filtered} loading={loading} pausedLeases={pausedLeases} />
           </div>
           <div className="grid gap-3">
             <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -951,6 +955,7 @@ export default function ManagerPayments() {
                     propertyLabel={propertyLabelFor(p)}
                     tenantAutopay={!!tenantAutopay[p.tenant_id]}
                     splitMismatch={splitMismatchByPaymentId[p.id] ?? null}
+                    collectionsPaused={!!leaseMap[p.lease_id]?.collections_paused_at}
                     onMarkPaid={(id) => setMarkPaidTarget(payments.find((pay) => pay.id === id) ?? null)}
                     onApplyCredit={(payment) => setCreditTarget(payment)}
                     onUpdateAmount={handleEditAmount}

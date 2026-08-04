@@ -10,7 +10,7 @@ import { useLeases, useTenants } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
 import { regenerateRentSchedule } from '@findstoop/shared/api/payments'
 import { formatUsdCents, formatLocalDate } from '@findstoop/shared/lib/format'
-import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, paymentAnchor, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
 import type { Property } from '@findstoop/shared/types/property'
 import type { Unit } from '@findstoop/shared/types/unit'
 import type { Lease, LeaseStatus } from '@findstoop/shared/types/lease'
@@ -886,6 +886,7 @@ function PaymentsTab({ leases, units, leaseStatusFilter }: { leases: ReturnType<
 
   const unitMap = Object.fromEntries(units.map((u) => [u.id, u]))
   const leaseMap = Object.fromEntries(leases.map((l) => [l.id, l]))
+  const pausedLeases = useMemo(() => pausedLeaseIds(leases), [leases])
 
   // Rent is split across every primary tenant — each row is billed to its OWN
   // primary (payment.tenant_id), not the lease's single legacy primary. Resolve
@@ -965,9 +966,16 @@ function PaymentsTab({ leases, units, leaseStatusFilter }: { leases: ReturnType<
   }, [payments])
   const monthStatus = (g: { pct: number; rows: Payment[] }) => {
     if (g.pct >= 100) return { label: 'Paid', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
+    // Only rows Stoop is actually collecting on can make a month overdue. A
+    // paused lease's imported rent is owed to the landlord directly, so it must
+    // not turn the month's header red.
     const pastDue = g.rows.some((r) => r.status === 'pending'
+      && !pausedLeases.has(r.lease_id)
       && (((r as Payment & { scheduled_for?: string | null }).scheduled_for ?? r.due_date ?? '') < todayStr))
     if (pastDue) return { label: 'Past due', cls: 'text-red-700 bg-red-50 border-red-200' }
+    if (g.rows.every((r) => pausedLeases.has(r.lease_id))) {
+      return { label: 'Paused', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
+    }
     if (g.pct > 0) return { label: 'Partial', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
     return { label: 'Upcoming', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
   }
@@ -1112,7 +1120,7 @@ function PaymentsTab({ leases, units, leaseStatusFilter }: { leases: ReturnType<
                         .slice()
                         .sort((a, b) => payerName(a).localeCompare(payerName(b)))
                         .map((p) => {
-                          const rs = rowStatus(p)
+                          const rs = rowStatus(p, undefined, pausedLeases.has(p.lease_id))
                           return (
                             <div key={p.id} className="flex items-center justify-between gap-3 text-sm py-1">
                               <div className="flex items-center gap-2 min-w-0">

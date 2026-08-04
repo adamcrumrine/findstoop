@@ -9,7 +9,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
 import { PER_UNIT_MONTHLY } from '@findstoop/shared/lib/pricing'
-import { rowStatus, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, paymentAnchor, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import { useTurnovers } from '../../hooks/useTurnovers'
 import { portfolioVacancy, type TurnoverStepKey } from '../../lib/turnover'
@@ -56,8 +56,8 @@ function StatCard({ label, value, sub, accent = 'none', loading }: StatCardProps
 
 
 // ── Payment row ───────────────────────────────────────────────────────────────
-function PaymentRow({ payment, context }: { payment: Payment; context?: string }) {
-  const status = rowStatus(payment)
+function PaymentRow({ payment, context, collectionsPaused = false }: { payment: Payment; context?: string; collectionsPaused?: boolean }) {
+  const status = rowStatus(payment, undefined, collectionsPaused)
   const anchor = paymentAnchor(payment)
   return (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
@@ -203,6 +203,8 @@ export default function ManagerDashboard() {
   const { profile } = useAuth()
   const { stats, recentPayments, allPayments, openMaintenance, allMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, properties, units, leases, loading, error } =
     useManagerDashboard(profile?.id)
+
+  const pausedLeases = useMemo(() => pausedLeaseIds(leases), [leases])
 
   // "301 E 14th Ave · Unit 303" labels so list rows answer "which rental?"
   // without a click-through. Single-unit properties skip the unit suffix.
@@ -507,7 +509,7 @@ export default function ManagerDashboard() {
 
       {/* Top row — donut on the left, 2×2 quadrant of stats on the right. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <MonthlyDonut payments={allPayments} loading={loading} />
+        <MonthlyDonut payments={allPayments} loading={loading} pausedLeases={pausedLeases} />
         <div className="grid grid-cols-2 gap-3">
           {/* "Collected" counts only charges DUE this month that have settled.
               Money in flight gets its own line rather than being lumped in
@@ -547,7 +549,7 @@ export default function ManagerDashboard() {
       {/* Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Section title="Recent Payments" loading={loading} empty={recentPayments.length === 0} emptyText="No payments yet">
-          {recentPayments.map((p) => <PaymentRow key={p.id} payment={p} context={leaseContextById.get(p.lease_id)} />)}
+          {recentPayments.map((p) => <PaymentRow key={p.id} payment={p} context={leaseContextById.get(p.lease_id)} collectionsPaused={pausedLeases.has(p.lease_id)} />)}
         </Section>
 
         <Section

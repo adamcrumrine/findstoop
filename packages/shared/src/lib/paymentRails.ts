@@ -14,6 +14,13 @@ import type { Payment } from '../types/payment'
 //   • status = 'pending' + anchor date is past → Past due (red)
 //   • status = 'pending' + scheduled_for is set → Scheduled (blue — informational future)
 //   • status = 'pending' otherwise → Upcoming (gray)
+//
+// One override sits on top of that: a lease with collections_paused_at set is
+// not being collected through Stoop at all — the tenant still pays their
+// landlord the way they always have. Calling their imported rent "Past due" in
+// red states something untrue about money Stoop was never asked to collect, so
+// those rows read "Paused" in grey instead. Only the alarming states are
+// replaced; a paused lease that HAS a completed payment still shows Paid.
 export interface RowStatus { label: string; cls: string }
 
 /**
@@ -33,7 +40,12 @@ export function parseLocalDay(value: string): Date {
   return d
 }
 
-export function rowStatus(p: Payment, today: Date = new Date()): RowStatus {
+export function rowStatus(
+  p: Payment,
+  today: Date = new Date(),
+  /** leases.collections_paused_at is set — this lease isn't on Stoop rails. */
+  collectionsPaused = false,
+): RowStatus {
   if (p.status === 'completed')  return { label: 'Paid',       cls: 'text-brand-700 bg-brand-50 border-brand-200' }
   if (p.status === 'processing') return { label: 'Processing', cls: 'text-amber-700 bg-amber-50 border-amber-200' }
   if (p.status === 'failed')     return { label: 'Failed',     cls: 'text-red-700 bg-red-50 border-red-200' }
@@ -44,6 +56,9 @@ export function rowStatus(p: Payment, today: Date = new Date()): RowStatus {
   if (anchor) {
     const t = new Date(today); t.setHours(0, 0, 0, 0)
     const due = parseLocalDay(anchor)
+    if (due.getTime() <= t.getTime() && collectionsPaused) {
+      return { label: 'Paused', cls: 'text-gray-600 bg-gray-100 border-gray-200' }
+    }
     if (due.getTime() < t.getTime()) {
       return { label: 'Past due', cls: 'text-red-700 bg-red-50 border-red-200' }
     }
@@ -56,6 +71,19 @@ export function rowStatus(p: Payment, today: Date = new Date()): RowStatus {
   return scheduledFor
     ? { label: 'Scheduled', cls: 'text-blue-700 bg-blue-50 border-blue-200' }
     : { label: 'Upcoming',  cls: 'text-gray-600 bg-gray-100 border-gray-200' }
+}
+
+/**
+ * Lease ids whose collections are paused, for rowStatus's third argument.
+ *
+ * Every payment surface needs the same lookup, and each one has the lease list
+ * already; without a shared helper they drift, and a row reads "Past due" on
+ * one screen and "Paused" on the next for the same charge.
+ */
+export function pausedLeaseIds(
+  leases: Array<{ id: string; collections_paused_at?: string | null }>,
+): Set<string> {
+  return new Set(leases.filter((l) => !!l.collections_paused_at).map((l) => l.id))
 }
 
 // Same anchor priority used everywhere — when the money actually moves (or
@@ -86,9 +114,17 @@ function anchorTime(p: Payment): number {
  * Sorting the whole list newest-first (the previous behaviour) buried the
  * next payment due behind a year of pre-generated future rows, so the top of
  * the page was next July rather than this month.
+ *
+ * History starts at the beginning of the CURRENT MONTH, not today. Cutting at
+ * today meant a payment vanished from view the morning after it was marked
+ * paid: it moved behind every remaining future row — for a 12-month schedule
+ * across 8 tenants, roughly a hundred of them — and then reappeared under a
+ * second divider for the month it had just left. A month's rent belongs with
+ * that month's other rent whether or not it has been collected yet; the list
+ * is grouped by month dividers, and reordering inside a month fights them.
  */
 export function ledgerOrder(payments: Payment[], today: Date = new Date()): Payment[] {
-  const t = new Date(today); t.setHours(0, 0, 0, 0)
+  const t = new Date(today); t.setHours(0, 0, 0, 0); t.setDate(1)
   const cutoff = t.getTime()
   const isHistory = (p: Payment) => isSettled(p) && anchorTime(p) < cutoff
 

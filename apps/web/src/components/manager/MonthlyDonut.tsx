@@ -34,6 +34,9 @@ const STATUS_COLORS: Record<string, { cls: string; color: string }> = {
   'Due today':  { cls: 'bg-gray-400',   color: '#9CA3AF' },
   'Upcoming':   { cls: 'bg-gray-300',   color: '#D1D5DB' },
   'Refunded':   { cls: 'bg-gray-200',   color: '#E5E7EB' },
+  // Imported rent on a lease Stoop isn't collecting. Grey, and sorted next to
+  // the other non-events — it is disclosed, not treated as a problem.
+  'Paused':     { cls: 'bg-gray-200',   color: '#E5E7EB' },
   // Reserved for things that actually need the landlord to act.
   'Past due':   { cls: 'bg-red-500',    color: '#DC2626' },
   'Failed':     { cls: 'bg-red-600',    color: '#B91C1C' },
@@ -45,9 +48,13 @@ interface Props {
   loading: boolean
   // Optional override for the header — defaults to "Monthly Payments Breakdown".
   title?: string
+  // Leases with collections paused, so their imported rent is charted as
+  // "Paused" rather than colouring a red past-due wedge for money Stoop was
+  // never asked to collect. See pausedLeaseIds.
+  pausedLeases?: Set<string>
 }
 
-export default function MonthlyDonut({ payments, loading, title }: Props) {
+export default function MonthlyDonut({ payments, loading, title, pausedLeases }: Props) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d
   })
@@ -92,13 +99,13 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
 
     const totals: Record<string, number> = {}
     for (const p of best.values()) {
-      const status = rowStatus(p).label
+      const status = rowStatus(p, undefined, !!pausedLeases?.has(p.lease_id)).label
       totals[status] = (totals[status] ?? 0) + Number(p.amount)
     }
     // Least-to-most urgent left to right. Any label rowStatus produces that
     // isn't listed gets appended rather than dropped, so the chart can never
     // silently under-report the month again.
-    const order = ['Paid', 'Processing', 'Scheduled', 'Upcoming', 'Due today', 'Past due', 'Failed', 'Disputed', 'Refunded']
+    const order = ['Paid', 'Processing', 'Scheduled', 'Upcoming', 'Due today', 'Past due', 'Failed', 'Disputed', 'Refunded', 'Paused']
     const known = new Set(order)
     const extras = Object.keys(totals).filter((k) => !known.has(k))
     const out: DonutSlice[] = [...order, ...extras]
@@ -112,7 +119,7 @@ export default function MonthlyDonut({ payments, loading, title }: Props) {
       }))
     const tot = Object.values(totals).reduce((a, b) => a + b, 0)
     return { slices: out, total: tot }
-  }, [payments, cursor])
+  }, [payments, cursor, pausedLeases])
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4 h-full">

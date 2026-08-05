@@ -190,6 +190,24 @@ describe('deposit-return candidates (the Leases-page nudge)', () => {
     const newest = mk({ id: 'edge-new', status: 'active', end_date: addDaysIso(today, DEPOSIT_LOOKAHEAD_DAYS) })
     expect(depositReturnCandidates([oldest, newest], today)).toHaveLength(2)
   })
+
+  // 301/303 E 14th Ave: the previous student tenancies ran entirely on the old
+  // platform. Their imported ledgers carry a deposit figure, so the advisor
+  // opened the Leases page with a red statutory countdown over money Stoop has
+  // never held and cannot return.
+  it('says nothing about a tenancy that never ran on Stoop', () => {
+    const offPlatform = mk({ id: 'imported', collections_paused_at: '2026-08-04T00:17:39Z' })
+    expect(depositReturnCandidates([offPlatform], today)).toEqual([])
+  })
+
+  it('still prompts for a real tenancy sitting beside it', () => {
+    // The regression that would matter: silencing must not be portfolio-wide.
+    const got = depositReturnCandidates([
+      mk({ id: 'imported', collections_paused_at: '2026-08-04T00:17:39Z' }),
+      mk({ id: 'genuine' }),
+    ], today)
+    expect(got.map((c) => c.lease.id)).toEqual(['genuine'])
+  })
 })
 
 // ── Multi-state rules (2026-07 expansion) ────────────────────────────────────

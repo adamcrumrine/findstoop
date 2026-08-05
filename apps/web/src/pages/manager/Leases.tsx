@@ -338,7 +338,11 @@ export default function ManagerLeases() {
 
   // Multi-select: "active AND upcoming" is the natural question when planning
   // turnover, and a single select made it two passes.
-  const [filterStatus, setFilterStatus] = useState<string[]>([])
+  //
+  // Opens on the leases still running. Ended tenancies are kept, not deleted,
+  // so a portfolio with any turnover shows more finished business than live
+  // business — "all" made the page a history book by default.
+  const [filterStatus, setFilterStatus] = useState<string[]>(['active'])
   const scope = useScope()
   const [wizardOpen, setWizardOpen] = useState(false)
   // Lease currently open in the Deposit Return wizard (null = closed).

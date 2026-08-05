@@ -400,6 +400,8 @@ export interface DepositLeaseLike {
   security_deposit: number | null
   month_to_month?: boolean
   tentative_move_out_date?: string | null
+  /** Set when the tenancy was never administered through Stoop — see below. */
+  collections_paused_at?: string | null
 }
 
 /**
@@ -440,6 +442,13 @@ export function depositReturnCandidates<T extends DepositLeaseLike>(
   const to = addDaysIso(todayIso, DEPOSIT_LOOKAHEAD_DAYS)
   const out: Array<DepositReturnCandidate<T>> = []
   for (const lease of leases) {
+    // A paused lease is one Stoop never administered — imported history for a
+    // tenancy that ran somewhere else, where the deposit was never collected
+    // here and is not ours to return. The prompt is a statutory countdown in
+    // red; firing it over a deposit we never held is the same false alarm as
+    // calling imported rent "Past due". The wizard is still reachable from the
+    // lease itself if the landlord wants the itemization letter.
+    if (lease.collections_paused_at) continue
     const deposit = Number(lease.security_deposit)
     if (!Number.isFinite(deposit) || deposit <= 0) continue
     const moveOut = effectiveMoveOutDate(lease, todayIso)

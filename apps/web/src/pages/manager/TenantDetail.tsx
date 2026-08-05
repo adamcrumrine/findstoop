@@ -98,7 +98,12 @@ export default function TenantDetail() {
         Back to tenants
       </Link>
 
-      {/* Header card with avatar */}
+      {/* Header card with avatar.
+          The identity block and the actions are stacked rather than sharing a
+          row. Competing for width on a phone squeezed the name column to about
+          a third of the card: "Samantha Boyland" broke across two lines with
+          the buttons wedged into the gap, and a 10-digit phone number wrapped
+          three ways. A name is the least negotiable thing on the page. */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
         <div className="flex items-start gap-4">
           <div className="shrink-0">
@@ -106,25 +111,28 @@ export default function TenantDetail() {
               <img
                 src={tenant.avatar_url}
                 alt={tenant.full_name ?? 'Tenant'}
-                className="w-20 h-20 rounded-full object-cover border-2 border-gray-200"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-200"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-brand-50 border-2 border-gray-200 inline-flex items-center justify-center">
-                <UserCircle className="w-10 h-10 text-brand-500" strokeWidth={1.5} />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-brand-50 border-2 border-gray-200 inline-flex items-center justify-center">
+                <UserCircle className="w-8 h-8 sm:w-10 sm:h-10 text-brand-500" strokeWidth={1.5} />
               </div>
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-ink">{tenant.full_name ?? '—'}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-mute">
+            <h1 className="text-xl sm:text-2xl font-bold text-ink break-words">{tenant.full_name ?? '—'}</h1>
+            <div className="mt-1.5 flex flex-col gap-1 text-sm text-mute">
               {tenant.email && (
-                <a href={`mailto:${tenant.email}`} className="inline-flex items-center gap-1 hover:text-ink">
-                  <Mail className="w-3.5 h-3.5" strokeWidth={1.75} /> {tenant.email}
+                <a href={`mailto:${tenant.email}`} className="inline-flex items-center gap-1.5 hover:text-ink min-w-0">
+                  <Mail className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                  <span className="truncate">{tenant.email}</span>
                 </a>
               )}
               {tenant.phone && (
-                <a href={`tel:${tenant.phone}`} className="inline-flex items-center gap-1 hover:text-ink">
-                  <Phone className="w-3.5 h-3.5" strokeWidth={1.75} /> {formatPhone(tenant.phone)}
+                <a href={`tel:${tenant.phone}`} className="inline-flex items-center gap-1.5 hover:text-ink">
+                  <Phone className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                  {/* A phone number split across lines stops being readable. */}
+                  <span className="whitespace-nowrap">{formatPhone(tenant.phone)}</span>
                 </a>
               )}
             </div>
@@ -132,25 +140,25 @@ export default function TenantDetail() {
               <p className="text-sm text-ink mt-3 leading-relaxed whitespace-pre-line">{tenant.about_me}</p>
             )}
           </div>
-          <div className="shrink-0 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-ink text-sm font-medium"
-              title="Edit name, email, or phone"
-            >
-              <Pencil className="w-4 h-4" strokeWidth={1.75} />
-              Edit
-            </button>
-            <Link
-              to={`/manager/messages?tenantId=${tenant.id}`}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium"
-              title="Open 1:1 chat"
-            >
-              <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
-              Message
-            </Link>
-          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-ink text-sm font-medium"
+            title="Edit name, email, or phone"
+          >
+            <Pencil className="w-4 h-4" strokeWidth={1.75} />
+            Edit
+          </button>
+          <Link
+            to={`/manager/messages?tenantId=${tenant.id}`}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium"
+            title="Open 1:1 chat"
+          >
+            <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+            Message
+          </Link>
         </div>
       </section>
 
@@ -162,12 +170,13 @@ export default function TenantDetail() {
         />
       )}
 
-      {/* Bio */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
-        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">Tenant bio</h2>
-        {/* A grid of seven "—" placeholders tells the manager nothing — when
-            the bio is empty, show only the one-line explanation. */}
-        {hasAnyBio(tenant) ? (
+      {/* Bio — omitted entirely when the tenant hasn't filled anything in.
+          A card whose whole content is "there is nothing here" costs a heading,
+          a border and a screenful of phone real estate to say nothing the
+          manager can act on; the fields belong to the tenant's own Settings. */}
+      {hasAnyBio(tenant) && (
+        <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
+          <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-4">Tenant bio</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
             <InfoRow Icon={Calendar} label="Date of birth" value={fmtDate(tenant.date_of_birth ?? null)} />
             <InfoRow Icon={BadgeCheck} label="Monthly income" value={tenant.monthly_income != null ? formatUsd(Number(tenant.monthly_income)) : null} />
@@ -178,12 +187,8 @@ export default function TenantDetail() {
             <InfoRow Icon={Phone} label="Emergency phone" value={tenant.emergency_contact_phone ?? null} />
             <InfoRow Icon={Home} label="Previous address" value={tenant.previous_address ?? null} fullWidth />
           </dl>
-        ) : (
-          <p className="text-sm text-mute italic">
-            This tenant hasn't filled in any bio fields yet. They can add details from their tenant Settings page.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Payments — the tenancy's money at a glance */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
@@ -195,8 +200,12 @@ export default function TenantDetail() {
           <p className="text-sm text-mute">No payments recorded yet.</p>
         ) : (() => {
           const today = new Date(); today.setHours(0, 0, 0, 0)
+          const pausedLeases = pausedLeaseIds(leases)
+          // Rent on a lease Stoop isn't collecting is not a debt this tile can
+          // speak to — same exclusion the pills and the notice banner make.
           const pastDue = payments
-            .filter((p) => p.status === 'pending' && p.due_date && new Date(p.due_date) < today)
+            .filter((p) => p.status === 'pending' && p.due_date && new Date(p.due_date) < today
+              && !pausedLeases.has(p.lease_id))
             .reduce((s, p) => s + Number(p.amount), 0)
           const lastPaid = payments
             .filter((p) => p.status === 'completed' && p.paid_at)
@@ -205,7 +214,6 @@ export default function TenantDetail() {
           // into the future. Sorting descending here showed the far end of a
           // year's generated schedule and hid the payment actually due now.
           const recent = upcomingPaymentWindow(payments, 5)
-          const pausedLeases = pausedLeaseIds(leases)
           return (
             <>
               <div className="grid grid-cols-2 gap-3 mb-4">

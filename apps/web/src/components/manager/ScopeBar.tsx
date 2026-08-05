@@ -25,6 +25,19 @@ const SHOWN_ON = [
   '/manager/reports',
 ]
 
+/**
+ * Does the portfolio scope bar belong on this route?
+ *
+ * Exact match, not prefix. `startsWith` also caught the detail routes nested
+ * under these list pages — /manager/tenants/:id showed "All properties / All
+ * units" above a page about one named person, where narrowing the portfolio
+ * means nothing and the selects did nothing. Every page that reads useScope()
+ * is a list at one of these exact paths; a detail route wants no bar.
+ */
+export function scopeBarVisibleOn(pathname: string): boolean {
+  return SHOWN_ON.includes(pathname.replace(/\/+$/, ''))
+}
+
 const selectClass =
   'text-sm border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 bg-white appearance-none ' +
   'focus:outline-none focus:ring-2 focus:ring-brand-500'
@@ -33,7 +46,7 @@ export default function ScopeBar() {
   const { pathname } = useLocation()
   const { propertyId, unitId, setPropertyId, setUnitId, properties, units, isNarrowed, clear } = useScope()
 
-  if (!SHOWN_ON.some((p) => pathname.startsWith(p))) return null
+  if (!scopeBarVisibleOn(pathname)) return null
   // A single-property landlord gains nothing from a chooser with one entry.
   // The unit filter still earns its place on a duplex.
   if (properties.length === 0) return null

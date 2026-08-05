@@ -87,10 +87,26 @@ export function pausedLeaseIds(
 }
 
 // Same anchor priority used everywhere — when the money actually moves (or
-// is scheduled to). Use this for sorting / row dates.
+// is scheduled to). Use this for row DATES, where "when did this settle" is
+// the useful fact. Not for deciding which month a charge belongs to.
 export function paymentAnchor(p: Payment): string {
   return (p as Payment & { scheduled_for?: string | null }).scheduled_for
     ?? p.paid_at ?? p.due_date ?? p.created_at
+}
+
+/**
+ * The month a charge BELONGS to — never when the cash arrived.
+ *
+ * paymentAnchor prefers paid_at, so a departed tenant's JULY rent recorded on
+ * Aug 1 was filing itself under August: the payments list showed moved-out
+ * tenants under "AUG 2026" for rent they owed in July. MonthlyDonut already
+ * bucketed on its own copy of this rule for the same reason; this is that rule,
+ * shared, so the chart and the list can't disagree about which month a charge
+ * counts toward.
+ */
+export function chargePeriod(p: Payment): string {
+  return (p as Payment & { scheduled_for?: string | null }).scheduled_for
+    ?? p.due_date ?? p.created_at
 }
 
 /** Settled = the money question is closed. Everything else still needs eyes. */
@@ -98,9 +114,15 @@ function isSettled(p: Payment): boolean {
   return p.status === 'completed' || p.status === 'refunded'
 }
 
-/** Anchor as a local-midnight timestamp — see parseLocalDay. */
+/**
+ * Ordering key as a local-midnight timestamp — see parseLocalDay.
+ *
+ * Uses the charge's own period, not paid_at: a row must sort into the same
+ * month the divider files it under, or a July charge paid in August sorts
+ * itself into the middle of August's block under a "JUL 2026" heading.
+ */
 function anchorTime(p: Payment): number {
-  return parseLocalDay(paymentAnchor(p)).getTime()
+  return parseLocalDay(chargePeriod(p)).getTime()
 }
 
 /**

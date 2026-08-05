@@ -50,6 +50,14 @@ export default function MultiSelect({ allLabel, options, selected, onChange, nou
     onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value])
   }
 
+  // "Select all" exists to make subtraction possible. Empty means no filter, so
+  // there is no way to say "everything EXCEPT one" by clicking options one at a
+  // time — you'd have to tick every other box yourself. Ticking all, then
+  // unticking the one you don't want, is the natural gesture and the reason a
+  // manager asked for it ("hide Paused").
+  const allSelected = selected.length === options.length
+  const toggleAll = () => onChange(allSelected ? [] : options.map((o) => o.value))
+
   // One selection reads better by name than as "1 status".
   const summary = selected.length === 0
     ? allLabel
@@ -88,6 +96,20 @@ export default function MultiSelect({ allLabel, options, selected, onChange, nou
           aria-multiselectable
           className="absolute z-20 mt-1 min-w-[13rem] max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1"
         >
+          <button
+            type="button"
+            role="option"
+            aria-selected={allSelected}
+            onClick={toggleAll}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-50 border-b border-gray-100"
+          >
+            <span className={`w-4 h-4 rounded border inline-flex items-center justify-center shrink-0 ${
+              allSelected ? 'bg-brand-500 border-brand-500' : 'border-gray-300'
+            }`}>
+              {allSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+            </span>
+            <span className="text-ink font-medium">Select all</span>
+          </button>
           {options.map((o) => {
             const on = selected.includes(o.value)
             return (

@@ -6,7 +6,7 @@ import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
 import { formatUsd, formatUsdCents, formatLocalDate, formatMonthYear } from '@findstoop/shared/lib/format'
-import { rowStatus, paymentAnchor, ledgerOrder, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
+import { rowStatus, ledgerOrder, pausedLeaseIds, chargePeriod } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
 import type { Payment, PaymentType, PaymentStatus } from '@findstoop/shared/types/payment'
@@ -517,7 +517,15 @@ export default function ManagerPayments() {
   // a single <select> forced a manager to check one status at a time.
   const [filterStatus, setFilterStatus] = useState<string[]>([])
   const [filterType, setFilterType] = useState<string[]>([])
-  const [filterLeaseStatus, setFilterLeaseStatus] = useState<string[]>([])
+  // Defaults to the leases still running. Ended tenancies keep their charges,
+  // and a portfolio with any turnover carries more history than present — the
+  // page opened on other people's finished business.
+  const [filterLeaseStatus, setFilterLeaseStatus] = useState<string[]>(['active'])
+  // Rent for this month and the months ahead is what a manager is working on.
+  // Past months stay one selection away rather than filling the page: a
+  // 12-month schedule per tenant means history outnumbers the live rows within
+  // a season of operating.
+  const [period, setPeriod] = useState<'current' | 'all'>('current')
   // Property + unit come from the shared layout scope, so the selection
   // survives navigating to Maintenance or Leases.
   const scope = useScope()
@@ -667,20 +675,36 @@ export default function ManagerPayments() {
     return result
   }, [payments, leaseMap])
 
+  // The month the list is anchored on, as YYYY-MM.
+  const currentMonthKey = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }, [])
+
+  // What the status pill will actually SAY for this row. The filter has to
+  // match the badge: "Paused" is not a database status — it's pending rent on a
+  // lease that isn't collected through Stoop — so filtering on p.status alone
+  // gave a Paused checkbox that matched nothing.
+  const statusKeyOf = (p: Payment): string =>
+    rowStatus(p, undefined, pausedLeases.has(p.lease_id)).label === 'Paused' ? 'paused' : p.status
+
   const filtered = useMemo(() =>
     payments.filter((p) => {
       // Empty selection means "not filtering", never "match nothing" — a
       // manager who just unticked the last box wants the list back.
-      if (filterStatus.length > 0 && !filterStatus.includes(p.status)) return false
+      if (filterStatus.length > 0 && !filterStatus.includes(statusKeyOf(p))) return false
       if (filterType.length > 0 && !filterType.includes(p.type)) return false
       const lease = leaseMap[p.lease_id]
       if (filterLeaseStatus.length > 0 && !filterLeaseStatus.includes(lease?.status ?? '')) return false
+      // Charges from earlier months are history; hidden unless asked for.
+      if (period === 'current' && chargePeriod(p).slice(0, 7) < currentMonthKey) return false
       // Property/unit now come from the shared portfolio scope in the layout,
       // so the choice persists when the manager moves to Maintenance or Leases.
       if (!inScope(scope, { unitId: lease?.unit_id ?? null })) return false
       return true
     }),
-    [payments, filterStatus, filterType, filterLeaseStatus, scope, leaseMap]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [payments, filterStatus, filterType, filterLeaseStatus, period, currentMonthKey, scope, leaseMap, pausedLeases]
   )
 
   // Attention-first: unsettled payments ascending (most overdue → due now →
@@ -690,7 +714,7 @@ export default function ManagerPayments() {
   // every lease's pre-generated schedule on top, hiding what's actually due.
   const sorted = useMemo(() => ledgerOrder(filtered), [filtered])
   const [visibleCount, setVisibleCount] = useState(50)
-  useEffect(() => { setVisibleCount(50) }, [filterStatus, filterType, filterLeaseStatus, scope.propertyId, scope.unitId])
+  useEffect(() => { setVisibleCount(50) }, [filterStatus, filterType, filterLeaseStatus, period, scope.propertyId, scope.unitId])
   const visible = sorted.slice(0, visibleCount)
 
   const propertyNameById = useMemo(
@@ -872,7 +896,18 @@ export default function ManagerPayments() {
               { value: "failed", label: "Failed" },
               { value: "refunded", label: "Refunded" },
               { value: "disputed", label: "Disputed" },
+              // Derived, not a database status — see statusKeyOf.
+              { value: "paused", label: "Paused" },
             ]} />
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as 'current' | 'all')}
+            aria-label="Time range"
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-ink focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="current">This month onward</option>
+            <option value="all">All time (incl. history)</option>
+          </select>
           <MultiSelect allLabel="All types" noun="types"
             selected={filterType} onChange={setFilterType}
             options={[
@@ -934,8 +969,10 @@ export default function ManagerPayments() {
         <>
           <div className="bg-white rounded-xl border border-gray-200 px-4 pb-1 overflow-hidden">
             {visible.map((p, i) => {
-              const month = formatMonthYear(paymentAnchor(p))
-              const prevMonth = i > 0 ? formatMonthYear(paymentAnchor(visible[i - 1])) : null
+              // Grouped by the month the rent is FOR. Using paymentAnchor filed
+              // a departed tenant's July rent, recorded on Aug 1, under August.
+              const month = formatMonthYear(chargePeriod(p))
+              const prevMonth = i > 0 ? formatMonthYear(chargePeriod(visible[i - 1])) : null
               return (
                 <Fragment key={p.id}>
                   {month !== prevMonth && (

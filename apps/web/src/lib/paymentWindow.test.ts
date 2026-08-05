@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { upcomingPaymentWindow, ledgerOrder, rowStatus, parseLocalDay, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
+import { upcomingPaymentWindow, ledgerOrder, rowStatus, parseLocalDay, pausedLeaseIds, chargePeriod, paymentAnchor } from '@findstoop/shared/lib/paymentRails'
 import type { Payment } from '@findstoop/shared/types/payment'
 
 // Minimal Payment factory — only the fields paymentAnchor/status read.
@@ -224,6 +224,34 @@ describe('rowStatus on a lease that is not on Stoop rails', () => {
   it('silences only the paused lease, never the portfolio', () => {
     const overdue = pay('2026-07-01', 'pending')
     expect(rowStatus(overdue, TODAY, false).label).toBe('Past due')
+  })
+})
+
+// A departed tenant's July rent, recorded when the landlord caught up on Aug 1,
+// was appearing under "AUG 2026" in the payments list — moved-out tenants shown
+// against the current month's rent. paymentAnchor prefers paid_at; the month a
+// charge belongs to must come from the charge, not from when cash arrived.
+describe('chargePeriod', () => {
+  it('files a charge under the month it was owed, not the month it was paid', () => {
+    const julyRentPaidInAugust = pay('2026-07-01', 'completed', '2026-08-01')
+    expect(paymentAnchor(julyRentPaidInAugust)).toBe('2026-08-01') // when money moved
+    expect(chargePeriod(julyRentPaidInAugust)).toBe('2026-07-01')  // what it was for
+  })
+
+  it('honours an explicit schedule over the nominal due date', () => {
+    const rescheduled = { ...pay('2026-07-01', 'pending'), scheduled_for: '2026-07-15' } as Payment
+    expect(chargePeriod(rescheduled)).toBe('2026-07-15')
+  })
+
+  it('sorts a late-recorded charge back into its own month', () => {
+    // Ordering has to agree with the divider, or the row lands mid-August under
+    // a July heading.
+    const rows = [
+      pay('2026-08-01', 'pending'),
+      pay('2026-07-01', 'completed', '2026-08-01'),
+    ]
+    expect(ledgerOrder(rows, new Date(2026, 7, 4)).map(chargePeriod))
+      .toEqual(['2026-08-01', '2026-07-01'])
   })
 })
 

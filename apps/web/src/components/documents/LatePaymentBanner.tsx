@@ -165,8 +165,8 @@ export default function LatePaymentBanner({ payments, leases, units }: Props) {
       {paused.count > 0 && (
         <p className="text-xs text-mute px-1">
           {paused.count} {paused.count === 1 ? 'lease' : 'leases'} with overdue rent
-          {' '}({formatUsd(paused.amount)}) {paused.count === 1 ? 'is' : 'are'} not shown —
-          {' '}collections are paused until those tenants set up online payments.
+          {' '}({formatUsd(paused.amount)}) {paused.count === 1 ? 'is' : 'are'} not prompting a
+          {' '}notice — collections are paused until those tenants set up online payments.
         </p>
       )}
     </div>

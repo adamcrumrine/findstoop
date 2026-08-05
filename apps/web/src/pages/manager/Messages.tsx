@@ -446,26 +446,32 @@ function ChatThread({
               </svg>
             </button>
           </div>
+          {/* Both stay icons rather than labelled buttons. A spelled-out "Fair
+              Housing check" sitting under every reply reads as a standing
+              suggestion that the landlord is about to discriminate — wrong tone
+              for a thread with a tenant who signed months ago, and a louder
+              claim on the eye than an optional tool has earned. The capability
+              is unchanged; it just waits to be wanted. */}
           <div className="flex items-center gap-1 mt-1.5">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="h-8 px-2.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-40"
+              className="w-9 h-9 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg inline-flex items-center justify-center disabled:opacity-40"
               title="Send image"
+              aria-label="Send image"
             >
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
-              Photo
             </button>
             <button
               type="button"
               onClick={handleLint}
               disabled={!draft.trim() || linting}
-              className="h-8 px-2.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-40"
+              className="w-9 h-9 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg inline-flex items-center justify-center disabled:opacity-40"
               title="Check message for Fair Housing concerns"
+              aria-label="Check message for Fair Housing concerns"
             >
               {linting ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />}
-              Fair Housing check
             </button>
           </div>
         </div>

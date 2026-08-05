@@ -319,11 +319,16 @@ function ChatThread({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className={`flex-1 overflow-y-auto px-4 py-4 ${
+          messages.length === 0 ? 'flex items-center justify-center' : 'space-y-4'
+        }`}>
+          {/* An empty thread centres its one line instead of pinning it to the
+              top of a tall blank column, where it read as a stray caption
+              above nothing. */}
           {messages.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-sm">Start a conversation with {conversation.displayName}</p>
-            </div>
+            <p className="text-sm text-gray-500 text-center px-6">
+              Start a conversation with {conversation.displayName}
+            </p>
           )}
           {grouped.map(({ date, msgs }) => (
             <div key={date} className="space-y-2">
@@ -397,7 +402,18 @@ function ChatThread({
           </p>
         )}
 
-        <div className="px-3 py-3 flex items-end gap-2">
+        {/* Composer.
+            Four controls competed for one phone-width row: two 40px utility
+            buttons, the field, and Send. That left the field about 200px, so
+            "Message Samantha Boyland…" wrapped onto a second line the 40px box
+            then clipped — the placeholder was cut through the middle of a word.
+            The field now owns its own row; the utility buttons sit under it,
+            where they read as tools for the message rather than obstacles in
+            front of it. */}
+        <div
+          className="px-3 pt-3 pb-2"
+          style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+        >
           <input
             ref={fileInputRef}
             type="file"
@@ -405,43 +421,53 @@ function ChatThread({
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImage(f); e.target.value = '' }}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40"
-            title="Send image"
-          >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
-          </button>
-          <button
-            type="button"
-            onClick={handleLint}
-            disabled={!draft.trim() || linting}
-            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full inline-flex items-center justify-center shrink-0 disabled:opacity-40"
-            title="Check message for Fair Housing concerns"
-          >
-            {linting ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />}
-          </button>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            enterKeyHint="send"
-            placeholder={`Message ${conversation.displayName}…`}
-            rows={1}
-            className="flex-1 px-3 py-2.5 border border-gray-300 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 max-h-28 overflow-y-auto"
-            style={{ minHeight: '40px' }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!draft.trim() || sending}
-            className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 transition-opacity"
-          >
-            <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-            </svg>
-          </button>
+          <div className="flex items-end gap-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              enterKeyHint="send"
+              // First name only. The full display name is already in the header
+              // two inches above, and on a group thread it can run to a
+              // sentence.
+              placeholder={`Message ${conversation.displayName.split(' ')[0] || conversation.displayName}…`}
+              rows={1}
+              className="flex-1 min-w-0 px-3.5 py-2.5 border border-gray-300 rounded-2xl text-sm leading-6 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500 max-h-32 overflow-y-auto"
+              style={{ minHeight: '44px' }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!draft.trim() || sending}
+              className="w-11 h-11 bg-brand-600 text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-40 transition-opacity"
+              title="Send"
+            >
+              <svg className="w-4 h-4 rotate-90" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-1 mt-1.5">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="h-8 px-2.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-40"
+              title="Send image"
+            >
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
+              Photo
+            </button>
+            <button
+              type="button"
+              onClick={handleLint}
+              disabled={!draft.trim() || linting}
+              className="h-8 px-2.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg inline-flex items-center gap-1.5 disabled:opacity-40"
+              title="Check message for Fair Housing concerns"
+            >
+              {linting ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.75} /> : <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />}
+              Fair Housing check
+            </button>
+          </div>
         </div>
       </div>
     </div>

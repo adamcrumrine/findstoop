@@ -23,6 +23,12 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "imagetracerjs": "^1.2.6",
+    "png-to-ico": "^3.0.2",
+    "potrace": "^2.1.8",
+    "sharp": "^0.35.3",
+    "svgo": "^4.0.2",
     "vite-plugin-pwa": "^1.2.0",
     "workbox-window": "^7.4.0"
   }

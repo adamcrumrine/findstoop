@@ -33,7 +33,15 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-const files = SEARCH_DIRS.flatMap((d) => walk(d))
+// index.html is not under a source dir and has no watched extension, so the
+// walk above never saw it — and it carried "$9 per unit per month" in the
+// description, the og:description, the twitter:description AND twice in the
+// SoftwareApplication JSON-LD long after the rate moved to $5. Those strings
+// are the ones search engines and every shared link actually show, which makes
+// it the worst file in the repo to have missed.
+const EXTRA_FILES = [join(ROOT, 'apps', 'web', 'index.html')]
+
+const files = [...SEARCH_DIRS.flatMap((d) => walk(d)), ...EXTRA_FILES]
 
 describe('subscription price is stated in exactly one voice', () => {
   it('finds source files to check', () => {

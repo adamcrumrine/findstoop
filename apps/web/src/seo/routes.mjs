@@ -31,13 +31,13 @@ export const SITE = {
   /** Appended to every route title by useSeo (from BRAND.titleSuffix). */
   titleSuffix: ' · Stoop',
   /** Default share image (path; consumers prefix `origin`). */
-  ogImage: '/stoop_logo_horizontal_trans.png',
-  // TRUE pixel dimensions of the asset above (read from its PNG IHDR). It is
-  // NOT the 1200×630 that index.html historically claimed. A transparent
-  // wordmark also unfurls poorly on colored backgrounds — replace with a solid
-  // 1200×630 og-image.png and update SITE.ogImage + these two numbers.
-  ogImageWidth: 1149,
-  ogImageHeight: 345,
+  ogImage: '/og-image.png',
+  // Real pixel dimensions of the asset above. Regenerate it with
+  // scripts/build-brand-assets.mjs; change the size there and these follow.
+  // Previously this pointed at the transparent wordmark and claimed 1149×345
+  // for a file that was actually 836×319 — wrong asset, wrong numbers.
+  ogImageWidth: 1200,
+  ogImageHeight: 630,
   twitterCard: 'summary_large_image',
 }
 

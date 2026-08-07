@@ -137,9 +137,37 @@ export default function ManagerDocuments() {
     }
   }
 
+  // Everyone on the lease, compactly. Naming only leases.tenant_id read as
+  // though the document belonged to one person, when it is visible to — and
+  // now notifies — every tenant on the lease. On a four-person student lease
+  // that named one roommate and silently omitted three.
   const getTenantName = (leaseId: string) => {
     const l = leases.find((l) => l.id === leaseId)
-    return l?.profile?.full_name ?? l?.profile?.email ?? 'Unknown Tenant'
+    if (!l) return 'Unknown Tenant'
+    const names = (l.all_tenants ?? [])
+      .map((t) => t.full_name ?? t.email)
+      .filter((n): n is string => !!n)
+    const primary = l.profile?.full_name ?? l.profile?.email ?? null
+    // Keep the primary first; it is the name the rest of the app leads with.
+    const ordered = primary ? [primary, ...names.filter((n) => n !== primary)] : names
+    if (ordered.length === 0) return 'Unknown Tenant'
+    if (ordered.length === 1) return ordered[0]
+    return `${ordered[0]} +${ordered.length - 1}`
+  }
+
+  // Full list, spelled out — used once the manager has picked a lease, where
+  // "+3" stops being enough and they want to see exactly who this reaches.
+  const leaseTenantNames = (leaseId: string): string => {
+    const l = leases.find((x) => x.id === leaseId)
+    if (!l) return 'the tenants on this lease'
+    const names = (l.all_tenants ?? [])
+      .map((t) => t.full_name ?? t.email)
+      .filter((n): n is string => !!n)
+    const primary = l.profile?.full_name ?? l.profile?.email ?? null
+    const ordered = primary ? [primary, ...names.filter((n) => n !== primary)] : names
+    if (ordered.length === 0) return 'the tenants on this lease'
+    if (ordered.length === 1) return ordered[0]
+    return `${ordered.slice(0, -1).join(', ')} and ${ordered[ordered.length - 1]}`
   }
 
   // Property + unit label for a given lease, derived via unit→property
@@ -274,7 +302,8 @@ export default function ManagerDocuments() {
           <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 sm:pb-0 sm:flex-wrap">
             {([
               { key: 'type',     label: 'Type' },
-              { key: 'tenant',   label: 'Tenant' },
+              // Keys on lease_id, not tenant_id — the label was the odd one out.
+              { key: 'tenant',   label: 'Lease' },
               { key: 'property', label: 'Property' },
             ] as const).map(({ key, label }) => {
               const active = groupBy === key
@@ -393,20 +422,29 @@ export default function ManagerDocuments() {
       {/* Upload Modal */}
       <Modal open={showUpload} onClose={() => { setShowUpload(false); resetForm() }} title="Upload Document">
         <form onSubmit={handleUpload} className="space-y-4">
-          <FormField label="Tenant / Lease" required>
+          {/* Lease, not tenant. A document attaches to the lease and is visible
+              to everyone on it — labelling this "Tenant" and listing a single
+              name read like picking a recipient, which became actively wrong
+              once uploading started notifying the whole lease. */}
+          <FormField label="Lease" required>
             <select
               className={selectClass}
               value={selectedLeaseId}
               onChange={(e) => setSelectedLeaseId(e.target.value)}
               required
             >
-              <option value="">Select a tenant…</option>
+              <option value="">Select a lease…</option>
               {activeLeases.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.profile?.full_name ?? l.profile?.email ?? l.id.slice(0, 8)}
+                  {getPropertyLabel(l.id)} — {getTenantName(l.id)}
                 </option>
               ))}
             </select>
+            <p className="text-xs text-mute mt-1.5">
+              {selectedLeaseId
+                ? `Everyone on this lease can see it: ${leaseTenantNames(selectedLeaseId)}. They'll be notified.`
+                : 'Everyone on the lease can see the document, and each tenant is notified.'}
+            </p>
           </FormField>
 
           <FormField label="Document Type" required>

@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast'
 import ImageUploader from '../../components/shared/ImageUploader'
 import RenterToolsShare from '../../components/manager/RenterToolsShare'
+import TeamSettings from '../../components/manager/TeamSettings'
 import { BRAND, PORTAL_BASE_DOMAIN } from '../../lib/brand'
 import { deriveBrandRamp, isValidBrandHex, tripletToHex } from '../../lib/landlordBrand'
 
@@ -457,6 +458,9 @@ export default function ManagerSettings() {
 
       {/* Share renter tools (landlord co-brand) */}
       <RenterToolsShare companyName={settings.company_name} />
+
+      {/* Management team */}
+      <TeamSettings />
 
       {/* Notifications */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">

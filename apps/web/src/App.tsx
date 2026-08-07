@@ -121,6 +121,7 @@ const ManagerExpenses     = lazy(() => import('./pages/manager/Expenses'))
 const ManagerDownloadCenter = lazy(() => import('./pages/manager/DownloadCenter'))
 const ManagerBilling      = lazy(() => import('./pages/manager/Billing'))
 const ManagerSettings     = lazy(() => import('./pages/manager/Settings'))
+const ManagerAcceptTeamInvite = lazy(() => import('./pages/manager/AcceptTeamInvite'))
 
 // Tenant pages
 const TenantDashboard   = lazy(() => import('./pages/tenant/Dashboard'))
@@ -327,6 +328,7 @@ export default function App() {
             <Route path="expenses"     element={<ManagerExpenses />} />
             <Route path="billing"      element={<ManagerBilling />} />
             <Route path="settings"     element={<ManagerSettings />} />
+            <Route path="team/accept"  element={<ManagerAcceptTeamInvite />} />
             <Route path="import"       element={<ManagerImport />} />
             <Route path="sign-lease/:id" element={<SignLease />} />
             <Route path="lease/:leaseId/inspection/:type" element={<InspectionEditor />} />

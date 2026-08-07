@@ -8,6 +8,7 @@ import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
 import PoweredByStoop from '../shared/PoweredByStoop'
 import InstallPrompt from '../shared/InstallPrompt'
+import TenantNotificationsBell from '../tenant/TenantNotificationsBell'
 import { BRAND, IS_WHITE_LABEL, UNIVERSITY, UNIVERSITY_SLUG } from '../../lib/brand'
 import { applyLandlordBrand, clearLandlordBrand } from '../../lib/landlordBrand'
 import { useLandlordBrandingState } from '../../hooks/useLandlordBranding'
@@ -217,6 +218,8 @@ export default function TenantLayout() {
             <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
           )}
         </Link>
+        <div className="flex items-center gap-1">
+        <TenantNotificationsBell badges={badges} onBrandSurface={!!portalBrand} />
         <div className="relative" ref={menuRef}>
           <button
             type="button"
@@ -250,6 +253,7 @@ export default function TenantLayout() {
               </button>
             </div>
           )}
+        </div>
         </div>
       </header>
 

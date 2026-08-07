@@ -7,6 +7,7 @@ import {
   deleteDocument,
   getSignedUrl,
 } from '../api/documents'
+import { supabase } from '../lib/supabase'
 import type { Document, DocumentType } from '../types/document'
 
 // ── Tenant: single lease ──────────────────────────────────────────────────────
@@ -91,6 +92,17 @@ export function useManagerDocuments(leaseIds: string[]): UseManagerDocumentsResu
     try {
       const doc = await uploadDocument(file, leaseId, uploadedBy, name, type)
       setDocuments((prev) => [doc, ...prev])
+      // Tell everyone on the lease. Uploading used to be silent: the tenant
+      // got a badge dot the next time they happened to open the app, and
+      // nothing at all if they didn't.
+      //
+      // Deliberately not awaited into the failure path — the file is already
+      // stored and the row already written, so a push service or mail provider
+      // having a bad minute must not surface to the landlord as a failed
+      // upload it would be wrong to retry.
+      void supabase.functions
+        .invoke('notify-tenant-document-uploaded', { body: { document_id: doc.id } })
+        .catch(() => { /* fail-soft — the document is safe either way */ })
     } finally {
       setUploading(false)
     }

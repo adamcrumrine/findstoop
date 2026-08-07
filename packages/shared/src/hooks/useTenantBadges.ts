@@ -31,11 +31,18 @@ export function useTenantBadges(tenantId: string | undefined): TenantBadges {
       .maybeSingle()
     const seenAt = (profile as { documents_seen_at: string | null } | null)?.documents_seen_at ?? '1970-01-01'
 
-    const { data: leases } = await supabase
-      .from('leases')
-      .select('id')
-      .eq('tenant_id', tenantId)
-    const leaseIds = (leases ?? []).map((l) => l.id)
+    // Both routes onto a lease: the legacy primary column AND the junction
+    // table. Reading only leases.tenant_id meant a roommate never saw a
+    // document badge — on a four-person lease that is three tenants told
+    // nothing. Same gap the RLS policies closed with is_lease_party.
+    const [primaryRes, coTenantRes] = await Promise.all([
+      supabase.from('leases').select('id').eq('tenant_id', tenantId),
+      supabase.from('lease_tenants').select('lease_id').eq('tenant_id', tenantId),
+    ])
+    const leaseIds = Array.from(new Set([
+      ...((primaryRes.data ?? []) as Array<{ id: string }>).map((l) => l.id),
+      ...((coTenantRes.data ?? []) as Array<{ lease_id: string }>).map((r) => r.lease_id),
+    ]))
     if (leaseIds.length === 0) { setDocuments(false); return }
 
     const { count } = await supabase

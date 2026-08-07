@@ -1,0 +1,60 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.110.0",
+    "https://esm.sh/@types/react@~19.0.7/index.d.ts": "https://esm.sh/@types/react@19.0.14/index.d.ts"
+  },
+  "remote": {
+    "https://esm.sh/@anthropic-ai/sdk@0.27.3": "ade3339f7890170af01b4404743248206aff800bbf039d91a119119adbb17ab6",
+    "https://esm.sh/@anthropic-ai/sdk@0.39.0": "063508334fb72da1dc091fd51266e2c4e055019fdf95e287976bcb3ac9228795",
+    "https://esm.sh/@supabase/supabase-js@2.110.0": "b99c0ce7729f9de7797f836b93ab9ec94f1cfe079b4f937fa4144fe13525e979",
+    "https://esm.sh/resend@4.0.1": "3e75cc8bdc4654730687d8c4563abac1f41b21d61fac5e8b90a5b7b5c5983e0a",
+    "https://esm.sh/stripe@14.21.0?target=deno": "c68b76780452938e9bbae9e312323e97869ccbdafeb83ddf372746ffa52f6b66"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:recharts@^3.8.0",
+        "npm:vite-plugin-pwa@^1.2.0",
+        "npm:workbox-window@^7.4.0"
+      ]
+    },
+    "members": {
+      "apps/web": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@stripe/react-stripe-js@^5.6.1",
+            "npm:@stripe/stripe-js@^8.11.0",
+            "npm:@supabase/supabase-js@^2.49.1",
+            "npm:@types/d3-geo@^3.1.0",
+            "npm:@types/react-dom@^18.3.5",
+            "npm:@types/react-simple-maps@^3.0.6",
+            "npm:@types/react@^18.3.20",
+            "npm:@vitejs/plugin-react@^4.3.4",
+            "npm:autoprefixer@^10.4.21",
+            "npm:d3-geo@^3.1.1",
+            "npm:lucide-react@^1.16.0",
+            "npm:pdfjs-dist@^5.7.284",
+            "npm:postcss@^8.5.3",
+            "npm:react-dom@^18.3.1",
+            "npm:react-hot-toast@^2.4.1",
+            "npm:react-router-dom@^6.30.0",
+            "npm:react-simple-maps@3",
+            "npm:react@^18.3.1",
+            "npm:tailwindcss@^3.4.17",
+            "npm:typescript@^5.8.2",
+            "npm:vite@^6.2.2",
+            "npm:vitest@^2.1.9"
+          ]
+        }
+      },
+      "packages/shared": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@supabase/supabase-js@^2.49.1"
+          ]
+        }
+      }
+    }
+  }
+}

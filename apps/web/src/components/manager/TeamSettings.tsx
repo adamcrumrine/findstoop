@@ -25,35 +25,44 @@ export default function TeamSettings() {
   const [isPrimary, setIsPrimary] = useState(false)
   const [members, setMembers] = useState<MemberRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [inviting, setInviting] = useState(false)
 
   const load = useCallback(async () => {
     if (!profile?.id) return
     setLoading(true)
-    const { data: team } = await supabase
+    setLoadError(null)
+
+    // Errors are surfaced, not swallowed. An RLS failure here returns no rows,
+    // which read as "you are not the primary" — so the primary was told they
+    // lacked permission on their own account, and the real cause (a recursive
+    // policy) never reached the screen.
+    const { data: team, error: teamErr } = await supabase
       .from('teams')
       .select('id, primary_manager_id')
       .eq('primary_manager_id', profile.id)
       .maybeSingle()
+    if (teamErr) { setLoadError(teamErr.message); setLoading(false); return }
 
     // Not the primary? Find the team they belong to instead.
     let id = (team as { id?: string } | null)?.id ?? null
-    if (id) setIsPrimary(true)
+    setIsPrimary(!!id)
     if (!id) {
-      const { data: mine } = await supabase
+      const { data: mine, error: mineErr } = await supabase
         .from('team_members').select('team_id').eq('user_id', profile.id).is('revoked_at', null).maybeSingle()
+      if (mineErr) { setLoadError(mineErr.message); setLoading(false); return }
       id = (mine as { team_id?: string } | null)?.team_id ?? null
-      setIsPrimary(false)
     }
     setTeamId(id)
 
     if (id) {
-      const { data } = await supabase
+      const { data, error: memberErr } = await supabase
         .from('team_members')
         .select('user_id, accepted_at, revoked_at, permissions, profile:profiles!team_members_user_id_fkey(full_name, email)')
         .eq('team_id', id)
         .is('revoked_at', null)
+      if (memberErr) { setLoadError(memberErr.message); setLoading(false); return }
       setMembers((data ?? []) as unknown as MemberRow[])
     }
     setLoading(false)
@@ -110,6 +119,12 @@ export default function TeamSettings() {
         anything — leases, payments and settings stay yours. Billing is unaffected:
         the account is charged per unit, not per person.
       </p>
+
+      {loadError && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+          Couldn't load your team: {loadError}
+        </p>
+      )}
 
       <ul className="divide-y divide-gray-100 border-y border-gray-100">
         {members.map((m) => {

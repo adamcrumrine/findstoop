@@ -81,10 +81,9 @@ async function buildOgImage() {
 
 // ── favicon.ico ─────────────────────────────────────────────────────────
 async function buildFavicon() {
-  const src = await iconSource();
   const sizes = [16, 32, 48];
   const buffers = await Promise.all(
-    sizes.map((s) => sharp(src).resize(s, s, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer()),
+    sizes.map((s) => sharp(SQUARE).resize(s, s, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer()),
   );
   const ico = await pngToIco(buffers);
   const out = path.join(PUBLIC, 'favicon.ico');
@@ -129,97 +128,8 @@ async function buildMark3dSvg() {
   console.log(`stoop-mark-3d.svg  vector  ${kb(Buffer.byteLength(optimised))}`);
 }
 
-// ── Icon set ────────────────────────────────────────────────────────────
-// The PWA manifest names all eight sizes plus apple-touch and the two PNG
-// favicons. They were hand-made once from a logo that has since been replaced,
-// so regenerating them here is what keeps a brand change from leaving the app
-// icon on the previous identity.
-// The square artwork stacks the mark ABOVE the wordmark. At 32px that whole
-// lockup renders as an unreadable smudge — a favicon has room for a symbol, not
-// for four letters. Find the transparent band separating the two and keep only
-// the mark. Falls back to the untouched image if no clear gap exists, so a
-// future single-element logo still works.
-async function iconSource() {
-  const trimmed = await sharp(SQUARE).trim().png().toBuffer();
-  const { data, info } = await sharp(trimmed).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const { width, height, channels } = info;
-
-  // "Ink" means opaque AND not near-white. The artwork carries opaque white
-  // inside letter counters and as stray fragments, so a purely alpha-based
-  // test finds no gap anywhere — every row between mark and wordmark has some
-  // white pixel in it.
-  const rowEmpty = new Array(height).fill(true);
-  for (let y = 0; y < height; y++) {
-    let ink = 0;
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * channels;
-      const nearWhite = data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235;
-      if (data[i + 3] > 12 && !nearWhite) ink++;
-    }
-    // A handful of stray pixels is noise, not content.
-    if (ink > width * 0.005) rowEmpty[y] = false;
-  }
-  // Widest run of blank rows below the midpoint — the lockup's breathing space.
-  let best = { start: -1, len: 0 };
-  let run = 0;
-  for (let y = Math.floor(height * 0.45); y < height; y++) {
-    if (rowEmpty[y]) { run++; if (run > best.len) best = { start: y - run + 1, len: run }; }
-    else run = 0;
-  }
-  // The real separation in this artwork is ~1% of the height; demanding more
-  // rejected it and silently shipped the whole lockup as a 32px favicon.
-  if (best.len < Math.max(12, height * 0.005)) {
-    console.log('icon source     no wordmark gap found — using full artwork');
-    return trimmed;
-  }
-  const markHeight = best.start;
-  console.log(`icon source     mark only (top ${markHeight}px of ${height}, gap ${best.len}px)`);
-  return await sharp(trimmed)
-    .extract({ left: 0, top: 0, width, height: markHeight })
-    .trim().png().toBuffer();
-}
-
-async function buildIconSet() {
-  const SQUARE = await iconSource();
-  const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
-  for (const s of sizes) {
-    await sharp(SQUARE)
-      .resize(s, s, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png().toFile(path.join(PUBLIC, 'icons', `icon-${s}x${s}.png`));
-  }
-  await sharp(SQUARE).resize(180, 180, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png().toFile(path.join(PUBLIC, 'apple-touch-icon.png'));
-  for (const s of [16, 32]) {
-    await sharp(SQUARE).resize(s, s, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png().toFile(path.join(PUBLIC, `favicon-${s}x${s}.png`));
-  }
-  console.log(`icons           ${sizes.join('/')} + 180 apple + 16/32`);
-}
-
-// ── Dark-surface wordmark ───────────────────────────────────────────────
-// Branded portal headers paint the logo onto the landlord's colour. The
-// supplied artwork is mid-tone green on transparency, which disappears there.
-// Lightening it to near-white keeps the shape and restores the contrast —
-// and without this, swapping the light logo alone would leave every dark
-// header still showing the PREVIOUS brand.
-async function buildDarkWordmark() {
-  const out = path.join(PUBLIC, 'stoop_logo_horizontal_trans_dark.png');
-  const img = sharp(HORIZONTAL).ensureAlpha();
-  // Preserve alpha, drive the colour channels to near-white.
-  const { data, info } = await img.raw().toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += info.channels) {
-    if (data[i + 3] === 0) continue;
-    data[i] = 245; data[i + 1] = 250; data[i + 2] = 249;
-  }
-  await sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
-    .png().toFile(out);
-  console.log('dark wordmark   near-white, alpha preserved');
-}
-
 const { W, H } = await buildOgImage();
 await buildFavicon();
-await buildIconSet();
-await buildDarkWordmark();
 await buildMarkSvg();
 if (process.argv.includes('--trace')) await buildMark3dSvg();
 console.log(`\nRemember: og:image:width/height in apps/web/index.html must say ${W}x${H}.`);

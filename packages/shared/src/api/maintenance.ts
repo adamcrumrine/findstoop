@@ -80,6 +80,15 @@ export async function triageMaintenance(requestId: string): Promise<TriageResult
 }
 
 export interface UploadedMaintenancePhoto {
+  /**
+   * Storage PATH, not a URL.
+   *
+   * These are photographs of the inside of someone's home. The bucket used to
+   * be public and this field held a permanent getPublicUrl() — anyone holding
+   * the link could view a tenant's bathroom without signing in, and the link
+   * was stored in the database forever. It is a path now, signed on demand at
+   * render time, so access is checked every time and links expire.
+   */
   url: string
   /** Path within the 'maintenance-photos' bucket — the hash record's key. */
   path: string
@@ -103,8 +112,23 @@ export async function uploadMaintenancePhoto(tenantId: string, file: File): Prom
   const path = `${tenantId}/${Date.now()}.${ext}`
   const { error } = await supabase.storage.from('maintenance-photos').upload(path, file)
   if (error) throw new Error(error.message)
-  const { data } = supabase.storage.from('maintenance-photos').getPublicUrl(path)
-  return { url: data.publicUrl, path, contentHash: await sha256HexSafe(file) }
+  return { url: path, path, contentHash: await sha256HexSafe(file) }
+}
+
+/**
+ * Signed URLs for stored maintenance photo paths.
+ *
+ * Legacy rows hold absolute public URLs from when the bucket was public; those
+ * are passed through untouched so old requests keep rendering. Anything that
+ * isn't a URL is treated as a path and signed.
+ */
+export async function signMaintenancePhotos(paths: string[], expiresIn = 3600): Promise<string[]> {
+  const out = await Promise.all(paths.map(async (p) => {
+    if (/^https?:\/\//i.test(p)) return p
+    const { data } = await supabase.storage.from('maintenance-photos').createSignedUrl(p, expiresIn)
+    return data?.signedUrl ?? ''
+  }))
+  return out.filter(Boolean)
 }
 
 /**

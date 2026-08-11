@@ -9,6 +9,7 @@ import Modal from '../../components/shared/Modal'
 import FormField, { selectClass } from '../../components/shared/FormField'
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
+import MaintenancePhotos from '../../components/shared/MaintenancePhotos'
 import MultiSelect from '../../components/shared/MultiSelect'
 import { useScope, inScope } from '../../lib/scope'
 import { toggle, isExactly } from '../../lib/multiSelect'
@@ -419,13 +420,7 @@ export default function ManagerMaintenance() {
             {selectedRequest.images && selectedRequest.images.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Photos</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {selectedRequest.images.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt="" loading="lazy" decoding="async" className="w-full aspect-square rounded-lg object-cover" />
-                    </a>
-                  ))}
-                </div>
+                <MaintenancePhotos paths={selectedRequest.images} variant="grid" />
               </div>
             )}
 

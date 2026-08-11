@@ -9,6 +9,7 @@ import SelfTriageCard, { fetchSelfTriage, type SelfTriageResult } from '../../co
 import type { MaintenancePriority, MaintenanceStatus } from '@findstoop/shared/types/maintenance'
 import toast from 'react-hot-toast'
 import { Wrench, Camera, RefreshCw } from 'lucide-react'
+import MaintenancePhotos from '../../components/shared/MaintenancePhotos'
 import MaintenanceTimeline, { timelineSteps } from '../../components/tenant/MaintenanceTimeline'
 
 const PRIORITY_LABEL: Record<MaintenancePriority, string> = {
@@ -255,13 +256,7 @@ function TenantMaintenanceInner({ onRetry }: { onRetry: () => void }) {
                   </span>
                 </div>
               </div>
-              {req.images && req.images.length > 0 && (
-                <div className="flex gap-1.5 mt-2">
-                  {req.images.slice(0, 3).map((url, i) => (
-                    <img key={i} src={url} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover" />
-                  ))}
-                </div>
-              )}
+              <MaintenancePhotos paths={req.images} variant="thumbs" />
               {/* Mini progress track — the card-level glance version of the
                   timeline in the detail view. */}
               <div className="flex gap-1 mt-3" aria-hidden="true">
@@ -416,13 +411,7 @@ function TenantMaintenanceInner({ onRetry }: { onRetry: () => void }) {
             {selectedRequest.images && selectedRequest.images.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Photos</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {selectedRequest.images.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                      <img src={url} alt="" loading="lazy" decoding="async" className="w-full aspect-square rounded-lg object-cover" />
-                    </a>
-                  ))}
-                </div>
+                <MaintenancePhotos paths={selectedRequest.images} variant="grid" />
               </div>
             )}
 

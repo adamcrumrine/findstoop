@@ -13,6 +13,7 @@ import type { Lease } from '@findstoop/shared/types/lease'
 import { CheckCircle2, Landmark, CreditCard as CardIcon, ShieldCheck } from 'lucide-react'
 import PaymentMethodCard from '../../components/tenant/PaymentMethodCard'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
+import ChargeServiceLine from '../../components/shared/ChargeServiceLine'
 import Dialog from '../../components/shared/Dialog'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import { railOptions, payerFeeCents, combineSavings } from '@findstoop/shared/lib/paymentFees'
@@ -360,6 +361,7 @@ function PaymentHistoryRow({ payment }: { payment: Payment }) {
             ? new Date(payment.paid_at).toLocaleDateString()
             : new Date(payment.created_at).toLocaleDateString()}
         </p>
+        <ChargeServiceLine payment={payment} />
       </div>
       <div className="text-right">
         <p className="text-sm font-semibold text-gray-800">{formatUsdCents(Number(payment.amount))}</p>
@@ -735,8 +737,12 @@ export default function TenantPayRent() {
                         onChange={() => toggleBundled(c.id)}
                         className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                       />
-                      <span className={`flex-1 capitalize ${isGhost ? 'text-ink' : 'text-white'}`}>
-                        {c.type.replace(/_/g, ' ')}
+                      <span className="flex-1 min-w-0">
+                        <span className={`block capitalize ${isGhost ? 'text-ink' : 'text-white'}`}>
+                          {c.type.replace(/_/g, ' ')}
+                        </span>
+                        <ChargeServiceLine payment={c}
+                          className={`text-[11px] ${isGhost ? 'text-mute' : 'text-white/75'}`} />
                       </span>
                       <span className={`tabular-nums font-medium ${isGhost ? 'text-ink' : 'text-white'}`}>
                         {formatUsdCents(Number(c.amount))}

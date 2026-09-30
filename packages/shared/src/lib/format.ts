@@ -35,6 +35,23 @@ export function formatLocalDate(value: string | null | undefined): string {
   return new Date(s).toLocaleDateString()
 }
 
+// "Jul 1 – Jul 31, 2026" — the service window a bill covers. The year is
+// written once when both ends share it, on both ends when the range crosses
+// New Year ("Dec 15, 2025 – Jan 14, 2026"). Empty unless both ends are set.
+export function formatServicePeriod(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string {
+  if (!start || !end) return ''
+  const a = new Date(String(start).slice(0, 10) + 'T00:00:00')
+  const b = new Date(String(end).slice(0, 10) + 'T00:00:00')
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return ''
+  const md = { month: 'short', day: 'numeric' } as const
+  const mdy = { month: 'short', day: 'numeric', year: 'numeric' } as const
+  const left = a.toLocaleDateString('en-US', a.getFullYear() === b.getFullYear() ? md : mdy)
+  return `${left} – ${b.toLocaleDateString('en-US', mdy)}`
+}
+
 // "Aug 2025" — the month a charge applies to, ignoring the specific day.
 export function formatMonthYear(value: string | null | undefined): string {
   if (!value) return ''

@@ -17,6 +17,7 @@ import FormField, { inputClass, selectClass } from '../../components/shared/Form
 import { CreditCard, CalendarClock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import MultiSelect from '../../components/shared/MultiSelect'
+import LeaseSelect, { isEndedLease, type LeaseOption } from '../../components/manager/LeaseSelect'
 import { useScope, inScope } from '../../lib/scope'
 
 
@@ -75,8 +76,8 @@ interface AddPaymentFormData {
 //
 // Utilities split evenly whatever the lease's rent split mode — they track
 // occupancy, not room size.
-function BillBackForm({ leases, leaseMap, onDone, onCancel }: {
-  leases: LeaseWithTenant[]
+function BillBackForm({ leaseOptions, leaseMap, onDone, onCancel }: {
+  leaseOptions: LeaseOption[]
   leaseMap: Record<string, LeaseWithTenant | undefined>
   onDone: () => void
   onCancel: () => void
@@ -146,15 +147,7 @@ function BillBackForm({ leases, leaseMap, onDone, onCancel }: {
       </p>
 
       <FormField label="Lease" required>
-        <select className={selectClass} value={leaseId} onChange={(e) => setLeaseId(e.target.value)}>
-          <option value="">Select a lease…</option>
-          {leases.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.unit?.unit_number ? `Unit ${l.unit.unit_number} — ` : ''}
-              {l.profile?.full_name ?? l.profile?.email ?? 'Lease'}
-            </option>
-          ))}
-        </select>
+        <LeaseSelect leases={leaseOptions} value={leaseId} onChange={setLeaseId} />
       </FormField>
 
       <div className="grid grid-cols-2 gap-3">
@@ -226,15 +219,15 @@ function BillBackForm({ leases, leaseMap, onDone, onCancel }: {
 }
 
 interface AddPaymentFormProps {
-  leases: LeaseWithTenant[]
+  leaseOptions: LeaseOption[]
   onSubmit: (data: AddPaymentFormData) => Promise<void>
   onCancel: () => void
   submitting: boolean
 }
 
-function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFormProps) {
+function AddPaymentForm({ leaseOptions, onSubmit, onCancel, submitting }: AddPaymentFormProps) {
   const [form, setForm] = useState<AddPaymentFormData>({
-    lease_id: leases[0]?.id ?? '',
+    lease_id: leaseOptions.find((l) => !isEndedLease(l.status))?.id ?? '',
     amount: '',
     type: 'fee',
     status: 'pending',
@@ -266,13 +259,11 @@ function AddPaymentForm({ leases, onSubmit, onCancel, submitting }: AddPaymentFo
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <FormField label="Lease / Tenant" required error={errors.lease_id}>
-        <select className={selectClass} value={form.lease_id} onChange={set('lease_id')}>
-          {leases.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.profile?.full_name ?? l.profile?.email ?? l.id}
-            </option>
-          ))}
-        </select>
+        <LeaseSelect
+          leases={leaseOptions}
+          value={form.lease_id}
+          onChange={(id) => { setForm((f) => ({ ...f, lease_id: id })); setErrors((err) => ({ ...err, lease_id: undefined })) }}
+        />
       </FormField>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Amount ($)" required error={errors.amount}>
@@ -568,6 +559,21 @@ export default function ManagerPayments() {
     () => Object.fromEntries(units.map((u) => [u.id, u.property_id])),
     [units]
   )
+
+  // Lease pickers read "Property (Unit 2) - Tenant" and sort by it, so a
+  // landlord scanning the list finds the lease by where it is, not by who.
+  const leaseOptions = useMemo<LeaseOption[]>(() => {
+    const unitById = new Map(units.map((u) => [u.id, u]))
+    const propById = new Map(properties.map((p) => [p.id, p]))
+    return leases.map((l) => {
+      const unit = unitById.get(l.unit_id)
+      const prop = unit ? propById.get(unit.property_id) : undefined
+      const place = prop?.name || prop?.address || 'Property'
+      const unitPart = unit?.unit_number ? ` (Unit ${unit.unit_number})` : ''
+      const tenant = l.profile?.full_name ?? l.profile?.email ?? 'Tenant'
+      return { id: l.id, label: `${place}${unitPart} - ${tenant}`, status: l.status, end_date: l.end_date }
+    }).sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+  }, [leases, units, properties])
 
   // Resolve tenant name for each payment row. With multi-primary leases the
   // legacy `lease.profile` only knows about the first primary, so we collect
@@ -1014,7 +1020,7 @@ export default function ManagerPayments() {
 
       <Modal open={billBackOpen} onClose={() => setBillBackOpen(false)} title="Bill back a utility">
         <BillBackForm
-          leases={leases}
+          leaseOptions={leaseOptions}
           leaseMap={leaseMap}
           onDone={() => { setBillBackOpen(false); void reload() }}
           onCancel={() => setBillBackOpen(false)}
@@ -1023,7 +1029,7 @@ export default function ManagerPayments() {
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Record Payment">
         <AddPaymentForm
-          leases={leases}
+          leaseOptions={leaseOptions}
           onSubmit={handleAdd}
           onCancel={() => setAddOpen(false)}
           submitting={submitting}

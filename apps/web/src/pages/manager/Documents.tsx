@@ -12,6 +12,7 @@ import GeneratedDocumentsList from '../../components/documents/GeneratedDocument
 import type { Document, DocumentType } from '@findstoop/shared/types/document'
 import toast from 'react-hot-toast'
 import MultiSelect from '../../components/shared/MultiSelect'
+import LeaseSelect, { type LeaseOption } from '../../components/manager/LeaseSelect'
 import { useScope, inScope } from '../../lib/scope'
 import { passes } from '../../lib/multiSelect'
 import {
@@ -178,8 +179,8 @@ export default function ManagerDocuments() {
     const u = units.find((x) => x.id === l.unit_id)
     if (!u) return 'Unknown'
     const p = properties.find((x) => x.id === u.property_id)
-    const propName = p?.name ?? p?.address ?? 'Property'
-    return `${propName} · Unit ${u.unit_number}`
+    const propName = p?.name || p?.address || 'Property'
+    return u.unit_number ? `${propName} (Unit ${u.unit_number})` : propName
   }
 
   const getLeaseStatus = (leaseId: string): string => {
@@ -188,6 +189,11 @@ export default function ManagerDocuments() {
   }
 
   const activeLeases = leases.filter((l) => l.status === 'active')
+  // Upload picker: current leases first, expired ones after (greyed, confirmed).
+  const leaseOptions: LeaseOption[] = leases
+    .filter((l) => l.status === 'active' || l.status === 'expired' || l.status === 'terminated')
+    .map((l) => ({ id: l.id, label: `${getPropertyLabel(l.id)} - ${getTenantName(l.id)}`, status: l.status, end_date: l.end_date }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
 
   // Narrow by lease status first, then group what remains. Status filter
   // is a separate control from grouping — it answers "show me documents
@@ -427,19 +433,12 @@ export default function ManagerDocuments() {
               name read like picking a recipient, which became actively wrong
               once uploading started notifying the whole lease. */}
           <FormField label="Lease" required>
-            <select
-              className={selectClass}
+            <LeaseSelect
+              leases={leaseOptions}
               value={selectedLeaseId}
-              onChange={(e) => setSelectedLeaseId(e.target.value)}
+              onChange={setSelectedLeaseId}
               required
-            >
-              <option value="">Select a lease…</option>
-              {activeLeases.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {getPropertyLabel(l.id)} — {getTenantName(l.id)}
-                </option>
-              ))}
-            </select>
+            />
             <p className="text-xs text-mute mt-1.5">
               {selectedLeaseId
                 ? `Everyone on this lease can see it: ${leaseTenantNames(selectedLeaseId)}. They'll be notified.`

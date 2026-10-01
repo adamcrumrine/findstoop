@@ -39,6 +39,11 @@ export interface Brand {
     /** Wordmark for headers, letterheads, auth pages (dark ink on light). */
     horizontal: string
     /**
+     * Full-resolution wordmark, for places that need more pixels than any
+     * on-screen header (social share images). Falls back to `horizontal`.
+     */
+    horizontalFull?: string
+    /**
      * Wordmark for dark backgrounds — mark keeps its color, wordmark text is
      * white. Optional: brands without one fall back to a `brightness-0 invert`
      * (all-white silhouette) of `horizontal`.
@@ -101,9 +106,13 @@ const stoop: Brand = {
   supportEmail: 'support@findstoop.com',
   helloEmail: 'hello@findstoop.com',
   logo: {
-    horizontal: '/stoop_logo_horizontal_trans.png',
-    horizontalDark: '/stoop_logo_horizontal_trans_dark.png',
-    square: '/stoop_logo_square_trans.png',
+    // Display copies sized for the largest on-screen use (56px tall at 3x).
+    // The originals are 4–14x heavier and were the biggest images on every
+    // page; they're kept for share images and the structured-data logo.
+    horizontal: '/stoop_logo_horizontal_sm.png',
+    horizontalFull: '/stoop_logo_horizontal_trans.png',
+    horizontalDark: '/stoop_logo_horizontal_dark_sm.png',
+    square: '/stoop_logo_square_sm.png',
   },
   favicon: {},
   themeColor: '#00A896',

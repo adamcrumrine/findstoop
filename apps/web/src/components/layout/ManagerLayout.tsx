@@ -139,7 +139,7 @@ export default function ManagerLayout() {
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <Link to="/" aria-label={`${BRAND.name} home`} className="block">
-              <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+              <img src={BRAND.logo.horizontal} alt={BRAND.name} width={440} height={168} className="h-10 w-auto" />
             </Link>
             <p className="text-[10px] text-mute mt-1 font-medium uppercase tracking-wide">Manager Portal</p>
           </div>
@@ -204,7 +204,7 @@ export default function ManagerLayout() {
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
         >
           <Link to="/" aria-label={`${BRAND.name} home`} className="block">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} width={440} height={168} className="h-10 w-auto" />
           </Link>
           <div className="flex items-center gap-1">
             <NotificationsBell />

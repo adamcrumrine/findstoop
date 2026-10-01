@@ -10,6 +10,7 @@ import { Loader2, ShieldCheck, Printer, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { Inspection } from '@findstoop/shared/hooks/useInspection'
 import { BRAND } from '../../lib/brand'
+import { loadSignatureFonts } from '../../lib/signatureFonts'
 import { capturedDateTime, verifyBytesAgainstRecord } from '../../lib/photoIntegrity'
 import { fetchPhotoHashRecords } from '../../lib/photoIntegrityStore'
 
@@ -59,6 +60,9 @@ export default function InspectionPdf() {
   const [verifications, setVerifications] = useState<Record<string, PhotoVerification>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Signer names below render in a handwriting font, no longer loaded globally.
+  useEffect(() => { void loadSignatureFonts() }, [])
 
   useEffect(() => {
     if (!id) return

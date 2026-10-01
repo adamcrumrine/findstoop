@@ -215,7 +215,7 @@ export default function TenantLayout() {
               </span>
             </span>
           ) : (
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} width={440} height={168} className="h-10 w-auto" />
           )}
         </Link>
         <div className="flex items-center gap-1">

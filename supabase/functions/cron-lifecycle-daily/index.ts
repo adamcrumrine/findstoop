@@ -12,6 +12,7 @@ import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDispla
 import { sendPushToProfile, type PushMessage } from '../_shared/webPush.ts'
 import { sendSmsIfEnabled } from '../_shared/sms.ts'
 import { tasksDueThisMonth, occurrenceKey } from '../_shared/seasonalTasks.ts'
+import { managerCc } from '../_shared/managerCopy.ts'
 
 const APP_URL          = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const CRON_SECRET      = Deno.env.get('CRON_SECRET') ?? ''
@@ -360,9 +361,11 @@ interface FireTriggerParams {
   recipientEmail: string
   dedupToken: string
   templateVars: TemplateVars
-  // When set, the owning landlord is BCC'd so they have a copy of what their
-  // tenant received. Resolved per-lease (cached) at the call site.
-  bccEmail?: string
+  // When set, the owning landlord is CC'd so they have a copy of what their
+  // tenant received — visibly, so a tenant replying to a rent or renewal
+  // notice reaches their landlord. Resolved per-lease (cached) at the call
+  // site, and left unset for manager-facing sends.
+  ccEmail?: string
   // Landlord white-label branding for tenant-facing sends. Resolved per-lease
   // (cached) at the call site; omitted for manager-facing emails.
   brand?: LeaseBrand | null
@@ -418,7 +421,8 @@ async function fireTrigger(p: FireTriggerParams): Promise<'sent' | 'paused' | 'd
     const { data, error } = await resend.emails.send({
       from: emailFrom(p.brand?.company_name, RESEND_FROM),
       to: p.recipientEmail,
-      bcc: p.bccEmail || undefined,
+      cc: managerCc(p.ccEmail, p.recipientEmail),
+      replyTo: p.ccEmail || undefined,
       subject,
       html,
     })
@@ -472,9 +476,9 @@ Deno.serve(async (req) => {
   const totals: Outcome[] = []
 
   // Resolve the owning landlord's email for a lease (cached per run) so tenant
-  // notifications BCC the manager who owns the property.
+  // notifications CC the manager who owns the property.
   const mgrEmailCache = new Map<string, string | null>()
-  async function bccForLease(leaseId: string | null | undefined): Promise<string | undefined> {
+  async function ccForLease(leaseId: string | null | undefined): Promise<string | undefined> {
     if (!leaseId) return undefined
     if (!mgrEmailCache.has(leaseId)) {
       const { data } = await admin.rpc('manager_email_for_lease', { p_lease_id: leaseId })
@@ -535,7 +539,7 @@ Deno.serve(async (req) => {
         triggerKey,
         userId: row.tenant_id,
         recipientEmail: row.tenant_email,
-        bccEmail: await bccForLease(row.lease_id),
+        ccEmail: await ccForLease(row.lease_id),
         brand: await brandForLease(row.lease_id),
         dedupToken: `payment:${row.payment_id}:${daysBefore}d`,
         push: {
@@ -612,7 +616,7 @@ Deno.serve(async (req) => {
             triggerKey: 'lease_renewal_tenant',
             userId: row.tenant_id,
             recipientEmail: row.tenant_email,
-            bccEmail: row.manager_email || undefined,
+            ccEmail: row.manager_email || undefined,
             brand: await brandForLease(row.lease_id),
             dedupToken: `lease:${row.lease_id}:${daysBefore}d`,
             push: {
@@ -669,7 +673,7 @@ Deno.serve(async (req) => {
         triggerKey,
         userId: row.tenant_id,
         recipientEmail: row.tenant_email,
-        bccEmail: await bccForLease(row.lease_id),
+        ccEmail: await ccForLease(row.lease_id),
         brand: await brandForLease(row.lease_id),
         dedupToken: `late_fee:payment:${row.payment_id}`,
         push: {
@@ -837,7 +841,7 @@ Deno.serve(async (req) => {
               triggerKey: 'autopay_failed',
               userId: row.tenant_id,
               recipientEmail: tenant.email,
-              bccEmail: await bccForLease(row.lease_id),
+              ccEmail: await ccForLease(row.lease_id),
               brand: await brandForLease(row.lease_id),
               dedupToken: `autopay_debit:${row.id}:${new Date().toISOString().split('T')[0]}`,
               push: {
@@ -961,7 +965,7 @@ Deno.serve(async (req) => {
             triggerKey: 'autopay_failed',
             userId: row.tenant_id,
             recipientEmail: tenant.email,
-            bccEmail: await bccForLease(row.lease_id),
+            ccEmail: await ccForLease(row.lease_id),
             brand: await brandForLease(row.lease_id),
             // Date-stamped so a retry on a later day can re-alert if it fails again.
             dedupToken: `autopay_failed:${row.id}:${new Date().toISOString().split('T')[0]}`,

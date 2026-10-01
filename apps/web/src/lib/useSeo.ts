@@ -94,7 +94,7 @@ export function useSeo({ title, description, path, image, noindex }: SeoArgs) {
   useEffect(() => {
     const fullTitle = title + TITLE_SUFFIX
     const canonical = `${SITE_ORIGIN}${path}`
-    const ogImage   = image || `${SITE_ORIGIN}${BRAND.ogImage ?? BRAND.logo.horizontal}`
+    const ogImage   = image || `${SITE_ORIGIN}${BRAND.ogImage ?? BRAND.logo.horizontalFull ?? BRAND.logo.horizontal}`
     // Route-level noindex OR a non-canonical host (see CANONICAL_HOSTS above).
     const effectiveNoindex = noindex || !isCanonicalHost(window.location.hostname)
 

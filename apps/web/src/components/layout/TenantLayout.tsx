@@ -6,6 +6,7 @@ import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIc
 import { supabase } from '../../lib/supabase'
 import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
+import IdleSignOut from '../shared/IdleSignOut'
 import PoweredByStoop from '../shared/PoweredByStoop'
 import InstallPrompt from '../shared/InstallPrompt'
 import TenantNotificationsBell from '../tenant/TenantNotificationsBell'
@@ -161,6 +162,9 @@ export default function TenantLayout() {
 
   return (
     <div className="flex flex-col min-h-dvh bg-gray-50">
+      {/* Tenants mostly use their own phone and see only their own lease,
+          so a longer window: it guards a borrowed device without nagging. */}
+      <IdleSignOut timeoutMs={2 * 60 * 60_000} loginPath="/login/renter" />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"
@@ -215,7 +219,7 @@ export default function TenantLayout() {
               </span>
             </span>
           ) : (
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} width={348} height={100} className="h-10 w-auto" />
           )}
         </Link>
         <div className="flex items-center gap-1">

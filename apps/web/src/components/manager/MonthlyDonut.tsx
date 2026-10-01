@@ -138,10 +138,22 @@ export default function MonthlyDonut({ payments, loading, title, pausedLeases }:
         </div>
       </div>
 
+      {/* The placeholder mirrors the loaded layout — chart plus a legend of
+          typical length — so the card is already its final height when data
+          arrives. It used to be the chart block alone; on a phone the legend
+          then appeared underneath and pushed the whole dashboard down, which
+          was nearly all of the page's layout shift. */}
       {loading ? (
-        <div className="h-56 w-full animate-pulse bg-gray-100 rounded-lg" />
+        <div className="grid md:grid-cols-2 gap-4 items-center" aria-hidden="true">
+          <div className="h-56 w-full animate-pulse bg-gray-100 rounded-lg" />
+          <ul className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="h-5 animate-pulse bg-gray-100 rounded" />
+            ))}
+          </ul>
+        </div>
       ) : slices.length === 0 ? (
-        <p className="text-sm text-gray-500 py-12 text-center">No payments this month</p>
+        <p className="h-56 flex items-center justify-center text-sm text-gray-500">No payments this month</p>
       ) : (
         <div className="grid md:grid-cols-2 gap-4 items-center">
           <div className="relative h-56">

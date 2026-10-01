@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatUsd, formatUsdCents, formatPhone } from '@findstoop/shared/lib/format'
+import { formatUsd, formatUsdCents, formatPhone, formatServicePeriod } from '@findstoop/shared/lib/format'
 
 describe('formatUsd', () => {
   it('renders whole dollars with separators', () => {
@@ -33,5 +33,18 @@ describe('formatPhone', () => {
   it('passes through non-10-digit input unchanged', () => {
     expect(formatPhone('123')).toBe('123')
     expect(formatPhone('')).toBe('')
+  })
+})
+
+describe('formatServicePeriod', () => {
+  it('writes the year once within a year', () => {
+    expect(formatServicePeriod('2026-07-01', '2026-07-31')).toBe('Jul 1 – Jul 31, 2026')
+  })
+  it('writes both years across New Year', () => {
+    expect(formatServicePeriod('2025-12-15', '2026-01-14')).toBe('Dec 15, 2025 – Jan 14, 2026')
+  })
+  it('is empty unless both ends are set', () => {
+    expect(formatServicePeriod(null, '2026-07-31')).toBe('')
+    expect(formatServicePeriod('2026-07-01', undefined)).toBe('')
   })
 })

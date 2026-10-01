@@ -18,6 +18,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import { generateLeaseText } from '../_shared/leaseTemplates.ts'
 import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName } from '../_shared/emailBranding.ts'
+import { managerCc, safeManagerCc } from '../_shared/managerCopy.ts'
 
 const APP_URL        = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -170,7 +171,7 @@ Deno.serve(async (req) => {
       const { error: emailErr } = await resend.emails.send({
         from: emailFrom(company, RESEND_FROM),
         to: cleanEmail,
-        bcc: replyTo, // owning landlord gets a copy
+        cc: managerCc(replyTo, cleanEmail), // owning landlord, visibly
         subject,
         html,
         replyTo,
@@ -326,14 +327,45 @@ Deno.serve(async (req) => {
       `,
     })
 
+    // SECURITY: when actionLink is set this email carries a magic sign-in
+    // link, which is a BEARER TOKEN — opening it signs you in AS THE
+    // APPLICANT. So it goes to them and nobody else. safeManagerCc drops the
+    // copy the moment a link is present (invite-tenant made the same call);
+    // the landlord instead gets the separate, deliberately link-free
+    // confirmation below. When there's no link — an existing tenant who
+    // already has an account — the CC behaves normally.
     const { error: emailErr } = await resend.emails.send({
       from: emailFrom(company, RESEND_FROM),
       to: cleanEmail,
-      bcc: replyTo, // owning landlord gets a copy
+      cc: safeManagerCc(replyTo, cleanEmail, html),
       subject,
       html,
       replyTo,
     })
+
+    // Landlord's own copy of an approval that carried a sign-in link.
+    // Confirmation only — no link in it. Gated on the applicant's email
+    // actually going out, so we never tell a landlord we emailed someone we
+    // didn't.
+    if (!emailErr && actionLink && replyTo) {
+      try {
+        await resend.emails.send({
+          from: emailFrom(company, RESEND_FROM),
+          to: replyTo,
+          subject: `You approved ${fullName || cleanEmail} for ${propertyLabel}`,
+          html: renderEmail({
+            title: 'Approval sent',
+            headerHtml,
+            footerHtml,
+            bodyHtml: `
+              <p>We emailed <strong>${escapeHtml(fullName || cleanEmail)}</strong> (${escapeHtml(cleanEmail)}) to let them know you approved their application for <strong>${escapeHtml(propertyLabel)}</strong>, along with a link to set up their renter account.</p>
+              <p>Their draft lease is waiting on the unit, and ${escapeHtml(unit.unit_number ? `Unit ${unit.unit_number}` : 'the unit')} is now marked pending.</p>
+              <p style="color:#8E8E93;font-size:13px">This confirmation intentionally doesn't include their sign-in link — that link signs in whoever opens it, so it goes to them alone.</p>
+            `,
+          }),
+        })
+      } catch { /* fail-soft — the applicant's approval already went out */ }
+    }
     if (emailErr) {
       return json({ ok: true, decision: 'approve', leaseId: lease?.id, emailWarning: emailErr.message })
     }

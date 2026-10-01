@@ -12,6 +12,7 @@ import { logApiCall } from '../_shared/logging.ts'
 import { emailFrom, emailHeaderHtml, emailFooterHtml, companyDisplayName, escapeHtml } from '../_shared/emailBranding.ts'
 import { sendPushToProfile } from '../_shared/webPush.ts'
 import { sendSmsIfEnabled } from '../_shared/sms.ts'
+import { managerCc } from '../_shared/managerCopy.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -189,7 +190,7 @@ async function notifyTenantPaymentFailed(paymentRowId: string | null, stripePaym
       id, amount, type, tenant_id,
       tenant:profiles!payments_tenant_id_fkey(email, full_name),
       lease:leases!payments_lease_id_fkey(
-        unit:units(unit_number, property:properties(name, manager:profiles(company_name, company_logo_url, brand_color)))
+        unit:units(unit_number, property:properties(name, manager:profiles(email, company_name, company_logo_url, brand_color)))
       )
     `)
   const { data } = paymentRowId
@@ -214,6 +215,10 @@ async function notifyTenantPaymentFailed(paymentRowId: string | null, stripePaym
     await resend.emails.send({
       from: emailFrom(manager?.company_name ?? null, RESEND_FROM),
       to: tenant.email,
+      // The landlord is the other party to a bounced rent payment — they find
+      // out at the same moment the tenant does, rather than via the ledger.
+      cc: managerCc(manager?.email ?? null, tenant.email),
+      replyTo: manager?.email ?? undefined,
       subject: `Action needed: your ${amountStr} payment at ${propertyName} didn't clear`,
       html: `
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">

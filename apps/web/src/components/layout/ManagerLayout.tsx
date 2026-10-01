@@ -7,6 +7,7 @@ import {
   Receipt, Settings as SettingsIcon, MoreHorizontal, Upload, Calculator, type LucideIcon,
 } from 'lucide-react'
 import Avatar from '../shared/Avatar'
+import IdleSignOut from '../shared/IdleSignOut'
 import FeedbackModal from '../manager/FeedbackModal'
 import NotificationsBell from '../manager/NotificationsBell'
 import ScopeBar from '../manager/ScopeBar'
@@ -124,6 +125,8 @@ export default function ManagerLayout() {
   return (
     <ScopeProvider>
     <div className="flex h-dvh bg-gray-50 overflow-hidden">
+      {/* Landlords hold tenant PII and banking status: 30 minutes idle. */}
+      <IdleSignOut timeoutMs={30 * 60_000} loginPath="/login" />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"
@@ -139,7 +142,7 @@ export default function ManagerLayout() {
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <Link to="/" aria-label={`${BRAND.name} home`} className="block">
-              <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+              <img src={BRAND.logo.horizontal} alt={BRAND.name} width={348} height={100} className="h-10 w-auto" />
             </Link>
             <p className="text-[10px] text-mute mt-1 font-medium uppercase tracking-wide">Manager Portal</p>
           </div>
@@ -204,7 +207,7 @@ export default function ManagerLayout() {
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
         >
           <Link to="/" aria-label={`${BRAND.name} home`} className="block">
-            <img src={BRAND.logo.horizontal} alt={BRAND.name} className="h-10 w-auto" />
+            <img src={BRAND.logo.horizontal} alt={BRAND.name} width={348} height={100} className="h-10 w-auto" />
           </Link>
           <div className="flex items-center gap-1">
             <NotificationsBell />

@@ -13,7 +13,7 @@ import { ArrowLeft, Printer, Loader2, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
-import { formatUsdCents } from '@findstoop/shared/lib/format'
+import { formatUsdCents, formatServicePeriod } from '@findstoop/shared/lib/format'
 import { BRAND } from '../../lib/brand'
 import type { Payment, PaymentType } from '@findstoop/shared/types/payment'
 
@@ -177,6 +177,12 @@ export default function TenantReceiptPdf() {
                   {unitNumber ? ` · Unit ${unitNumber}` : ''}
                   {prop?.name && prop?.address ? <><br /><span className="font-normal text-mute">{[prop.address, prop.city, prop.state, prop.zip].filter(Boolean).join(', ')}</span></> : null}
                 </span>
+              </div>
+            )}
+            {formatServicePeriod(payment.service_period_start, payment.service_period_end) && (
+              <div className="flex justify-between gap-6 py-1.5 border-b border-gray-100">
+                <span className="text-mute">Service period</span>
+                <span className="font-medium text-right">{formatServicePeriod(payment.service_period_start, payment.service_period_end)}</span>
               </div>
             )}
             {payment.memo && (

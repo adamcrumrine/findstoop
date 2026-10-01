@@ -50,6 +50,15 @@ export default function Login({ role }: Props) {
   const [resendEmail, setResendEmail] = useState('')
   const [resending, setResending] = useState(false)
   const [resent, setResent] = useState(false)
+  // Set by IdleSignOut. Read once, then stripped so a refresh doesn't repeat it.
+  const [idleSignedOut] = useState(() => new URLSearchParams(window.location.search).get('reason') === 'idle')
+  useEffect(() => {
+    if (!idleSignedOut) return
+    const params = new URLSearchParams(window.location.search)
+    params.delete('reason')
+    const qs = params.toString()
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash)
+  }, [idleSignedOut])
 
   useEffect(() => {
     const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''
@@ -217,6 +226,14 @@ export default function Login({ role }: Props) {
             than what failed — most people arriving here were invited and have
             never had a password, so pointing them at the sign-in form alone
             is a dead end. */}
+        {idleSignedOut && !linkError && (
+          <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4" role="status">
+            <p className="text-sm font-semibold text-ink">You were signed out</p>
+            <p className="text-xs text-mute mt-1 leading-relaxed">
+              For your security we sign you out after a period of inactivity. Sign in again to continue.
+            </p>
+          </div>
+        )}
         {linkError && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
             {resent ? (

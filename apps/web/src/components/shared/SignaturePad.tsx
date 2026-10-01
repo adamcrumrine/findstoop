@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Eraser, Pen, Type, Upload, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { loadSignatureFonts } from '../../lib/signatureFonts'
 
 export interface SignaturePadHandle {
   toDataURL: () => string | null
@@ -42,6 +43,16 @@ const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad
   const [typedFont, setTypedFont] = useState<string | null>(null)
   const [uploadDataUrl, setUploadDataUrl] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  // Typed signatures are rasterized onto a canvas, which draws with whatever
+  // font is loaded at that moment — so the font choices stay disabled until
+  // the handwriting fonts have actually arrived.
+  const [fontsReady, setFontsReady] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    void loadSignatureFonts().then(() => { if (live) setFontsReady(true) })
+    return () => { live = false }
+  }, [])
 
   useEffect(() => {
     if (name && !typedName) setTypedName(name.trim())
@@ -248,7 +259,7 @@ const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad
                   key={f.key}
                   type="button"
                   onClick={() => setTypedFont(f.key)}
-                  disabled={!typedName.trim()}
+                  disabled={!typedName.trim() || !fontsReady}
                   className={`relative w-full h-20 px-4 rounded-xl border-2 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed bg-white ${
                     selected ? 'border-brand-500 ring-2 ring-brand-100' : 'border-gray-200 hover:border-gray-300'
                   }`}

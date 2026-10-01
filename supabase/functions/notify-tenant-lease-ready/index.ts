@@ -10,6 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
 import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName } from '../_shared/emailBranding.ts'
+import { managerCc } from '../_shared/managerCopy.ts'
 
 const APP_URL        = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
@@ -142,7 +143,7 @@ Deno.serve(async (req) => {
     const { error: emailErr } = await resend.emails.send({
       from: emailFrom(company, RESEND_FROM),
       to: tenant.email,
-      bcc: caller.email ?? undefined, // owning landlord gets a copy
+      cc: managerCc(caller.email, tenant.email), // owning landlord, visibly
       subject,
       html,
       replyTo: caller.email ?? undefined,

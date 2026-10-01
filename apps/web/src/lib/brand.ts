@@ -39,6 +39,11 @@ export interface Brand {
     /** Wordmark for headers, letterheads, auth pages (dark ink on light). */
     horizontal: string
     /**
+     * Full-resolution wordmark, for places that need more pixels than any
+     * on-screen header (social share images). Falls back to `horizontal`.
+     */
+    horizontalFull?: string
+    /**
      * Wordmark for dark backgrounds — mark keeps its color, wordmark text is
      * white. Optional: brands without one fall back to a `brightness-0 invert`
      * (all-white silhouette) of `horizontal`.
@@ -106,9 +111,11 @@ const stoop: Brand = {
   supportEmail: 'support@findstoop.com',
   helloEmail: 'hello@findstoop.com',
   logo: {
-    // Vector logo pack (assets/logo-pack); public copies are written by
-    // scripts/build-brand-assets.mjs.
+    // Vector logo kit (assets/logo-pack); public copies are written by
+    // scripts/build-brand-assets.mjs. The SVGs are ~6 KB, lighter than any
+    // raster that stays sharp at 3x.
     horizontal: '/stoop_logo_horizontal.svg',
+    horizontalFull: '/stoop_logo_horizontal_trans.png',
     horizontalDark: '/stoop_logo_horizontal_dark.svg',
     square: '/stoop_logo_square.svg',
   },

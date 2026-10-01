@@ -5,7 +5,9 @@ import { useProperties } from '@findstoop/shared/hooks/useProperties'
 import { useUnits } from '@findstoop/shared/hooks/useUnits'
 import { useLeases } from '@findstoop/shared/hooks/useLeases'
 import { usePayments } from '@findstoop/shared/hooks/usePayments'
-import { formatUsd, formatUsdCents, formatLocalDate, formatMonthYear } from '@findstoop/shared/lib/format'
+import { formatUsd, formatUsdCents, formatLocalDate, formatMonthYear, formatServicePeriod } from '@findstoop/shared/lib/format'
+import { uploadDocument, deleteDocument } from '@findstoop/shared/api/documents'
+import type { Document } from '@findstoop/shared/types/document'
 import { rowStatus, ledgerOrder, pausedLeaseIds, chargePeriod } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import LatePaymentBanner from '../../components/documents/LatePaymentBanner'
@@ -17,6 +19,7 @@ import FormField, { inputClass, selectClass } from '../../components/shared/Form
 import { CreditCard, CalendarClock, RefreshCw, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import MultiSelect from '../../components/shared/MultiSelect'
+import ChargeServiceLine from '../../components/shared/ChargeServiceLine'
 import LeaseSelect, { isEndedLease, type LeaseOption } from '../../components/manager/LeaseSelect'
 import { useScope, inScope } from '../../lib/scope'
 
@@ -76,6 +79,8 @@ interface AddPaymentFormData {
 //
 // Utilities split evenly whatever the lease's rent split mode — they track
 // occupancy, not room size.
+const MAX_BILL_BYTES = 10 * 1024 * 1024
+
 function BillBackForm({ leaseOptions, leaseMap, onDone, onCancel }: {
   leaseOptions: LeaseOption[]
   leaseMap: Record<string, LeaseWithTenant | undefined>
@@ -90,7 +95,9 @@ function BillBackForm({ leaseOptions, leaseMap, onDone, onCancel }: {
   const [periodEnd, setPeriodEnd] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [recordExpense, setRecordExpense] = useState(true)
+  const [billFile, setBillFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  const { user } = useAuth()
 
   // Default the due date to the next rent due date so tenants settle
   // everything in one go and it lands in the same month's household total.
@@ -114,10 +121,22 @@ function BillBackForm({ leaseOptions, leaseMap, onDone, onCancel }: {
   const submit = async () => {
     if (!leaseId) { toast.error('Pick a lease'); return }
     if (!amount || Number(amount) <= 0) { toast.error('Enter the bill amount'); return }
-    if (!periodStart || !periodEnd) { toast.error('Enter the billing period'); return }
-    if (periodEnd < periodStart) { toast.error('The period ends before it starts'); return }
+    if (!periodStart || !periodEnd) { toast.error('Enter the service period the bill covers'); return }
+    if (periodEnd < periodStart) { toast.error('The service period ends before it starts'); return }
+    if (billFile && billFile.size > MAX_BILL_BYTES) { toast.error('The bill must be under 10 MB'); return }
+    if (billFile && !user?.id) { toast.error('Sign in again to attach the bill'); return }
     setBusy(true)
+    // The bill is stored as an ordinary document on the lease: tenants can
+    // already open those, and it shows in Documents as the landlord's record.
+    // Uploaded first because the charges link to it; removed again if the
+    // bill-back itself fails so nothing is left orphaned.
+    let doc: Document | null = null
     try {
+      if (billFile) {
+        const label = utilityType.charAt(0).toUpperCase() + utilityType.slice(1)
+        doc = await uploadDocument(billFile, leaseId, user!.id,
+          `${label} bill, ${formatServicePeriod(periodStart, periodEnd)}`, 'other')
+      }
       const { data, error } = await supabase.rpc('bill_back_utility', {
         p_lease_id: leaseId,
         p_utility_type: utilityType,
@@ -128,12 +147,14 @@ function BillBackForm({ leaseOptions, leaseMap, onDone, onCancel }: {
         p_provider_name: provider.trim() || null,
         p_note: null,
         p_record_expense: recordExpense,
+        p_document_id: doc?.id ?? null,
       })
       if (error) throw new Error(error.message)
       const row = Array.isArray(data) ? data[0] : data
       toast.success(`Billed back to ${row?.charges_created ?? 0} tenants${recordExpense ? ' — expense recorded too' : ''}`)
       onDone()
     } catch (err) {
+      if (doc) void deleteDocument(doc).catch(() => { /* best effort */ })
       toast.error(err instanceof Error ? err.message : 'Could not bill this back')
       setBusy(false)
     }
@@ -171,14 +192,28 @@ function BillBackForm({ leaseOptions, leaseMap, onDone, onCancel }: {
         <input className={inputClass} value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="Columbus Water" />
       </FormField>
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Period start" required>
-          <input type="date" className={inputClass} value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
-        </FormField>
-        <FormField label="Period end" required>
-          <input type="date" className={inputClass} value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
-        </FormField>
+      {/* Stacked on phones: two native date inputs side by side don't fit a
+          ~390px sheet, and iOS won't shrink them below their intrinsic
+          width, so they overlapped. */}
+      <div>
+        <p className="text-sm font-medium text-gray-700">Service period <span className="text-red-500">*</span></p>
+        <p className="text-xs text-mute mt-0.5 mb-2">The dates the bill covers. Tenants see this on the charge.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField label="From">
+            <input type="date" className={`${inputClass} min-w-0`} value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          </FormField>
+          <FormField label="To">
+            <input type="date" className={`${inputClass} min-w-0`} value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          </FormField>
+        </div>
       </div>
+
+      <FormField label="Attach the bill (optional)">
+        <input type="file" accept="application/pdf,image/*"
+          onChange={(e) => setBillFile(e.target.files?.[0] ?? null)}
+          className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-gray-100 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200" />
+        <p className="text-xs text-mute mt-1.5">A PDF or photo of the provider's bill. Tenants can open it from the charge.</p>
+      </FormField>
 
       <FormField label="Tenants pay by">
         <input type="date" className={inputClass} value={effectiveDue} onChange={(e) => setDueDate(e.target.value)} />
@@ -418,6 +453,7 @@ function PaymentRow({ payment, tenantName, propertyLabel, tenantAutopay, splitMi
       {payment.memo && (
         <p className="text-xs text-gray-500 mt-1 whitespace-pre-line italic">{payment.memo}</p>
       )}
+      <ChargeServiceLine payment={payment} className="text-xs text-gray-500 mt-0.5" />
       {splitMismatch && (
         <p className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" strokeWidth={2} />

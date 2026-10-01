@@ -12,6 +12,7 @@ import { MessageSquare, ChevronRight, Home as HomeIcon, CreditCard, Wrench, Chec
 import toast from 'react-hot-toast'
 import { withdrawalDate, isAch } from '@findstoop/shared/lib/paymentSchedule'
 import EmptyIllustration from '../../components/shared/EmptyIllustration'
+import ChargeServiceLine from '../../components/shared/ChargeServiceLine'
 import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
 import { useLandlordBranding } from '../../hooks/useLandlordBranding'
 import { renewalWindow, depositMirror, type DepositMirrorInfo } from '../../lib/tenantMilestones'
@@ -61,6 +62,7 @@ function PaymentRow({ payment, paymentMethodSetup, autopayOn }: { payment: Payme
         <p className="text-sm font-medium text-gray-800 capitalize">{payment.type.replace(/_/g, ' ')}</p>
         <p className="text-xs text-gray-500">{formatLocalDate(date)}</p>
         {payment.memo && <p className="text-xs text-gray-500 mt-0.5 italic truncate">{payment.memo}</p>}
+        <ChargeServiceLine payment={payment} />
       </div>
       <div className="text-right shrink-0">
         <p className="text-sm font-semibold text-gray-800">{formatUsdCents(Number(payment.amount))}</p>

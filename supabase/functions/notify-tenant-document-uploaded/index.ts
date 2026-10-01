@@ -21,6 +21,7 @@ import { Resend } from 'https://esm.sh/resend@4.0.1'
 import { sendPushToProfile } from '../_shared/webPush.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
 import { emailFrom, emailFooterHtml, emailHeaderHtml, brandAccent, companyDisplayName } from '../_shared/emailBranding.ts'
+import { managerCc } from '../_shared/managerCopy.ts'
 
 const APP_URL = Deno.env.get('APP_URL') ?? 'https://findstoop.com'
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') ?? '')
@@ -53,10 +54,11 @@ Deno.serve(async (req) => {
 
     const { data: callerRow } = await admin
       .from('profiles')
-      .select('full_name, role, company_name, company_logo_url, brand_color')
+      .select('full_name, role, email, company_name, company_logo_url, brand_color')
       .eq('id', user.id).maybeSingle()
     const caller = callerRow as {
-      full_name?: string | null; role?: string; company_name?: string | null
+      full_name?: string | null; role?: string; email?: string | null
+      company_name?: string | null
       company_logo_url?: string | null; brand_color?: string | null
     } | null
     if (!caller || (caller.role !== 'manager' && caller.role !== 'admin')) {
@@ -126,6 +128,12 @@ Deno.serve(async (req) => {
           await resend.emails.send({
             from: emailFrom(company, RESEND_FROM),
             to: p.email,
+            // Once per recipient, deliberately. On a four-person lease that is
+            // four copies for the landlord, but each is a distinct record of a
+            // distinct notice — and CC'ing only the first would mean replies
+            // from the other three never reach them.
+            cc: managerCc(caller.email, p.email),
+            replyTo: caller.email ?? undefined,
             subject: `New document for ${label}`,
             html: `
               <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">

@@ -12,10 +12,10 @@
 //   stoop_logo_horizontal_trans_dark.png  long-standing names, for JSON-LD and
 //   stoop_logo_square_trans.png      anything outside the app that links them
 //   favicon.ico, favicon.svg, favicon-16x16.png, favicon-32x32.png
-//   apple-touch-icon.png
-//   icons/icon-*.png                 PWA icons, from the kit's Android icon
-//   icons/icon-maskable-512x512.png  PWA maskable icon
-//   icons/icon.svg                   white app icon, vector
+//   apple-touch-icon.png             large white app icon
+//   icons/icon-*.png                 PWA icons, large white app icon
+//   icons/icon-maskable-512x512.png  PWA maskable icon (kit's, padded)
+//   icons/icon.svg                   large white app icon, vector
 //   og-image.png                     1200x630 social card
 //
 // Usage: node scripts/build-brand-assets.mjs
@@ -35,6 +35,10 @@ const svg = (p) => fs.readFileSync(kit(p), 'utf8');
 const PRIMARY = svg('svg/horizontal/stoop-horizontal-color.svg');
 const REVERSED = svg('svg/horizontal/stoop-horizontal-reversed.svg');
 const MARK = svg('svg/mark/stoop-mark-color.svg');
+// The kit's app icons put the mark at 64% of the tile's width, which reads
+// small beside other home-screen icons; the -large ones use 82%. Android's
+// maskable icon keeps the kit's padding, since launchers crop to a circle.
+const APP_ICON = svg('app-icon/stoop-app-icon-white-large.svg');
 
 const kb = (n) => `${(n / 1024).toFixed(0)}KB`;
 const write = (rel, buf) => {
@@ -83,15 +87,12 @@ copy('web/favicon.ico', 'favicon.ico');
 copy('web/favicon.svg', 'favicon.svg');
 copy('web/favicon-16.png', 'favicon-16x16.png');
 copy('web/favicon-32.png', 'favicon-32x32.png');
-copy('web/apple-touch-icon.png', 'apple-touch-icon.png');
+write('apple-touch-icon.png', render(APP_ICON, 180));
 copy('web/maskable-512.png', 'icons/icon-maskable-512x512.png');
-copy('web/android-chrome-192.png', 'icons/icon-192x192.png');
-copy('web/android-chrome-512.png', 'icons/icon-512x512.png');
-// Sizes the kit doesn't ship, scaled down from its 512.
-for (const s of [72, 96, 128, 144, 152, 384]) {
-  write(`icons/icon-${s}x${s}.png`, await sharp(kit('web/android-chrome-512.png')).resize(s, s).png().toBuffer());
+for (const s of [72, 96, 128, 144, 152, 192, 384, 512]) {
+  write(`icons/icon-${s}x${s}.png`, render(APP_ICON, s));
 }
-copy('app-icon/stoop-app-icon-white.svg', 'icons/icon.svg');
+copy('app-icon/stoop-app-icon-white-large.svg', 'icons/icon.svg');
 
 // ── Social card ─────────────────────────────────────────────────────────
 copy('social/stoop-og-image-light-1200x630.png', 'og-image.png');

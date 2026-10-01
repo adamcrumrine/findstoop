@@ -69,7 +69,13 @@ The web app's logos and icons are copied or rendered from this kit by
 - UI logos: `svg/horizontal/stoop-horizontal-color.svg`, `-reversed.svg` and
   `svg/mark/stoop-mark-color.svg`, written to `apps/web/public` with clear
   space added above and below the horizontal lockups.
-- Favicons, Apple touch icon, PWA icons and the maskable icon: from `web/`.
+- Apple touch icon and PWA icons: `app-icon/stoop-app-icon-white-large.svg`.
+  The `-large` app icons (white, teal, night) put the mark at 82% of the
+  tile's width, up from 64%, so it holds its own beside other home-screen
+  icons.
+- Favicons and the Android maskable icon: from `web/`. The maskable icon
+  keeps the kit's padding, since Android crops icons to circles and other
+  shapes.
 - Social card: `social/stoop-og-image-light-1200x630.png`.
 
 To change the logo, replace files here (keeping their names), re-run the

@@ -1,135 +1,98 @@
-// Regenerate the derived brand assets from the two master logos.
+// Copy and derive the web app's Stoop brand assets from the logo kit.
 //
-// Everything here is DERIVED. Edit the masters in apps/web/public and re-run;
-// never hand-edit the outputs, or the next run silently reverts you.
+// The kit in assets/logo-pack is the source of truth (see its README). Every
+// file this script writes into apps/web/public is DERIVED: replace files in
+// the kit and re-run; never hand-edit the outputs, or the next run silently
+// reverts you.
 //
-//   og-image.png       1200x630 social card
-//   favicon.ico        16/32/48 multi-resolution, for crawlers and older
-//                      clients that request /favicon.ico directly rather than
-//                      reading the <link> tags
-//   stoop-mark.svg     monochrome vector of the square mark
-//   stoop-mark-3d.svg  shaded vector of the square mark   [--trace only]
+//   stoop_logo_horizontal.svg        primary lockup with clear space (UI)
+//   stoop_logo_horizontal_dark.svg   reversed lockup with clear space
+//   stoop_logo_square.svg            the mark alone (spinner, modals)
+//   stoop_logo_horizontal_trans.png  raster copies of the above under their
+//   stoop_logo_horizontal_trans_dark.png  long-standing names, for JSON-LD and
+//   stoop_logo_square_trans.png      anything outside the app that links them
+//   favicon.ico, favicon.svg, favicon-16x16.png, favicon-32x32.png
+//   apple-touch-icon.png
+//   icons/icon-*.png                 PWA icons, from the kit's Android icon
+//   icons/icon-maskable-512x512.png  PWA maskable icon
+//   icons/icon.svg                   white app icon, vector
+//   og-image.png                     1200x630 social card
 //
-// On the vectors: the masters are raster. Quantise-then-trace (imagetracerjs)
-// turns the ribbon's shading into speckle and is not worth having. potrace's
-// posterize does hold it — it fits nested curves per luminance band — and since
-// it emits a stack of black paths at rising opacity, recolouring that stack to
-// one brand teal reproduces the shading as a tonal ramp. That is what
-// stoop-mark-3d.svg is: 9KB, clean edges, real depth.
-//
-// The posterize pass takes minutes, so it sits behind --trace and its outputs
-// are committed. Everything else runs in a second.
-//
-// Usage: node scripts/build-brand-assets.mjs [--trace]
+// Usage: node scripts/build-brand-assets.mjs
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import potrace from 'potrace';
-import pngToIcoModule from 'png-to-ico';
 import { Resvg } from '@resvg/resvg-js';
-import { optimize } from 'svgo';
 
-const pngToIco = pngToIcoModule.default ?? pngToIcoModule;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'apps/web/public');
+const KIT = path.join(ROOT, 'assets/logo-pack');
 
-const HORIZONTAL = path.join(PUBLIC, 'stoop_logo_horizontal_trans.png');
-const SQUARE = path.join(PUBLIC, 'stoop_logo_square_trans.png');
-
-const TAGLINE = 'Property management built for landlords with a handful of units';
-const NAVY = '#304250'; // sampled from the wordmark
-const TEAL = '#008275'; // brand 500
+const kit = (p) => path.join(KIT, p);
+const svg = (p) => fs.readFileSync(kit(p), 'utf8');
+const PRIMARY = svg('svg/horizontal/stoop-horizontal-color.svg');
+const REVERSED = svg('svg/horizontal/stoop-horizontal-reversed.svg');
+const MARK = svg('svg/mark/stoop-mark-color.svg');
 
 const kb = (n) => `${(n / 1024).toFixed(0)}KB`;
+const write = (rel, buf) => {
+  const file = path.join(PUBLIC, rel);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, buf);
+  console.log(`${rel.padEnd(40)} ${kb(buf.length)}`);
+};
+const copy = (from, to) => write(to, fs.readFileSync(kit(from)));
+
+const render = (src, width) => Buffer.from(new Resvg(src, { fitTo: { mode: 'width', value: width } }).render().asPng());
+
+// The kit's lockups are cropped tight to the ink. Every call site sizes the
+// logo by height (h-8, h-10, h-14…), tuned for artwork that carried its own
+// clear space, so the in-app copies get it back: 15% of the height above and
+// below.
+const withClearSpace = (src, ratio = 0.15) =>
+  src.replace(/viewBox="([^"]+)"/, (_, vb) => {
+    const [x, y, w, h] = vb.split(/\s+/).map(Number);
+    const pad = (h * ratio) / (1 - 2 * ratio);
+    const r = (n) => +n.toFixed(2);
+    return `viewBox="${r(x)} ${r(y - pad)} ${r(w)} ${r(h + 2 * pad)}"`;
+  });
+
+// The mark is wider than tall; centre it on a transparent square.
+async function squarePng(src, size, padding = 0.08) {
+  const inner = Math.round(size * (1 - 2 * padding));
+  const edge = Math.round(size * padding);
+  return sharp(render(src, inner))
+    .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .extend({ top: edge, bottom: size - inner - edge, left: edge, right: size - inner - edge, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+}
+
+// ── UI logos ────────────────────────────────────────────────────────────
+write('stoop_logo_horizontal.svg', Buffer.from(withClearSpace(PRIMARY)));
+write('stoop_logo_horizontal_dark.svg', Buffer.from(withClearSpace(REVERSED)));
+write('stoop_logo_square.svg', Buffer.from(MARK));
+write('stoop_logo_horizontal_trans.png', render(withClearSpace(PRIMARY), 1600));
+write('stoop_logo_horizontal_trans_dark.png', render(withClearSpace(REVERSED), 1600));
+write('stoop_logo_square_trans.png', await squarePng(MARK, 512));
+
+// ── Favicons, touch and PWA icons: the kit's own ────────────────────────
+copy('web/favicon.ico', 'favicon.ico');
+copy('web/favicon.svg', 'favicon.svg');
+copy('web/favicon-16.png', 'favicon-16x16.png');
+copy('web/favicon-32.png', 'favicon-32x32.png');
+copy('web/apple-touch-icon.png', 'apple-touch-icon.png');
+copy('web/maskable-512.png', 'icons/icon-maskable-512x512.png');
+copy('web/android-chrome-192.png', 'icons/icon-192x192.png');
+copy('web/android-chrome-512.png', 'icons/icon-512x512.png');
+// Sizes the kit doesn't ship, scaled down from its 512.
+for (const s of [72, 96, 128, 144, 152, 384]) {
+  write(`icons/icon-${s}x${s}.png`, await sharp(kit('web/android-chrome-512.png')).resize(s, s).png().toBuffer());
+}
+copy('app-icon/stoop-app-icon-white.svg', 'icons/icon.svg');
 
 // ── Social card ─────────────────────────────────────────────────────────
-// Composed as SVG and rasterised, so the text stays real text until the last
-// step. The logo is placed at 700px wide — DOWN from its native width, because
-// there is no vector master and anything larger would soften.
-async function buildOgImage() {
-  // The master carries its own transparent margin; trimming to the ink bounds
-  // is what makes the spacing below mean anything.
-  const trimmed = await sharp(HORIZONTAL).trim().png().toBuffer();
-  const { width, height } = await sharp(trimmed).metadata();
-
-  const W = 1200, H = 630, BAR = 12;
-  const logoW = 700;
-  const logoH = Math.round((logoW * height) / width);
-  const gap = 54;
-  const textH = 44;
-  // +16 optical: a text box is taller than its glyphs, so geometric centring
-  // leaves the composition visibly high in the frame.
-  const top = Math.round((H - BAR - (logoH + gap + textH)) / 2) + 16;
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
-  <rect width="${W}" height="${H}" fill="#ffffff"/>
-  <image x="${Math.round((W - logoW) / 2)}" y="${top}" width="${logoW}" height="${logoH}"
-         xlink:href="data:image/png;base64,${trimmed.toString('base64')}"/>
-  <text x="${W / 2}" y="${top + logoH + gap + 33}" text-anchor="middle"
-        font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="33" fill="${NAVY}">${TAGLINE}</text>
-  <rect x="0" y="${H - BAR}" width="${W}" height="${BAR}" fill="${TEAL}"/>
-</svg>`;
-
-  const png = new Resvg(svg, { font: { loadSystemFonts: true } }).render().asPng();
-  const out = path.join(PUBLIC, 'og-image.png');
-  fs.writeFileSync(out, png);
-  console.log(`og-image.png    ${W}x${H}  ${kb(png.length)}`);
-  return { W, H };
-}
-
-// ── favicon.ico ─────────────────────────────────────────────────────────
-async function buildFavicon() {
-  const sizes = [16, 32, 48];
-  const buffers = await Promise.all(
-    sizes.map((s) => sharp(SQUARE).resize(s, s, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer()),
-  );
-  const ico = await pngToIco(buffers);
-  const out = path.join(PUBLIC, 'favicon.ico');
-  fs.writeFileSync(out, ico);
-  console.log(`favicon.ico     ${sizes.join('/')}  ${kb(ico.length)}`);
-}
-
-// ── Monochrome vector ───────────────────────────────────────────────────
-async function buildMarkSvg() {
-  // Flatten onto white first: we want the SHAPE traced, not the shading.
-  const flat = await sharp(SQUARE).flatten({ background: '#ffffff' }).png().toBuffer();
-  const traced = await new Promise((res, rej) =>
-    potrace.trace(flat, { threshold: 245, color: TEAL, background: 'transparent', turdSize: 4 },
-      (err, svg) => (err ? rej(err) : res(svg))));
-  const svg = optimize(traced, { multipass: true }).data;
-  const out = path.join(PUBLIC, 'stoop-mark.svg');
-  fs.writeFileSync(out, svg);
-  console.log(`stoop-mark.svg  vector  ${kb(Buffer.byteLength(svg))}`);
-}
-
-// ── Shaded vector (slow; opt-in) ────────────────────────────────────────
-async function buildMark3dSvg() {
-  const flat = await sharp(SQUARE).flatten({ background: '#ffffff' }).png().toBuffer();
-  const traced = await new Promise((res, rej) =>
-    potrace.posterize(flat, { steps: 4, fillStrategy: 'dominant', turdSize: 6, background: 'transparent' },
-      (err, svg) => (err ? rej(err) : res(svg))));
-
-  // posterize returns black paths at rising fill-opacity. The raw ramp sums to
-  // well under 1, so the mark renders pastel beside the original; scale the
-  // bands to restore saturation, then paint the whole stack one teal.
-  const BOOST = 1.85;
-  let svg = traced.replace(/fill-opacity="([^"]+)"/g,
-    (_, v) => `fill-opacity="${Math.min(1, parseFloat(v) * BOOST).toFixed(3)}"`);
-  svg = svg.replace(/<path /g, '<path fill="#007366" ');
-  // White plate under the stack: without it the light bands let whatever sits
-  // behind the logo bleed through.
-  svg = svg.replace(/(<svg[^>]*>)/, '$1<rect width="462" height="462" fill="#fff"/>');
-
-  const out = path.join(PUBLIC, 'stoop-mark-3d.svg');
-  const optimised = optimize(svg, { multipass: true }).data;
-  fs.writeFileSync(out, optimised);
-  console.log(`stoop-mark-3d.svg  vector  ${kb(Buffer.byteLength(optimised))}`);
-}
-
-const { W, H } = await buildOgImage();
-await buildFavicon();
-await buildMarkSvg();
-if (process.argv.includes('--trace')) await buildMark3dSvg();
-console.log(`\nRemember: og:image:width/height in apps/web/index.html must say ${W}x${H}.`);
+copy('social/stoop-og-image-light-1200x630.png', 'og-image.png');
+console.log('\nRemember: og:image:width/height in apps/web/index.html must say 1200x630.');

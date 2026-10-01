@@ -47,6 +47,11 @@ export interface Brand {
     /** Square mark for spinners, modals, app icons. */
     square: string
   }
+  /**
+   * Raster social-share image for client-set og:image. Optional: falls back
+   * to `logo.horizontal`, which crawlers ignore when it is an SVG.
+   */
+  ogImage?: string
   favicon: {
     /** Only set for non-default brands — swapped in at boot. */
     svg?: string
@@ -101,12 +106,15 @@ const stoop: Brand = {
   supportEmail: 'support@findstoop.com',
   helloEmail: 'hello@findstoop.com',
   logo: {
-    horizontal: '/stoop_logo_horizontal_trans.png',
-    horizontalDark: '/stoop_logo_horizontal_trans_dark.png',
-    square: '/stoop_logo_square_trans.png',
+    // Vector logo pack (assets/logo-pack); public copies are written by
+    // scripts/build-brand-assets.mjs.
+    horizontal: '/stoop_logo_horizontal.svg',
+    horizontalDark: '/stoop_logo_horizontal_dark.svg',
+    square: '/stoop_logo_square.svg',
   },
+  ogImage: '/og-image.png',
   favicon: {},
-  themeColor: '#00A896',
+  themeColor: '#2B8783',
   colors: {
     50: '230 249 246',
     100: '179 235 227',

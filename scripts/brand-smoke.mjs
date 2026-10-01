@@ -22,7 +22,7 @@ const NO_BUILD = process.argv.includes('--no-build')
 
 // Expectations per brand. Keep in sync with apps/web/src/lib/brand.ts.
 const BRANDS = [
-  { id: 'stoop', name: 'Stoop', shortName: 'Stoop', logoNeedle: 'stoop_logo_horizontal_trans.png' },
+  { id: 'stoop', name: 'Stoop', shortName: 'Stoop', logoNeedle: '/stoop_logo_horizontal.svg' },
   { id: 'hawk', name: 'Hawk Investments', shortName: 'Hawk', logoNeedle: '/brands/hawk/logo-horizontal.svg' },
 ]
 

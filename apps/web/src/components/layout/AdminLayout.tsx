@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { BRAND } from '../../lib/brand'
+import IdleSignOut from '../shared/IdleSignOut'
 
 const navLinks = [
   { to: '/admin/dashboard',     label: 'Dashboard',     Icon: LayoutDashboard },
@@ -100,6 +101,7 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-dvh flex bg-slate-50">
+      <IdleSignOut timeoutMs={30 * 60_000} loginPath="/login" />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"

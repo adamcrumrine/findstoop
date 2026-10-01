@@ -7,6 +7,7 @@ import {
   Receipt, Settings as SettingsIcon, MoreHorizontal, Upload, Calculator, type LucideIcon,
 } from 'lucide-react'
 import Avatar from '../shared/Avatar'
+import IdleSignOut from '../shared/IdleSignOut'
 import FeedbackModal from '../manager/FeedbackModal'
 import NotificationsBell from '../manager/NotificationsBell'
 import ScopeBar from '../manager/ScopeBar'
@@ -124,6 +125,8 @@ export default function ManagerLayout() {
   return (
     <ScopeProvider>
     <div className="flex h-dvh bg-gray-50 overflow-hidden">
+      {/* Landlords hold tenant PII and banking status: 30 minutes idle. */}
+      <IdleSignOut timeoutMs={30 * 60_000} loginPath="/login" />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-brand-700 focus:text-white focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium"

@@ -15,6 +15,7 @@ import {
   depositReturnCandidates, depositDeadline, daysBetween, deadlineUrgency,
   DEPOSIT_LOOKAHEAD_DAYS,
 } from '../../lib/depositReturn'
+import { isRenewed } from '@findstoop/shared/lib/leaseSuccession'
 
 interface Props {
   leases: LeaseWithTenant[]
@@ -23,11 +24,17 @@ interface Props {
   onStart: (lease: LeaseWithTenant) => void
 }
 
+const tenantIdsOf = (l: LeaseWithTenant) => [l.tenant_id, ...(l.all_tenants ?? []).map((t) => t.id)]
+
 const usd = (n: number) => '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 })
 
 export default function DepositReturnAdvisor({ leases, unitMap, propertyMap, onStart }: Props) {
   const today = new Date().toISOString().slice(0, 10)
-  const candidates = useMemo(() => depositReturnCandidates(leases, today), [leases, today])
+  // A renewed tenancy's deposit rolls into the next lease — nothing is due back.
+  const candidates = useMemo(
+    () => depositReturnCandidates(leases.filter((l) => !isRenewed(l, leases, tenantIdsOf)), today),
+    [leases, today],
+  )
 
   // A disposition letter already drafted/sent for a lease replaces its nudge
   // with a link — the work is done (or in the builder's review queue).

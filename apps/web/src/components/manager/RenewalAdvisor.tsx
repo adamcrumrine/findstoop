@@ -21,6 +21,7 @@ import {
   RENEWAL_WINDOW_DAYS, suggestRenewalRent, matchRentReport, defaultRespondBy,
 } from '../../lib/renewalAdvisor'
 import { assessRenewalRisk, RISK_TIER_LABEL, type RiskTier } from '../../lib/renewalRisk'
+import { signedSuccessor } from '@findstoop/shared/lib/leaseSuccession'
 
 interface RenewalAdvisorProps {
   leases: LeaseWithTenant[]
@@ -46,12 +47,14 @@ export default function RenewalAdvisor({ leases, unitMap, propertyMap }: Renewal
   const [riskData, setRiskData] = useState<{ payments: Payment[]; maintenance: MaintenanceRequest[] } | null>(null)
 
   // Fixed-term active leases ending within the window (month-to-month tenancies
-  // have no term to renew, so they're excluded — the M2M card handles those).
+  // have no term to renew, so they're excluded — the M2M card handles those),
+  // minus any whose unit already has a signed next lease.
   const upcoming = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     return leases
       .filter((l) => {
         if (l.status !== 'active' || l.month_to_month) return false
+        if (signedSuccessor(l, leases)) return false
         const daysLeft = Math.ceil((new Date(l.end_date).getTime() - today.getTime()) / 86_400_000)
         return daysLeft > 0 && daysLeft <= RENEWAL_WINDOW_DAYS
       })

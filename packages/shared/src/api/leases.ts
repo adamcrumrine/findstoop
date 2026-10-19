@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Lease } from '../types/lease'
 import type { Profile } from '../types/profile'
+import { pickCurrentLease } from '../lib/leaseSuccession'
 
 // Returns the tenant's current lease.
 //   • Active leases always count.
@@ -32,14 +33,17 @@ export async function getTenantActiveLease(tenantId: string): Promise<Lease | nu
     ? `id.in.(${leaseIds.join(',')}),tenant_id.eq.${tenantId}`
     : null
 
-  const { data: active } = await (mine
+  // A signed renewal is also 'active', so a tenant can hold two at once —
+  // pick the one in effect today, not the newest row (leaseSuccession.ts).
+  const { data: activeRows } = await (mine
     ? supabase.from('leases').select(selection).or(mine)
     : supabase.from('leases').select(selection).eq('tenant_id', tenantId))
     .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (active) return active as unknown as Lease
+  const active = pickCurrentLease(
+    (activeRows ?? []) as unknown as Lease[],
+    new Date().toISOString().slice(0, 10),
+  )
+  if (active) return active
 
   // Signed but future-start — tenant should still see documents, lease,
   // and any pre-move-in comms / inspections their landlord has prepared.

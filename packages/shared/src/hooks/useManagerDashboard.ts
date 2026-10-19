@@ -3,6 +3,7 @@ import { useForegroundRefresh } from './useForegroundRefresh'
 import { getProperties } from '../api/properties'
 import { getUnits } from '../api/units'
 import { getLeases, getUpcomingLeaseRenewals } from '../api/leases'
+import { signedSuccessor } from '../lib/leaseSuccession'
 import { getRecentPayments, getPaymentsByLeaseIds } from '../api/payments'
 import { getMaintenanceRequests } from '../api/maintenance'
 import { supabase } from '../lib/supabase'
@@ -110,7 +111,9 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
         setLeases(allLeases)
         setOpenMaintenance(maintenance.filter((m) => m.status === 'open' || m.status === 'in_progress'))
         setAllMaintenance(maintenance)
-        setUpcomingRenewals(renewals)
+        // A lease whose unit already has a signed next lease (renewed or
+        // re-let) has nothing left to renew.
+        setUpcomingRenewals(renewals.filter((l) => !signedSuccessor(l, allLeases)))
 
         const leaseIds = allLeases.map((l) => l.id)
         // "Recent Payments" answers "what's happening with my properties right

@@ -216,6 +216,29 @@ function useDepositMirror(tenantId: string | undefined, hasActiveLease: boolean,
   return mirror
 }
 
+// Has the tenant already signed their next lease on this unit? Then the
+// "thinking about staying?" renewal card is moot. RLS limits the query to
+// leases the tenant is on, so a re-let to someone else never matches.
+function useHasSignedRenewal(lease: { id: string; unit_id: string; start_date: string } | null): boolean {
+  const [renewed, setRenewed] = useState(false)
+  const leaseId = lease?.id
+  useEffect(() => {
+    if (!lease) { setRenewed(false); return }
+    let cancelled = false
+    supabase
+      .from('leases')
+      .select('id')
+      .eq('unit_id', lease.unit_id)
+      .eq('status', 'active')
+      .gt('start_date', lease.start_date)
+      .limit(1)
+      .then(({ data }) => { if (!cancelled) setRenewed((data?.length ?? 0) > 0) })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaseId])
+  return renewed
+}
+
 // Retry remounts the whole subtree below, re-running useTenantDashboard's
 // initial fetch — it doesn't expose a reload(), so a full remount is the
 // simplest reliable "try again."
@@ -359,7 +382,8 @@ function TenantDashboardInner({ onRetry }: { onRetry: () => void }) {
   // Lease milestones — renewal window on the active lease; deposit-return
   // mirror on the most recent ended lease (only when nothing is active).
   const todayIso = new Date().toISOString().slice(0, 10)
-  const renewal = !loading && lease ? renewalWindow(lease, todayIso) : null
+  const renewed = useHasSignedRenewal(lease)
+  const renewal = !loading && lease && !renewed ? renewalWindow(lease, todayIso) : null
   const deposit = useDepositMirror(profile?.id, !!lease, loading)
 
   // "All set" — nothing on the home screen needs the tenant's attention.

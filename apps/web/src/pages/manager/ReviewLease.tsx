@@ -282,6 +282,31 @@ export default function ReviewLease() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirty, fields, loading, saving, showProratePrompt])
 
+  // Is this lease a renewal? The earlier lease on the same unit sharing a
+  // tenant — drives the "Review renewal" header so a renewal never reads as
+  // a brand-new lease.
+  const [renews, setRenews] = useState<{ end_date: string } | null>(null)
+  const tenantKey = allTenants.map((t) => t.id).sort().join(',')
+  useEffect(() => {
+    if (!lease?.unit_id || !tenantKey) { setRenews(null); return }
+    let cancelled = false
+    supabase
+      .from('leases')
+      .select('id, end_date, status, lease_tenants(tenant_id)')
+      .eq('unit_id', lease.unit_id)
+      .lt('start_date', lease.start_date)
+      .neq('status', 'pending')
+      .order('start_date', { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return
+        const mine = new Set(tenantKey.split(','))
+        const prior = ((data ?? []) as Array<{ end_date: string; lease_tenants: Array<{ tenant_id: string }> | null }>)
+          .find((l) => (l.lease_tenants ?? []).some((t) => mine.has(t.tenant_id)))
+        setRenews(prior ? { end_date: prior.end_date } : null)
+      })
+    return () => { cancelled = true }
+  }, [lease?.id, lease?.unit_id, lease?.start_date, tenantKey])
+
   const stateCode = lease?.unit?.property?.state ?? ''
   const stateNotes = getStateNotes(stateCode.toLowerCase())
   const fullySigned = !!lease?.signed_at
@@ -779,11 +804,18 @@ export default function ReviewLease() {
 
       {/* Header */}
       <header className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
-        <p className="text-xs uppercase tracking-wider text-mute font-semibold">Review lease</p>
+        <p className="text-xs uppercase tracking-wider text-mute font-semibold">
+          {renews ? 'Review renewal' : 'Review lease'}
+        </p>
         <h1 className="text-2xl font-semibold text-ink mt-1">
           {tenant?.full_name ?? tenant?.email ?? 'Tenant'} · {property?.name ?? '—'} — Unit {lease.unit?.unit_number ?? '—'}
         </h1>
         <div className="mt-2 text-xs text-mute inline-flex items-center gap-3 flex-wrap">
+          {renews && (
+            <span className="text-brand-700">
+              Renews the lease ending {new Date(renews.end_date + 'T00:00:00').toLocaleDateString()}
+            </span>
+          )}
           <span className={`px-2 py-0.5 rounded-full font-medium capitalize ${
             lease.status === 'active' ? 'bg-green-100 text-green-700'
               : lease.status === 'pending' ? 'bg-yellow-100 text-yellow-700'

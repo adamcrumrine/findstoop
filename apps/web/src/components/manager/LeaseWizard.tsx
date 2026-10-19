@@ -190,7 +190,12 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
 
       // Create the lease row. tenant_id is the primary tenant (backward
       // compat); additional co-tenants are inserted into lease_tenants.
-      const { data: leaseRow, error: insErr } = await supabase.from('leases').insert({
+      // Id minted client-side and no read-back: RETURNING is checked against
+      // the SELECT policy, whose lease-id lookup can't see the row inside its
+      // own INSERT — so insert().select() is rejected for managers.
+      const leaseRow = { id: crypto.randomUUID() }
+      const { error: insErr } = await supabase.from('leases').insert({
+        id: leaseRow.id,
         unit_id: form.unit_id,
         tenant_id: primary.id,
         start_date: form.start_date,
@@ -203,8 +208,8 @@ export default function LeaseWizard({ open, onClose, onCreated }: Props) {
         signed_at: null,
         document_url: documentUrl,
         payment_due_day: Math.min(28, Math.max(1, Number(form.payment_due_day) || 1)),
-      }).select('id').single()
-      if (insErr || !leaseRow) throw insErr ?? new Error('Could not create lease')
+      })
+      if (insErr) throw insErr
 
       // Insert lease_tenants rows (primary already backfilled by the
       // legacy tenant_id; explicitly upsert all rows so order + flag are

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { syncSubscriptionQuantity } from '@findstoop/shared/api/billing'
+import { PER_UNIT_MONTHLY } from '@findstoop/shared/lib/pricing'
 import { supabase } from '../../lib/supabase'
 import SignaturePad, { type SignaturePadHandle } from '../../components/shared/SignaturePad'
 import { FileSignature, ShieldCheck, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
@@ -11,6 +12,7 @@ import ModalShell from '../../components/shared/ModalShell'
 
 interface LeaseDetail {
   id: string
+  unit_id: string
   rent_amount: number
   start_date: string
   end_date: string
@@ -66,6 +68,9 @@ export default function SignLease() {
   // have an active subscription, prompt them to set up billing — the lease
   // is now active and most platform features are paywalled.
   const [showBillingPrompt, setShowBillingPrompt] = useState(false)
+  // A renewal's unit is already billed through the lease it replaces —
+  // billing counts units, not leases — so signing it changes nothing.
+  const [unitAlreadyBilled, setUnitAlreadyBilled] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -75,7 +80,7 @@ export default function SignLease() {
       const [leaseRes, sigsRes] = await Promise.all([
         supabase
           .from('leases')
-          .select('id, rent_amount, start_date, end_date, security_deposit, status, signed_at, units(unit_number, properties(name, address, city, state, zip))')
+          .select('id, unit_id, rent_amount, start_date, end_date, security_deposit, status, signed_at, units(unit_number, properties(name, address, city, state, zip))')
           .eq('id', id)
           .single(),
         supabase
@@ -96,6 +101,20 @@ export default function SignLease() {
     })()
     return () => { cancelled = true }
   }, [id])
+
+  useEffect(() => {
+    if (!lease?.unit_id || lease.status === 'active') return
+    let cancelled = false
+    supabase
+      .from('leases')
+      .select('id')
+      .eq('unit_id', lease.unit_id)
+      .eq('status', 'active')
+      .neq('id', lease.id)
+      .limit(1)
+      .then(({ data }) => { if (!cancelled) setUnitAlreadyBilled((data?.length ?? 0) > 0) })
+    return () => { cancelled = true }
+  }, [lease?.id, lease?.unit_id, lease?.status])
 
   // When the signer is the manager, pre-load their active-unit count and
   // subscription status so the pre-sign confirmation modal can show the
@@ -218,7 +237,7 @@ export default function SignLease() {
     // updated monthly bill (this unit's $5 added to the existing total) as
     // a confirmation step. Skip when no subscription yet (the paywall flow
     // upstream catches that case and routes to billing setup first).
-    if ((profile.role === 'manager' || profile.role === 'admin') && subscriptionActive) {
+    if ((profile.role === 'manager' || profile.role === 'admin') && subscriptionActive && !unitAlreadyBilled) {
       setConfirmingBilling(true)
       return
     }
@@ -406,7 +425,7 @@ export default function SignLease() {
 
       {/* Per-incremental-unit billing confirmation (manager only). */}
       {confirmingBilling && (() => {
-        const PER_UNIT = 9
+        const PER_UNIT = PER_UNIT_MONTHLY
         const currentUnits = activeUnitCount ?? 0
         const nextUnits = currentUnits + 1
         const newMonthly = nextUnits * PER_UNIT

@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarClock, FileText, TrendingUp } from 'lucide-react'
+import { CalendarClock, FileText, TrendingUp, RefreshCw } from 'lucide-react'
 import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { Unit } from '@findstoop/shared/types/unit'
 import type { Property } from '@findstoop/shared/types/property'
@@ -21,12 +21,14 @@ import {
   RENEWAL_WINDOW_DAYS, suggestRenewalRent, matchRentReport, defaultRespondBy,
 } from '../../lib/renewalAdvisor'
 import { assessRenewalRisk, RISK_TIER_LABEL, type RiskTier } from '../../lib/renewalRisk'
-import { signedSuccessor } from '@findstoop/shared/lib/leaseSuccession'
+import { signedSuccessor, draftRenewal } from '@findstoop/shared/lib/leaseSuccession'
+import { leaseTenantIds } from '../../lib/leaseRenewal'
 
 interface RenewalAdvisorProps {
   leases: LeaseWithTenant[]
   unitMap: Record<string, Unit>
   propertyMap: Record<string, Property>
+  onRenew: (lease: LeaseWithTenant) => void
 }
 
 const money = (n: number) => '$' + Math.round(Number(n)).toLocaleString()
@@ -39,7 +41,7 @@ const riskPill: Record<RiskTier, string> = {
   high:   'bg-red-100 text-red-700',
 }
 
-export default function RenewalAdvisor({ leases, unitMap, propertyMap }: RenewalAdvisorProps) {
+export default function RenewalAdvisor({ leases, unitMap, propertyMap, onRenew }: RenewalAdvisorProps) {
   const [reports, setReports] = useState<SavedRentReport[]>([])
   // Flight-risk evidence — batched across every upcoming lease (two queries
   // total, no per-row fetches). Null until loaded so rows don't flash a
@@ -124,6 +126,8 @@ export default function RenewalAdvisor({ leases, unitMap, propertyMap }: Renewal
               reports={reports}
               allLeases={leases}
               riskData={riskData}
+              draft={draftRenewal(lease, leases, leaseTenantIds)}
+              onRenew={onRenew}
             />
           )
         })}
@@ -132,13 +136,15 @@ export default function RenewalAdvisor({ leases, unitMap, propertyMap }: Renewal
   )
 }
 
-function RenewalRow({ lease, unit, property, reports, allLeases, riskData }: {
+function RenewalRow({ lease, unit, property, reports, allLeases, riskData, draft, onRenew }: {
   lease: LeaseWithTenant
   unit?: Unit
   property?: Property
   reports: SavedRentReport[]
   allLeases: LeaseWithTenant[]
   riskData: { payments: Payment[]; maintenance: MaintenanceRequest[] } | null
+  draft: LeaseWithTenant | null
+  onRenew: (lease: LeaseWithTenant) => void
 }) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const daysLeft = Math.ceil((new Date(lease.end_date).getTime() - today.getTime()) / 86_400_000)
@@ -223,10 +229,29 @@ function RenewalRow({ lease, unit, property, reports, allLeases, riskData }: {
         </div>
       )}
 
-      <div className="mt-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {draft ? (
+          <Link
+            to={`/manager/review-lease/${draft.id}`}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+            {draft.sent_for_signature_at ? 'Renewal sent — view' : 'Renewal drafted — review & send'}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onRenew(lease)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 px-2.5 py-1.5 rounded-lg transition-colors"
+            title="Renew this lease for the same tenants"
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+            Renew
+          </button>
+        )}
         <Link
           to={`/manager/documents/new?${letterParams.toString()}`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 px-2.5 py-1.5 rounded-lg transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 border border-brand-300 hover:bg-brand-50 px-2.5 py-1.5 rounded-lg transition-colors"
           title={`Draft a renewal offer letter at ${money(suggestion.suggested)}/mo`}
         >
           <FileText className="w-3.5 h-3.5" strokeWidth={1.75} />

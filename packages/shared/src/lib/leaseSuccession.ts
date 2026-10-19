@@ -34,10 +34,38 @@ export function isRenewed<T extends SuccessionLease>(
   leases: T[],
   tenantIdsOf: (l: T) => string[],
 ): boolean {
-  const mine = new Set(tenantIdsOf(lease))
   return leases.some((l) => l.id !== lease.id && l.unit_id === lease.unit_id
     && l.status === 'active' && l.start_date > lease.start_date
-    && tenantIdsOf(l).some((id) => mine.has(id)))
+    && sharesTenant(lease, l, tenantIdsOf))
+}
+
+const sharesTenant = <T>(a: T, b: T, tenantIdsOf: (l: T) => string[]): boolean => {
+  const mine = new Set(tenantIdsOf(a))
+  return tenantIdsOf(b).some((id) => mine.has(id))
+}
+
+/** An unsigned (pending) renewal drafted for this lease, if any. */
+export function draftRenewal<T extends SuccessionLease>(
+  lease: T,
+  leases: T[],
+  tenantIdsOf: (l: T) => string[],
+): T | null {
+  return leases.find((l) => l.id !== lease.id && l.unit_id === lease.unit_id
+    && l.status === 'pending' && l.start_date > lease.start_date
+    && sharesTenant(lease, l, tenantIdsOf)) ?? null
+}
+
+/** For a renewal (pending or signed): the earlier lease it renews, if any. */
+export function renewedLease<T extends SuccessionLease>(
+  lease: T,
+  leases: T[],
+  tenantIdsOf: (l: T) => string[],
+): T | null {
+  return leases
+    .filter((l) => l.id !== lease.id && l.unit_id === lease.unit_id
+      && l.start_date < lease.start_date && l.status !== 'pending'
+      && sharesTenant(lease, l, tenantIdsOf))
+    .sort((a, b) => (a.start_date < b.start_date ? 1 : -1))[0] ?? null
 }
 
 /**

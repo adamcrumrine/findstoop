@@ -10,11 +10,14 @@ import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
 import { leaseTermPhase } from '../../lib/leaseTermState'
 import { parseLocalDay } from '@findstoop/shared/lib/paymentRails'
-import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil } from 'lucide-react'
+import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil, RefreshCw } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import { Link, useSearchParams } from 'react-router-dom'
 import LeaseWizard from '../../components/manager/LeaseWizard'
 import RenewalAdvisor from '../../components/manager/RenewalAdvisor'
+import RenewLeaseModal from '../../components/manager/RenewLeaseModal'
+import { signedSuccessor, draftRenewal, renewedLease } from '@findstoop/shared/lib/leaseSuccession'
+import { leaseTenantIds } from '../../lib/leaseRenewal'
 import DepositReturnAdvisor from '../../components/manager/DepositReturnAdvisor'
 import DepositReturnWizard from '../../components/manager/DepositReturnWizard'
 import { useScope, inScope } from '../../lib/scope'
@@ -57,9 +60,40 @@ interface LeaseCardProps {
   onUpdateStatus: (id: string, status: LeaseStatus) => void
   onSendForSignature: (lease: LeaseWithTenant) => Promise<void>
   sendingId: string | null
+  renewal: RenewalState
+  onRenew: (lease: LeaseWithTenant) => void
 }
 
-function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId }: LeaseCardProps) {
+// Where a lease stands in the renewal cycle, for the card's renewal slot.
+type RenewalState =
+  | { kind: 'none' }
+  | { kind: 'can_renew' }
+  | { kind: 'drafted'; renewal: LeaseWithTenant }
+  | { kind: 'renewed'; renewal: LeaseWithTenant }
+  | { kind: 'is_renewal' }
+
+function renewalState(lease: LeaseWithTenant, leases: LeaseWithTenant[]): RenewalState {
+  if (lease.status === 'pending') {
+    return renewedLease(lease, leases, leaseTenantIds) ? { kind: 'is_renewal' } : { kind: 'none' }
+  }
+  if (lease.status !== 'active') return { kind: 'none' }
+  const signed = signedSuccessor(lease, leases)
+  if (signed) {
+    // A signed successor with the same tenants is this lease's renewal; one
+    // with a new household is a re-let — either way there's nothing to renew.
+    return renewedLease(signed, leases, leaseTenantIds)?.id === lease.id
+      ? { kind: 'renewed', renewal: signed }
+      : { kind: 'none' }
+  }
+  // A signed renewal waiting for its term to start isn't up for renewal itself.
+  const todayIso = new Date().toISOString().slice(0, 10)
+  if (lease.start_date > todayIso && renewedLease(lease, leases, leaseTenantIds)) return { kind: 'is_renewal' }
+  const draft = draftRenewal(lease, leases, leaseTenantIds)
+  if (draft) return { kind: 'drafted', renewal: draft }
+  return { kind: 'can_renew' }
+}
+
+function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId, renewal, onRenew }: LeaseCardProps) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   // parseLocalDay, not new Date(str) — DATE columns parse as UTC midnight,
   // which is the previous evening in the US, so every countdown was a day out.
@@ -194,6 +228,11 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
                 M2M
               </span>
             )}
+            {renewal.kind === 'is_renewal' && (
+              <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded text-brand-700 bg-brand-50">
+                Renewal
+              </span>
+            )}
           </div>
         </div>
         <Link
@@ -272,6 +311,36 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
           )}
         </div>
         <div className="flex items-center gap-2">
+          {renewal.kind === 'can_renew' && (
+            <button
+              type="button"
+              onClick={() => onRenew(lease)}
+              className="text-xs font-medium text-brand-700 border border-brand-300 hover:bg-brand-50 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+              title="Renew this lease for the same tenants"
+            >
+              <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Renew
+            </button>
+          )}
+          {renewal.kind === 'drafted' && (
+            <Link
+              to={`/manager/review-lease/${renewal.renewal.id}`}
+              className="text-xs font-medium text-brand-700 hover:underline inline-flex items-center gap-1"
+              title="Review the drafted renewal and send it for signature"
+            >
+              <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+              {renewal.renewal.sent_for_signature_at ? 'Renewal sent' : 'Renewal drafted'} →
+            </Link>
+          )}
+          {renewal.kind === 'renewed' && (
+            <Link
+              to={`/manager/review-lease/${renewal.renewal.id}`}
+              className="text-xs font-medium text-green-700 hover:underline inline-flex items-center gap-1"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Renewed through {parseLocalDay(renewal.renewal.end_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: '2-digit' })}
+            </Link>
+          )}
           {!lease.signed_at && lease.status === 'pending' && (
             <button
               type="button"
@@ -347,6 +416,8 @@ export default function ManagerLeases() {
   const [wizardOpen, setWizardOpen] = useState(false)
   // Lease currently open in the Deposit Return wizard (null = closed).
   const [depositLease, setDepositLease] = useState<LeaseWithTenant | null>(null)
+  // Lease open in the Renew modal (null = closed).
+  const [renewLease, setRenewLease] = useState<LeaseWithTenant | null>(null)
   // Deep link: /manager/leases?deposit=<leaseId> opens the Deposit Return
   // wizard directly — the turnover checklist links here. Param is cleared
   // once consumed so closing the wizard doesn't re-open it.
@@ -451,7 +522,7 @@ export default function ManagerLeases() {
       {/* Renewal advisor — active leases ending soon, with a suggested
           renewal rent and a one-click prefilled offer letter. */}
       {!loading && (
-        <RenewalAdvisor leases={leases} unitMap={unitMap} propertyMap={propertyMap} />
+        <RenewalAdvisor leases={leases} unitMap={unitMap} propertyMap={propertyMap} onRenew={setRenewLease} />
       )}
 
       {/* Deposit return advisor — tenancies that just ended (or end soon)
@@ -539,6 +610,8 @@ export default function ManagerLeases() {
                 onUpdateStatus={handleStatusUpdate}
                 onSendForSignature={handleSendForSignature}
                 sendingId={sendingId}
+                renewal={renewalState(lease, leases)}
+                onRenew={setRenewLease}
               />
             )
           })}
@@ -546,6 +619,14 @@ export default function ManagerLeases() {
       )}
 
       <LeaseWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={() => reload()} />
+      {renewLease && (
+        <RenewLeaseModal
+          lease={renewLease}
+          propertyName={propertyMap[unitMap[renewLease.unit_id]?.property_id]?.name ?? '—'}
+          unitNumber={unitMap[renewLease.unit_id]?.unit_number ?? '—'}
+          onClose={() => setRenewLease(null)}
+        />
+      )}
 
       {depositLease && (
         <DepositReturnWizard

@@ -28,6 +28,9 @@ export function addDaysIso(iso: string, days: number): string {
   return toIso(dt)
 }
 
+/** First day a lease can be renewed: day 2 of its term. */
+export const renewableOn = (startIso: string): string => addDaysIso(startIso, 1)
+
 /** start + N months − 1 day: 2027-07-24 + 12 → 2028-07-23. */
 export function termEnd(startIso: string, months: number): string {
   const dt = parseIso(startIso)

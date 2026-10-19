@@ -17,7 +17,7 @@ import LeaseWizard from '../../components/manager/LeaseWizard'
 import RenewalAdvisor from '../../components/manager/RenewalAdvisor'
 import RenewLeaseModal from '../../components/manager/RenewLeaseModal'
 import { signedSuccessor, draftRenewal, renewedLease } from '@findstoop/shared/lib/leaseSuccession'
-import { leaseTenantIds } from '../../lib/leaseRenewal'
+import { leaseTenantIds, renewableOn } from '../../lib/leaseRenewal'
 import DepositReturnAdvisor from '../../components/manager/DepositReturnAdvisor'
 import DepositReturnWizard from '../../components/manager/DepositReturnWizard'
 import { useScope, inScope } from '../../lib/scope'
@@ -90,7 +90,10 @@ function renewalState(lease: LeaseWithTenant, leases: LeaseWithTenant[]): Renewa
   if (lease.start_date > todayIso && renewedLease(lease, leases, leaseTenantIds)) return { kind: 'is_renewal' }
   const draft = draftRenewal(lease, leases, leaseTenantIds)
   if (draft) return { kind: 'drafted', renewal: draft }
-  return { kind: 'can_renew' }
+  // Renewable from day 2 of the term — a 12-month lease can be renewed with
+  // up to 364 days left. (The Renewal advisor's 120-day window is only the
+  // "time to think about it" nudge, not a gate.)
+  return renewableOn(lease.start_date) <= todayIso ? { kind: 'can_renew' } : { kind: 'none' }
 }
 
 function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId, renewal, onRenew }: LeaseCardProps) {

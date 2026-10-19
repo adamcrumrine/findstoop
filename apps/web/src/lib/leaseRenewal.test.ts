@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { renewalDates, termEnd, shareSummary, scaleShares, buildRenewalLease } from './leaseRenewal'
+import { renewalDates, renewableOn, termEnd, shareSummary, scaleShares, buildRenewalLease } from './leaseRenewal'
 import { draftRenewal, renewedLease } from '@findstoop/shared/lib/leaseSuccession'
 
 describe('renewalDates', () => {
@@ -10,6 +10,11 @@ describe('renewalDates', () => {
 
   it('never starts in the past — a lapsed lease renews from the 1st of next month', () => {
     expect(renewalDates('2026-05-31', '2026-10-19')).toEqual({ start: '2026-11-01', end: '2027-10-31' })
+  })
+
+  it('a lease is renewable from day 2 of its term', () => {
+    expect(renewableOn('2026-08-01')).toBe('2026-08-02')
+    expect(renewableOn('2026-12-31')).toBe('2027-01-01')
   })
 
   it('termEnd handles month-end and leap-year starts', () => {

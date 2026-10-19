@@ -2,10 +2,12 @@
 //
 // Triggered by the manager from the lease card. Verifies caller owns the
 // property, then sends a branded "your lease is ready to review and sign"
-// email to the tenant with a deep link into the signing page on their portal.
+// email to every tenant who has to sign, with a deep link into the signing
+// page on their portal. Who has to sign mirrors lease_required_signer_ids:
+// primary lease_tenants rows, else every row, else the legacy tenant_id.
 //
 // Idempotent: re-sending updates a timestamp on the lease (sent_for_signature_at)
-// and just sends another email — useful as a "nudge" button.
+// and emails whoever hasn't signed yet — useful as a "nudge" button.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4.0.1'
@@ -86,12 +88,31 @@ Deno.serve(async (req) => {
       return json({ error: 'You do not manage this property' }, { status: 403 })
     }
 
-    const { data: tenant } = await admin
-      .from('profiles')
-      .select('id, full_name, email')
-      .eq('id', lease.tenant_id)
-      .single()
-    if (!tenant?.email) return json({ error: 'Tenant has no email on file' }, { status: 400 })
+    const { data: ltRows } = await admin
+      .from('lease_tenants')
+      .select('tenant_id, is_primary, sort_order')
+      .eq('lease_id', leaseId)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+    const rows = (ltRows ?? []) as Array<{ tenant_id: string; is_primary: boolean }>
+    const primaries = rows.filter((r) => r.is_primary)
+    const signerIds = (primaries.length > 0 ? primaries : rows).map((r) => r.tenant_id)
+    if (signerIds.length === 0 && lease.tenant_id) signerIds.push(lease.tenant_id)
+    if (signerIds.length === 0) return json({ error: 'This lease has no tenants' }, { status: 400 })
+
+    const [{ data: profiles }, { data: sigs }] = await Promise.all([
+      admin.from('profiles').select('id, full_name, email').in('id', signerIds),
+      admin.from('lease_signatures').select('signer_id').eq('lease_id', leaseId).eq('signer_role', 'tenant'),
+    ])
+    const signed = new Set(((sigs ?? []) as Array<{ signer_id: string }>).map((s) => s.signer_id))
+    type Signer = { id: string; full_name: string | null; email: string | null }
+    const byId = new Map(((profiles ?? []) as Signer[]).map((p) => [p.id, p]))
+    const unsigned = signerIds.filter((id) => !signed.has(id))
+      .map((id) => byId.get(id))
+      .filter((p): p is Signer => !!p)
+    if (unsigned.length === 0) return json({ error: 'Every tenant has already signed this lease' }, { status: 400 })
+    const recipients = unsigned.filter((p): p is Signer & { email: string } => !!p.email)
+    const noEmail = unsigned.filter((p) => !p.email).map((p) => p.full_name ?? 'A tenant')
+    if (recipients.length === 0) return json({ error: 'No tenant on this lease has an email on file' }, { status: 400 })
 
     // Stamp the lease so we know it was sent for signature.
     await admin
@@ -106,8 +127,6 @@ Deno.serve(async (req) => {
     const accent        = brandAccent(company ? caller.brand_color : null)
     const landlordName  = caller.full_name ?? 'Your landlord'
     const companyName   = company ?? landlordName
-    const tenantName    = tenant.full_name ?? 'there'
-    const tenantFirst   = tenantName.split(' ')[0] || 'there'
     const signLink      = `${APP_URL}/tenant/sign-lease/${leaseId}`
     const propertyLabel = `${property.name} — Unit ${unit.unit_number}`
     const propertyAddr  = `${property.address}, ${property.city}, ${property.state} ${property.zip}`
@@ -115,42 +134,53 @@ Deno.serve(async (req) => {
     const subject = company
       ? `Your lease from ${company} is ready to sign`
       : `Your lease is ready to review and sign`
-    const html = `
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
-        ${emailHeaderHtml(company, caller.company_logo_url, caller.brand_color)}
-        <h1 style="font-size:22px;font-weight:700;color:#3A3A3C;margin:0 0 16px 0">Your lease is ready to sign</h1>
-        <p>Hi ${escapeHtml(tenantFirst)},</p>
-        <p><strong>${escapeHtml(companyName)}</strong> has sent you a lease to review and sign for:</p>
-        <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
-          <p style="margin:0;font-weight:600;color:#00736B">${escapeHtml(propertyLabel)}</p>
-          <p style="margin:4px 0 0 0;color:#3A3A3C;font-size:13px">${escapeHtml(propertyAddr)}</p>
-          <p style="margin:8px 0 0 0;color:#3A3A3C;font-size:13px">
-            ${new Date(lease.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            – ${new Date(lease.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            · $${Number(lease.rent_amount).toLocaleString()}/mo
+    // One email per tenant: each is addressed to them by name, and a
+    // roommate shouldn't see the others' addresses.
+    const sent: string[] = []
+    const failed: string[] = []
+    for (const tenant of recipients) {
+      const tenantName  = tenant.full_name ?? tenant.email
+      const tenantFirst = (tenant.full_name ?? '').split(' ')[0] || 'there'
+      const html = `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
+          ${emailHeaderHtml(company, caller.company_logo_url, caller.brand_color)}
+          <h1 style="font-size:22px;font-weight:700;color:#3A3A3C;margin:0 0 16px 0">Your lease is ready to sign</h1>
+          <p>Hi ${escapeHtml(tenantFirst)},</p>
+          <p><strong>${escapeHtml(companyName)}</strong> has sent you a lease to review and sign for:</p>
+          <div style="background:#F4FBFA;border:1px solid #B6E5DE;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="margin:0;font-weight:600;color:#00736B">${escapeHtml(propertyLabel)}</p>
+            <p style="margin:4px 0 0 0;color:#3A3A3C;font-size:13px">${escapeHtml(propertyAddr)}</p>
+            <p style="margin:8px 0 0 0;color:#3A3A3C;font-size:13px">
+              ${new Date(lease.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              – ${new Date(lease.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              · $${Number(lease.rent_amount).toLocaleString()}/mo
+            </p>
+          </div>
+          <p>Read the lease carefully, then sign electronically. You'll get a copy emailed to you once everyone has signed.</p>
+          <p style="text-align:center;margin:28px 0">
+            <a href="${signLink}" style="display:inline-block;background:${accent};color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">Review & sign lease</a>
           </p>
+          <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link:<br><a href="${signLink}" style="color:#00A896;word-break:break-all">${signLink}</a></p>
+          <p style="color:#8E8E93;font-size:12px;margin-top:24px">Questions about the lease? Reply directly to this email — it goes to ${escapeHtml(companyName)}.</p>
+          ${company ? emailFooterHtml(company) : ''}
         </div>
-        <p>Read the lease carefully, then sign electronically. You'll get a copy emailed to you once both parties have signed.</p>
-        <p style="text-align:center;margin:28px 0">
-          <a href="${signLink}" style="display:inline-block;background:${accent};color:white;padding:12px 32px;text-decoration:none;border-radius:8px;font-weight:600">Review & sign lease</a>
-        </p>
-        <p style="color:#8E8E93;font-size:12px;line-height:1.5">If the button doesn't work, copy and paste this link:<br><a href="${signLink}" style="color:#00A896;word-break:break-all">${signLink}</a></p>
-        <p style="color:#8E8E93;font-size:12px;margin-top:24px">Questions about the lease? Reply directly to this email — it goes to ${escapeHtml(companyName)}.</p>
-        ${company ? emailFooterHtml(company) : ''}
-      </div>
-    `
+      `
 
-    const { error: emailErr } = await resend.emails.send({
-      from: emailFrom(company, RESEND_FROM),
-      to: tenant.email,
-      cc: managerCc(caller.email, tenant.email), // owning landlord, visibly
-      subject,
-      html,
-      replyTo: caller.email ?? undefined,
-    })
-    if (emailErr) return json({ error: `Email failed: ${emailErr.message}` }, { status: 500 })
+      const { error: emailErr } = await resend.emails.send({
+        from: emailFrom(company, RESEND_FROM),
+        to: tenant.email,
+        // Owning landlord, visibly — on the first email only, not once per roommate.
+        cc: tenant === recipients[0] ? managerCc(caller.email, tenant.email) : undefined,
+        subject,
+        html,
+        replyTo: caller.email ?? undefined,
+      })
+      if (emailErr) failed.push(`${tenantName}: ${emailErr.message}`)
+      else sent.push(tenantName)
+    }
+    if (sent.length === 0) return json({ error: `Email failed — ${failed.join('; ')}` }, { status: 500 })
 
-    return json({ ok: true })
+    return json({ ok: true, sent, failed, noEmail })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 400 })
   }

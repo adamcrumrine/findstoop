@@ -4,6 +4,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { syncSubscriptionQuantity } from '@findstoop/shared/api/billing'
 import { PER_UNIT_MONTHLY } from '@findstoop/shared/lib/pricing'
 import { supabase } from '../../lib/supabase'
+import { fetchSigningStatus, type SignerStatus } from '../../lib/leaseSigning'
 import SignaturePad, { type SignaturePadHandle } from '../../components/shared/SignaturePad'
 import { FileSignature, ShieldCheck, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -27,6 +28,7 @@ interface LeaseDetail {
 
 interface SignatureRecord {
   id: string
+  signer_id: string
   signer_role: 'manager' | 'tenant' | 'admin'
   signed_at: string
 }
@@ -53,6 +55,9 @@ export default function SignLease() {
 
   const [lease, setLease] = useState<LeaseDetail | null>(null)
   const [signatures, setSignatures] = useState<SignatureRecord[]>([])
+  // Every tenant who has to sign; null when the lookup failed (then any
+  // tenant signature counts, as it did before roommates each signed).
+  const [signers, setSigners] = useState<SignerStatus[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [intent, setIntent] = useState(false)
@@ -77,7 +82,7 @@ export default function SignLease() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const [leaseRes, sigsRes] = await Promise.all([
+      const [leaseRes, sigsRes, signerMap] = await Promise.all([
         supabase
           .from('leases')
           .select('id, unit_id, rent_amount, start_date, end_date, security_deposit, status, signed_at, units(unit_number, properties(name, address, city, state, zip))')
@@ -85,10 +90,12 @@ export default function SignLease() {
           .single(),
         supabase
           .from('lease_signatures')
-          .select('id, signer_role, signed_at')
+          .select('id, signer_id, signer_role, signed_at')
           .eq('lease_id', id),
+        fetchSigningStatus([id]),
       ])
       if (cancelled) return
+      setSigners(signerMap ? signerMap[id] ?? [] : null)
       if (leaseRes.error) {
         toast.error('Could not load this lease')
       } else {
@@ -161,9 +168,10 @@ export default function SignLease() {
     profile.role === 'tenant' ? 'tenant' : 'manager'
   const backHref = profile.role === 'tenant' ? '/tenant/dashboard' : '/manager/leases'
 
+  const isManagerSig = (s: SignatureRecord) => s.signer_role === 'manager' || s.signer_role === 'admin'
   const myExistingSignature = signatures.find((s) => {
-    if (effectiveRole === 'tenant') return s.signer_role === 'tenant'
-    return s.signer_role === 'manager' || s.signer_role === 'admin'
+    if (effectiveRole === 'tenant') return s.signer_role === 'tenant' && s.signer_id === user.id
+    return isManagerSig(s)
   })
   const counterpartySignature = signatures.find((s) => {
     if (effectiveRole === 'tenant') return s.signer_role !== 'tenant'
@@ -171,7 +179,21 @@ export default function SignLease() {
   })
 
   const alreadySigned = !!myExistingSignature
-  const fullySigned = !!lease.signed_at || (signatures.some(s => s.signer_role === 'manager' || s.signer_role === 'admin') && signatures.some(s => s.signer_role === 'tenant'))
+  const managerSigned = signatures.some(isManagerSig)
+  // On a roommate lease every tenant signs, not just the first.
+  const tenantSignedIds = new Set(signatures.filter((s) => s.signer_role === 'tenant').map((s) => s.signer_id))
+  const tenantsPending = signers && signers.length > 0
+    ? signers.filter((t) => !tenantSignedIds.has(t.tenant_id))
+    : (tenantSignedIds.size > 0 ? [] : null)
+  const allTenantsSigned = tenantsPending !== null && tenantsPending.length === 0
+  const fullySigned = !!lease.signed_at || (managerSigned && allTenantsSigned)
+  const otherTenantsPending = (tenantsPending ?? []).filter((t) => t.tenant_id !== user.id)
+  const waitingOn = effectiveRole === 'manager'
+    ? 'the tenants'
+    : [
+        ...(managerSigned ? [] : ['the landlord']),
+        ...otherTenantsPending.map((t) => t.full_name ?? t.email ?? 'a roommate'),
+      ].join(', ').replace(/, ([^,]*)$/, ' and $1') || 'the landlord'
 
   // The actual signature insert + completion handling. Pulled out so both
   // the direct submit path (tenants) and the post-confirmation path
@@ -204,14 +226,11 @@ export default function SignLease() {
     if (isManager) {
       void syncSubscriptionQuantity()
     }
-    // Did this signature complete the lease? Check whether the counterparty
-    // had already signed before this insert.
-    const counterpartyAlreadySigned = signatures.some((s) =>
-      effectiveRole === 'tenant'
-        ? s.signer_role !== 'tenant'
-        : s.signer_role === 'tenant',
-    )
-    const leaseNowActive = counterpartyAlreadySigned
+    // Did this signature complete the lease? A manager's does when every
+    // tenant had already signed; a tenant's when they were the last one.
+    const leaseNowActive = effectiveRole === 'manager'
+      ? allTenantsSigned
+      : managerSigned && otherTenantsPending.length === 0
     if (isManager && leaseNowActive && !subscriptionActive) {
       // Stash return URL so the user comes back here after billing setup.
       try {
@@ -263,7 +282,7 @@ export default function SignLease() {
         <p className="text-sm text-mute mt-1.5">
           {effectiveRole === 'tenant'
             ? 'Review the lease terms below and add your signature to finalize.'
-            : 'Add your signature as the landlord. Tenant will sign separately.'}
+            : 'Add your signature as the landlord. Each tenant signs separately.'}
         </p>
       </header>
 
@@ -303,13 +322,22 @@ export default function SignLease() {
             signedAt={signatures.find(s => s.signer_role === 'manager' || s.signer_role === 'admin')?.signed_at}
             isMe={effectiveRole === 'manager'}
           />
-          <StatusBlock
-            label="Tenant"
-            signedAt={signatures.find(s => s.signer_role === 'tenant')?.signed_at}
-            isMe={effectiveRole === 'tenant'}
-          />
+          {signers && signers.length > 0 ? signers.map((t) => (
+            <StatusBlock
+              key={t.tenant_id}
+              label={t.full_name ?? t.email ?? 'Tenant'}
+              signedAt={signatures.find(s => s.signer_role === 'tenant' && s.signer_id === t.tenant_id)?.signed_at}
+              isMe={t.tenant_id === user.id}
+            />
+          )) : (
+            <StatusBlock
+              label="Tenant"
+              signedAt={signatures.find(s => s.signer_role === 'tenant')?.signed_at}
+              isMe={effectiveRole === 'tenant'}
+            />
+          )}
         </div>
-        {counterpartySignature && (
+        {counterpartySignature && !(signers && signers.length > 0) && (
           <p className="mt-4 text-xs text-mute">
             Counterparty signed on {fmtDateTime(counterpartySignature.signed_at)}.
           </p>
@@ -321,14 +349,14 @@ export default function SignLease() {
         <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center">
           <CheckCircle2 className="w-10 h-10 text-green-600 mx-auto mb-2" strokeWidth={1.5} />
           <h3 className="text-lg font-semibold text-green-800">Lease fully signed</h3>
-          <p className="text-sm text-green-700 mt-1">Both parties have signed. The lease is active.</p>
+          <p className="text-sm text-green-700 mt-1">Everyone has signed. The lease is active.</p>
         </div>
       ) : alreadySigned || completed ? (
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-6 text-center">
           <CheckCircle2 className="w-10 h-10 text-brand-600 mx-auto mb-2" strokeWidth={1.5} />
           <h3 className="text-lg font-semibold text-brand-800">You've signed</h3>
           <p className="text-sm text-brand-700 mt-1">
-            Waiting on the {effectiveRole === 'tenant' ? 'landlord' : 'tenant'} to add their signature.
+            Waiting on {waitingOn} to sign.
           </p>
         </div>
       ) : (

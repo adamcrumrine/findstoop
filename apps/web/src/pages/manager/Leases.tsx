@@ -8,6 +8,7 @@ import type { LeaseWithTenant } from '@findstoop/shared/hooks/useLeases'
 import type { LeaseStatus } from '@findstoop/shared/types/lease'
 import type { Profile } from '@findstoop/shared/types/profile'
 import { supabase } from '../../lib/supabase'
+import { sendForSignatureMessages, fetchSigningStatus, type SignerStatus } from '../../lib/leaseSigning'
 import { leaseTermPhase } from '../../lib/leaseTermState'
 import { parseLocalDay } from '@findstoop/shared/lib/paymentRails'
 import { FileText, FileSignature, Send, Loader2, CheckCircle2, ChevronRight, Pencil, RefreshCw } from 'lucide-react'
@@ -57,6 +58,8 @@ interface LeaseCardProps {
   unitNumber: string
   propertyName: string
   signedRoles?: Set<string>
+  // Tenants who must sign and whether each has; undefined if unknown.
+  signers?: SignerStatus[]
   onUpdateStatus: (id: string, status: LeaseStatus) => void
   onSendForSignature: (lease: LeaseWithTenant) => Promise<void>
   sendingId: string | null
@@ -96,7 +99,7 @@ function renewalState(lease: LeaseWithTenant, leases: LeaseWithTenant[]): Renewa
   return renewableOn(lease.start_date) <= todayIso ? { kind: 'can_renew' } : { kind: 'none' }
 }
 
-function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatus, onSendForSignature, sendingId, renewal, onRenew }: LeaseCardProps) {
+function LeaseCard({ lease, unitNumber, propertyName, signedRoles, signers, onUpdateStatus, onSendForSignature, sendingId, renewal, onRenew }: LeaseCardProps) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   // parseLocalDay, not new Date(str) — DATE columns parse as UTC midnight,
   // which is the previous evening in the US, so every countdown was a day out.
@@ -130,6 +133,12 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
     : null
   const tenantSigned = !!signedRoles?.has('tenant')
   const managerSigned = !!(signedRoles?.has('manager') || signedRoles?.has('admin'))
+  // On a roommate lease one tenant's signature isn't enough — every one of
+  // them signs. Without the per-tenant list, fall back to "any tenant".
+  const tenantsSignedCount = signers?.filter((s) => s.signed_at).length ?? (tenantSigned ? 1 : 0)
+  const allTenantsSigned = signers && signers.length > 0
+    ? tenantsSignedCount === signers.length
+    : tenantSigned
   // All tenants for the avatar stack (primary + co-tenants). Falls back to
   // just the legacy primary if the hook didn't populate all_tenants.
   const tenants: Profile[] = (lease.all_tenants && lease.all_tenants.length > 0)
@@ -172,7 +181,7 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
     return null
   })()
 
-  const fullySigned = lease.signed_at || (tenantSigned && managerSigned)
+  const fullySigned = lease.signed_at || (allTenantsSigned && managerSigned)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -291,10 +300,15 @@ function LeaseCard({ lease, unitNumber, propertyName, signedRoles, onUpdateStatu
               <FileSignature className="w-3.5 h-3.5 text-green-600" strokeWidth={1.75} />
               Fully signed
             </>
+          ) : tenantSigned && !allTenantsSigned && signers ? (
+            <>
+              <FileSignature className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
+              {tenantsSignedCount} of {signers.length} tenants signed{managerSigned ? ' · you’ve signed' : ''}
+            </>
           ) : tenantSigned ? (
             <>
               <FileSignature className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
-              Tenant signed · awaiting yours
+              {signers && signers.length > 1 ? 'Tenants signed' : 'Tenant signed'} · awaiting yours
             </>
           ) : sentLabel ? (
             <>
@@ -439,19 +453,24 @@ export default function ManagerLeases() {
   // Map of leaseId → roles that have signed. Lets us distinguish
   // "awaiting tenant" from "awaiting your countersignature".
   const [signedRoles, setSignedRoles] = useState<Record<string, Set<string>>>({})
+  const [signersByLease, setSignersByLease] = useState<Record<string, SignerStatus[]>>({})
 
   const leaseIdsKey = leases.map((l) => l.id).sort().join(',')
 
   useEffect(() => {
-    if (!leases.length) { setSignedRoles({}); return }
+    if (!leases.length) { setSignedRoles({}); setSignersByLease({}); return }
     let cancelled = false
     ;(async () => {
       const ids = leases.map((l) => l.id)
-      const { data } = await supabase
-        .from('lease_signatures')
-        .select('lease_id, signer_role')
-        .in('lease_id', ids)
+      const [{ data }, signers] = await Promise.all([
+        supabase
+          .from('lease_signatures')
+          .select('lease_id, signer_role')
+          .in('lease_id', ids),
+        fetchSigningStatus(ids),
+      ])
       if (cancelled) return
+      setSignersByLease(signers ?? {})
       const map: Record<string, Set<string>> = {}
       for (const s of (data ?? []) as Array<{ lease_id: string; signer_role: string }>) {
         if (!map[s.lease_id]) map[s.lease_id] = new Set()
@@ -491,8 +510,9 @@ export default function ManagerLeases() {
       toast.error((error?.message ?? data?.error) || 'Could not send lease', { id: toastId })
       return
     }
-    const who = lease.profile?.full_name ?? lease.profile?.email ?? 'tenant'
-    toast.success(`Lease sent to ${who} for signature`, { id: toastId })
+    const msg = sendForSignatureMessages(data, lease.profile?.full_name ?? lease.profile?.email ?? 'tenant')
+    toast.success(msg.success, { id: toastId })
+    if (msg.warning) toast.error(msg.warning, { duration: 8000 })
     reload()
   }
 
@@ -610,6 +630,7 @@ export default function ManagerLeases() {
                 unitNumber={unit?.unit_number ?? '—'}
                 propertyName={property?.name ?? '—'}
                 signedRoles={signedRoles[lease.id]}
+                signers={signersByLease[lease.id]}
                 onUpdateStatus={handleStatusUpdate}
                 onSendForSignature={handleSendForSignature}
                 sendingId={sendingId}

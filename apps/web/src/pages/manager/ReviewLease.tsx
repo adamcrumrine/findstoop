@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { sendForSignatureMessages } from '../../lib/leaseSigning'
 import LeaseAddenda from '../../components/manager/LeaseAddenda'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { generateLeaseText, getStateNotes } from '@findstoop/shared/lib/leaseTemplates'
@@ -766,8 +767,9 @@ export default function ReviewLease() {
       toast.error((error?.message ?? data?.error) || 'Could not send lease', { id: toastId })
       return
     }
-    const who = lease.tenant?.full_name ?? lease.tenant?.email ?? 'tenant'
-    toast.success(`Lease sent to ${who} for signature`, { id: toastId })
+    const msg = sendForSignatureMessages(data, lease.tenant?.full_name ?? lease.tenant?.email ?? 'tenant')
+    toast.success(msg.success, { id: toastId })
+    if (msg.warning) toast.error(msg.warning, { duration: 8000 })
     setLease((prev) => prev ? { ...prev, sent_for_signature_at: new Date().toISOString() } : prev)
     // Bounce back to the Leases page so the manager sees the updated "Sent"
     // badge in context.

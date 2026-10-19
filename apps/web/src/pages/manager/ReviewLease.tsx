@@ -608,10 +608,14 @@ export default function ReviewLease() {
         .eq('id', lease.id)
       if (error) throw new Error(error.message)
 
+      // On an unsigned lease this only clears stray charges — rent is
+      // scheduled when the lease goes active (20261019000004).
       const { data, error: rpcErr } = await supabase.rpc('regenerate_rent_schedule', { p_lease_id: lease.id })
       if (rpcErr) throw new Error(rpcErr.message)
       const row = Array.isArray(data) ? data[0] : data
-      toast.success(`Saved — rebuilt ${row?.created_count ?? 0} upcoming charges (kept ${row?.skipped_paid_count ?? 0} already billed)`)
+      toast.success(lease.status === 'active'
+        ? `Saved — rebuilt ${row?.created_count ?? 0} upcoming charges (kept ${row?.skipped_paid_count ?? 0} already billed)`
+        : 'Saved — rent is scheduled with these settings once everyone signs')
       setLease((prev) => prev ? { ...prev, rent_split_mode: splitMode, monthly_pet_fee: pet } as LeaseWithRefs : prev)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save billing settings')

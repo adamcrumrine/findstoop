@@ -137,6 +137,7 @@ Deno.serve(async (req) => {
     // One email per tenant: each is addressed to them by name, and a
     // roommate shouldn't see the others' addresses.
     const sent: string[] = []
+    const sentTo: Array<{ name: string; email: string }> = []
     const failed: string[] = []
     for (const tenant of recipients) {
       const tenantName  = tenant.full_name ?? tenant.email
@@ -176,11 +177,48 @@ Deno.serve(async (req) => {
         replyTo: caller.email ?? undefined,
       })
       if (emailErr) failed.push(`${tenantName}: ${emailErr.message}`)
-      else sent.push(tenantName)
+      else { sent.push(tenantName); sentTo.push({ name: tenantName, email: tenant.email }) }
     }
     if (sent.length === 0) return json({ error: `Email failed — ${failed.join('; ')}` }, { status: 500 })
 
-    return json({ ok: true, sent, failed, noEmail })
+    // The landlord is CC'd on one tenant's email only, so their inbox can't
+    // show who else got it. Send them one link-free receipt: who was emailed,
+    // who couldn't be, who has already signed. Best-effort — the tenant
+    // emails already went out, so a failure here doesn't fail the send.
+    let managerNotified = false
+    if (caller.email) {
+      const alreadySigned = signerIds.filter((id) => signed.has(id))
+        .map((id) => byId.get(id)?.full_name ?? 'A tenant')
+      const li = (s: string) => `<li style="margin:2px 0">${s}</li>`
+      const section = (title: string, items: string[]) => items.length === 0 ? '' : `
+        <p style="margin:16px 0 4px 0;font-weight:600">${title}</p>
+        <ul style="margin:0;padding-left:20px">${items.map(li).join('')}</ul>`
+      const receipt = `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#3A3A3C;line-height:1.55">
+          <h1 style="font-size:20px;font-weight:700;margin:0 0 12px 0">Lease sent for signature</h1>
+          <p style="margin:0">${escapeHtml(propertyLabel)}<br><span style="color:#8E8E93;font-size:13px">${escapeHtml(propertyAddr)}</span></p>
+          ${section(`Emailed (${sentTo.length})`, sentTo.map((t) => `${escapeHtml(t.name)} — ${escapeHtml(t.email)}`))}
+          ${section('Not reached', [
+            ...noEmail.map((n) => `${escapeHtml(n)} — no email on file`),
+            ...failed.map((f) => escapeHtml(f)),
+          ])}
+          ${section('Already signed', alreadySigned.map(escapeHtml))}
+          <p style="margin-top:16px">Every tenant on the lease has to sign. Add your signature once they have — the lease activates when everyone has signed.</p>
+          <p style="text-align:center;margin:24px 0">
+            <a href="${APP_URL}/manager/leases" style="display:inline-block;background:${accent};color:white;padding:10px 24px;text-decoration:none;border-radius:8px;font-weight:600">View leases</a>
+          </p>
+        </div>
+      `
+      const { error: receiptErr } = await resend.emails.send({
+        from: emailFrom(company, RESEND_FROM),
+        to: caller.email,
+        subject: `Sent for signature to ${sentTo.length} tenant${sentTo.length === 1 ? '' : 's'} — ${propertyLabel}`,
+        html: receipt,
+      })
+      managerNotified = !receiptErr
+    }
+
+    return json({ ok: true, sent, failed, noEmail, managerNotified })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 400 })
   }

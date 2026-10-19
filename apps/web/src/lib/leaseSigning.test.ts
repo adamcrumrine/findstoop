@@ -16,6 +16,11 @@ describe('sendForSignatureMessages', () => {
     expect(r.warning).toBeNull()
   })
 
+  it('points the landlord at the receipt email when one was sent', () => {
+    expect(sendForSignatureMessages({ sent: ['A', 'B', 'C', 'D'], managerNotified: true }, 'A').success)
+      .toBe('Lease sent to 4 tenants for signature — receipt in your inbox')
+  })
+
   it('falls back to the known name when the function returns no list', () => {
     expect(sendForSignatureMessages({}, 'Maya Weber').success).toBe('Lease sent to Maya Weber for signature')
   })

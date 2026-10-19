@@ -9,6 +9,8 @@ export interface SendForSignatureResult {
   sent?: string[]
   failed?: string[]
   noEmail?: string[]
+  /** A receipt listing who was emailed went to the landlord. */
+  managerNotified?: boolean
 }
 
 /**
@@ -29,7 +31,7 @@ export function sendForSignatureMessages(
     ...(result?.failed ?? []).map((f) => `couldn't email ${f}`),
   ]
   return {
-    success: `Lease sent to ${who} for signature`,
+    success: `Lease sent to ${who} for signature${result?.managerNotified ? ' — receipt in your inbox' : ''}`,
     warning: problems.length > 0 ? `Not sent to everyone: ${problems.join('; ')}` : null,
   }
 }

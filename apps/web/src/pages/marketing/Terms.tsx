@@ -14,7 +14,7 @@ export default function Terms() {
       <Link to="/" className="text-sm text-brand-600 hover:underline">← {BRAND.name}</Link>
       <h1 className="text-2xl font-bold text-ink mt-4">Terms of Service</h1>
       <p className="text-sm text-mute mt-2">
-        Effective May 23, 2026. Questions: <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
+        Effective October 20, 2026. Questions: <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
       </p>
 
       <section className="mt-8 space-y-6 text-sm leading-relaxed text-ink">
@@ -48,24 +48,19 @@ export default function Terms() {
           suspect unauthorized access.
         </Sec>
 
-        <Sec title="4. Subscriptions (landlords)">
+        <Sec title="4. Fees for landlords">
           <p>
-            Landlords subscribe at $5 per active unit per month (or $50 per unit per year). Charges are based on the number
-            of units in your portfolio at the start of each billing cycle. Subscriptions auto-renew until cancelled. You can
-            cancel anytime from your billing settings; cancellation takes effect at the end of the current billing period
-            and is non-refundable except as required by law.
-          </p>
-          <p className="mt-2">
-            <strong>Processing fees.</strong> Payment-processing costs are added to your subscription invoice: 3% if you
-            pay by credit or debit card, or 0.8% capped at $5 per invoice if you pay by US bank account (ACH). The
-            Service displays the total before you confirm.
+            The Service is free for landlords: there is no subscription and no charge per unit. If we ever introduce a
+            paid plan, we will tell you at least 30 days in advance, and you will not be charged unless you choose it.
+            Invoices for subscriptions purchased before October 20, 2026 remain available in your account.
           </p>
         </Sec>
 
         <Sec title="5. Tenant pre-qualification fees (applicants)">
           When you submit a rental application through the Service, the property's landlord may require you to complete a
-          Tenability™ screening — either Tenability™ ($5: verified income + ID + score) or Tenability™ Pro ($25: adds
-          selfie ID match and an applicant-provided credit report with authenticity scoring). This fee is paid directly to
+          Tenability™ screening — either Tenability™ ($15: verified income + ID + score) or Tenability™ Pro ($35: adds
+          selfie ID match and an applicant-provided credit report with authenticity scoring). Where state law caps or
+          prohibits application fees, we charge the lower amount the law allows or do not offer the screening. This fee is paid directly to
           {BRAND.legalName} and is non-refundable once your documents have been processed — which happens immediately. Tenability™
           is not a consumer report under the Fair Credit Reporting Act. See our{' '}
           <Link to="/screening-terms" className="text-brand-600 hover:underline">Screening Terms</Link> for details.

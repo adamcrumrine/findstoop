@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import {
-  Building2, ClipboardList, Briefcase, Users, Loader2, ArrowRight,
+  Building2, ClipboardList, Briefcase, Users, Loader2, ArrowRight, CheckCircle2,
 } from 'lucide-react'
 import ScreeningFlow from '../../components/apply/ScreeningFlow'
+import { screeningPricesFor } from '@findstoop/shared/lib/screeningPricing'
 import { useSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
@@ -160,10 +161,27 @@ export default function Apply() {
     )
   }
 
-  if (submittedApp) {
+  // Some states cap or ban applicant-paid screening (screeningPricing.ts).
+  const screeningPrices = screeningPricesFor(unit.property_state)
+
+  if (submittedApp && !screeningPrices.available) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 px-5 text-center">
+        <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-brand-600" strokeWidth={1.5} />
+        <h1 className="text-2xl font-bold text-ink">Application sent</h1>
+        <p className="text-mute mt-2">
+          The landlord has your application and will be in touch. There’s no screening fee —
+          {' '}{screeningPrices.reason}
+        </p>
+      </div>
+    )
+  }
+
+  if (submittedApp && screeningPrices.available) {
     return (
       <div className="max-w-3xl mx-auto py-10 px-5">
         <ScreeningFlow
+          prices={{ standard: screeningPrices.standard, pro: screeningPrices.pro }}
           applicationId={submittedApp.id}
           statusToken={submittedApp.statusToken}
           applicantName={`${form.first_name} ${form.last_name}`.trim()}

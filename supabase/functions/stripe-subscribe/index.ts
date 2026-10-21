@@ -1,3 +1,8 @@
+// RETIRED 2026-10-20: Stoop is free for landlords, so there is nothing to
+// subscribe to. The handler refuses every request (410) — kept deployed so a
+// stale client gets a clear answer rather than a 404, and so the history of
+// how subscriptions worked stays in git. Original behavior, for reference:
+//
 // Starts (or manages) a landlord's $5/unit subscription.
 // - Verifies caller via Supabase JWT.
 // - Lazily creates a Stripe Customer the first time.
@@ -49,6 +54,7 @@ function json(body: unknown, init: ResponseInit = {}) {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  return json({ error: 'Stoop is free for landlords — there is no subscription to start.' }, { status: 410 })
 
   try {
     // ── Body: optional plan + payment-rail choice ───────────────────────

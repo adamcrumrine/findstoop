@@ -20,14 +20,14 @@ const features: Feature[] = [
   {
     Icon: Sparkles,
     status: 'live',
-    title: 'Tenability™ — $5 — the 0–100 score every applicant arrives with',
+    title: 'Tenability™ — $15, paid by the applicant — the 0–100 score every applicant arrives with',
     body: 'The standard tier. Every applicant gets a Tenability™ score: income verification, ID verification, and a private 0–100 rentability number with a plain-English summary. Built on a proprietary AI signal pipeline configured to ignore protected-class signals under the Fair Housing Act.',
     bullets: ['Income verification across 5 income paths', 'Driver\'s license verification', 'Single 0–100 score + plain-English summary', 'Income-to-rent ratio + document anomaly flags'],
   },
   {
     Icon: CreditCard,
     status: 'live',
-    title: 'Tenability™ Pro — $25 — adds selfie + applicant-provided credit',
+    title: 'Tenability™ Pro — $35 — adds selfie + applicant-provided credit',
     body: 'The complete pipeline. Pro adds a selfie ID match (normally $2 — free with Pro) and an applicant-provided credit report from AnnualCreditReport.gov, with our AI authenticity check cross-referenced against every other document on file.',
     bullets: ['Everything in Tenability™', 'Selfie ID match — included free', 'Applicant-provided credit history with signed attestation', 'Authenticity scoring cross-referenced against income + ID'],
   },
@@ -103,9 +103,8 @@ export default function Features() {
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
                 {BRAND.name} bundles the workflow you've been duct-taping together —
-                with a verified-pre-qualification product no one else in the small-landlord
-                space offers at $5. Every feature is on at one flat price for the landlord —
-                $5 per active unit per month. No tier ladder.
+                with a verified-pre-qualification product the applicant pays for. Every feature
+                is free for the landlord, for any number of units. No tier ladder.
               </p>
             </div>
             <div>

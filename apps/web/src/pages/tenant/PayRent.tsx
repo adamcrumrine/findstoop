@@ -181,8 +181,8 @@ function MyShareEditor({ leaseId, currentAmount, isGhost }: { leaseId: string; c
 // ── Checkout form (inside Elements) ──────────────────────────────────────────
 interface CheckoutFormProps {
   rentAmount: number   // base rent — what gets recorded in payments table
-  chargeAmount: number // what Stripe is actually charging (rent + surcharge if card)
-  surcharge: number    // surcharge component (0 for ACH)
+  chargeAmount: number // what Stripe is actually charging (rent + processing fee)
+  surcharge: number    // processing fee passed to the tenant (0 when the landlord absorbs it)
   method: PayMethod
   tenantId: string
   paymentId: string
@@ -239,14 +239,17 @@ function CheckoutForm({ rentAmount, chargeAmount, surcharge, method, tenantId, p
       {surcharge > 0 && (
         <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2.5 text-xs text-gray-700">
           <div className="flex justify-between"><span>Rent</span><span>{formatUsdCents(rentAmount)}</span></div>
-          <div className="flex justify-between mt-0.5"><span>Card processing fee (3%)</span><span>{formatUsdCents(surcharge)}</span></div>
+          <div className="flex justify-between mt-0.5">
+            <span>{method === 'us_bank_account' ? 'Bank transfer fee (0.8%, max $5)' : 'Card processing fee (3%)'}</span>
+            <span>{formatUsdCents(surcharge)}</span>
+          </div>
           <div className="flex justify-between mt-1 pt-1 border-t border-gray-200 font-semibold text-gray-900"><span>Total charge</span><span>{formatUsdCents(chargeAmount)}</span></div>
         </div>
       )}
-      {method === 'us_bank_account' && (
+      {surcharge === 0 && (
         <div className="rounded-lg bg-brand-50 border border-brand-200 px-3 py-2.5 text-xs text-brand-800">
-          <div className="flex justify-between font-medium"><span>Rent (free ACH)</span><span>{formatUsdCents(rentAmount)}</span></div>
-          <p className="mt-0.5 text-brand-700">Your landlord covers the bank transfer fee.</p>
+          <div className="flex justify-between font-medium"><span>Rent</span><span>{formatUsdCents(rentAmount)}</span></div>
+          <p className="mt-0.5 text-brand-700">Your landlord covers the processing fee.</p>
         </div>
       )}
       <PaymentElement />

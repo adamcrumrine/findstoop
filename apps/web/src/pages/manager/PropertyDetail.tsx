@@ -34,6 +34,7 @@ import ImageUploader from '../../components/shared/ImageUploader'
 import Avatar from '../../components/shared/Avatar'
 import { BRAND, brandColor } from '../../lib/brand'
 import { SkeletonBlock, SkeletonList } from '../../components/shared/Skeleton'
+import { screeningPricesFor } from '@findstoop/shared/lib/screeningPricing'
 
 type TabId = 'overview' | 'units' | 'turnover' | 'leases' | 'tenants' | 'maintenance' | 'payments' | 'compliance'
 
@@ -457,13 +458,26 @@ function StudentHousingCard({ property, onUpdate }: { property: Property; onUpda
 
 // ── Tenability™ tier selector (Overview tab) ──────────────────────────────
 // Two tiers, single source of truth:
-//   Tenability™       ($5)  — require_credit_self_disclosed=false, require_selfie_screening=false
-//   Tenability™ Pro   ($25) — require_credit_self_disclosed=true,  require_selfie_screening=true
-// The selfie ID match is bundled FREE with Pro (its $2 cost is absorbed by
-// the Pro tier so applicants see a clean +$20 over Standard rather than +$22).
+//   Tenability™       — require_credit_self_disclosed=false, require_selfie_screening=false
+//   Tenability™ Pro   — require_credit_self_disclosed=true,  require_selfie_screening=true
+// Prices come from the property's state (screeningPricing.ts): $15 / $35,
+// capped or unavailable where state law limits application fees. The selfie
+// ID match is bundled free with Pro.
 function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpdate: (p: Property) => void }) {
   const isPro = property.require_credit_self_disclosed
-  const total = isPro ? 25 : 5
+  const prices = screeningPricesFor(property.state)
+  if (!prices.available) {
+    return (
+      <section className="bg-white rounded-2xl border border-gray-200 p-5">
+        <h2 className="text-xs uppercase tracking-wider text-mute font-semibold mb-2">Tenability™ screening</h2>
+        <p className="text-sm text-ink">Not offered for properties in {property.state}.</p>
+        <p className="text-xs text-mute mt-1">
+          {prices.reason} Applicants can still apply here for free — screen them however you normally would.
+        </p>
+      </section>
+    )
+  }
+  const total = isPro ? prices.pro : prices.standard
 
   // Single-call tier switch. Either both flags go on, or both go off.
   const setTier = async (pro: boolean) => {
@@ -509,7 +523,7 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
         >
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-sm font-semibold text-ink">Tenability™</p>
-            <span className="text-sm font-bold text-ink">$5</span>
+            <span className="text-sm font-bold text-ink">${prices.standard}</span>
           </div>
           <p className="text-[11px] text-mute leading-relaxed">
             Verified income, verified ID, and the 0–100 score.
@@ -527,7 +541,7 @@ function ScreeningPrefsCard({ property, onUpdate }: { property: Property; onUpda
           <span className="absolute -top-2.5 right-3 inline-flex text-[9px] font-bold uppercase tracking-wider text-white bg-brand-600 px-1.5 py-0.5 rounded-full">Best value</span>
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-sm font-semibold text-ink">Tenability™ Pro</p>
-            <span className="text-sm font-bold text-ink">$25</span>
+            <span className="text-sm font-bold text-ink">${prices.pro}</span>
           </div>
           <p className="text-[11px] text-mute leading-relaxed">
             Adds selfie ID match (free) + applicant-provided credit + authenticity scoring.

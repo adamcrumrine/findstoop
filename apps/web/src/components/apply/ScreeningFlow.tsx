@@ -1,14 +1,14 @@
 // Post-application screening: verified pre-qualification.
 //
-// v1 surfaces the pre-qual product ($5) + optional selfie ID match (+$2).
+// v1 surfaces Tenability™ ($15) or Tenability™ Pro ($35), priced by the
+// property's state (screeningPricing.ts) — capped where state law limits fees.
 // Manager toggles the selfie requirement per property. Regulated checks
 // (credit / criminal / eviction) remain in the schema for future use but
 // are not chargeable in v1 — landlords who want those reports order them
 // directly from TransUnion SmartMove (outside Stoop).
 //
-// Pricing:
-//   Pre-qual (always)   $5
-//   Selfie ID match    +$2  (per-property opt-in by the landlord)
+// Pricing: see @findstoop/shared/lib/screeningPricing. Pro is the base plus
+// the applicant-provided credit line.
 //
 // Flow:
 //   intro   →  applicant sees the breakdown
@@ -74,25 +74,30 @@ interface Props {
   // Manager-set via property setup. Applicant doesn't choose — they just see
   // the price and the upload steps the manager requires.
   requirements: ScreeningRequirements
+  // State-adjusted Tenability™ / Pro prices, in dollars (screeningPricesFor).
+  prices: ScreeningPrices
 }
+
+export interface ScreeningPrices { standard: number; pro: number }
 
 const ADDON_PRICE_CENTS = {
   selfie:                 200,
-  credit_self_disclosed: 2000,
   credit:                1500,
   criminal:              2500,
   eviction:              1000,
 } as const
-const BASE_PRICE_CENTS = 500
 
-function computeTotalCents(req: ScreeningRequirements): number {
+const baseCents = (p: ScreeningPrices) => p.standard * 100
+const creditSelfCents = (p: ScreeningPrices) => (p.pro - p.standard) * 100
+
+function computeTotalCents(req: ScreeningRequirements, prices: ScreeningPrices): number {
   // Selfie is bundled FREE with the applicant-provided credit tier — its $2
   // cost is absorbed because the authenticity check is materially stronger
   // when it can cross-reference the selfie against the DL photo.
   const selfieBundled = req.credit_self_disclosed
-  return BASE_PRICE_CENTS
-    + (req.selfie && !selfieBundled ? ADDON_PRICE_CENTS.selfie                : 0)
-    + (req.credit_self_disclosed    ? ADDON_PRICE_CENTS.credit_self_disclosed : 0)
+  return baseCents(prices)
+    + (req.selfie && !selfieBundled ? ADDON_PRICE_CENTS.selfie : 0)
+    + (req.credit_self_disclosed    ? creditSelfCents(prices)  : 0)
     + (req.credit                   ? ADDON_PRICE_CENTS.credit                : 0)
     + (req.criminal                 ? ADDON_PRICE_CENTS.criminal              : 0)
     + (req.eviction                 ? ADDON_PRICE_CENTS.eviction              : 0)
@@ -106,7 +111,7 @@ const PATH_OPTIONS: { id: IncomePath; label: string; kinds: DocKind[]; helper: s
   { id: 'new_hire',      label: 'New hire (no paychecks yet)', kinds: ['offer_letter'],          helper: 'Signed offer letter from employer' },
 ]
 
-export default function ScreeningFlow({ applicationId, statusToken, applicantName, applicantEmail, requirements }: Props) {
+export default function ScreeningFlow({ applicationId, statusToken, applicantName, applicantEmail, requirements, prices }: Props) {
   const [step, setStep] = useState<Step>('intro')
   const [orderId, setOrderId] = useState<string | null>(null)
   // Per-order capability token from start-screening. Required by the OCR /
@@ -114,7 +119,7 @@ export default function ScreeningFlow({ applicationId, statusToken, applicantNam
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [totalCents, setTotalCents] = useState(computeTotalCents(requirements))
+  const [totalCents, setTotalCents] = useState(computeTotalCents(requirements, prices))
 
   // ── Begin payment ────────────────────────────────────────────────────
   // Tapping Continue counts as consent to the AI screening process AND, for
@@ -144,7 +149,7 @@ export default function ScreeningFlow({ applicationId, statusToken, applicantNam
     setOrderId(data.orderId)
     setAccessToken(data.accessToken ?? null)
     setClientSecret(data.clientSecret)
-    setTotalCents(data.amount_cents ?? computeTotalCents(requirements))
+    setTotalCents(data.amount_cents ?? computeTotalCents(requirements, prices))
     setStep('pay')
   }
 
@@ -185,6 +190,7 @@ export default function ScreeningFlow({ applicationId, statusToken, applicantNam
         applicantName={applicantName}
         onStart={startPayment}
         requirements={requirements}
+        prices={prices}
         error={error}
       />
     )
@@ -257,13 +263,14 @@ export default function ScreeningFlow({ applicationId, statusToken, applicantNam
 }
 
 // ── Intro card ─────────────────────────────────────────────────────────
-function IntroCard({ applicantName, onStart, requirements, error }: {
+function IntroCard({ applicantName, onStart, requirements, prices, error }: {
   applicantName: string
   onStart: () => void
   requirements: ScreeningRequirements
+  prices: ScreeningPrices
   error: string | null
 }) {
-  const total = computeTotalCents(requirements) / 100
+  const total = computeTotalCents(requirements, prices) / 100
   const hasFcraChecks = requirements.credit || requirements.criminal || requirements.eviction
   const tierLabel = requirements.credit_self_disclosed ? 'Tenability™ Pro' : 'Tenability™'
   return (
@@ -325,13 +332,13 @@ function IntroCard({ applicantName, onStart, requirements, error }: {
           )}
         </div>
         <dl className="space-y-1.5 text-sm">
-          <Line label="Tenability™ — verified income + ID + 0–100 score" cents={BASE_PRICE_CENTS} />
+          <Line label="Tenability™ — verified income + ID + 0–100 score" cents={baseCents(prices)} />
           {requirements.selfie && (
             requirements.credit_self_disclosed
               ? <Line label="Selfie ID match" cents={ADDON_PRICE_CENTS.selfie} strikeCents includedLabel="Included" />
               : <Line label="Selfie ID match" cents={ADDON_PRICE_CENTS.selfie} />
           )}
-          {requirements.credit_self_disclosed && <Line label="Applicant-provided credit + authenticity scoring" cents={ADDON_PRICE_CENTS.credit_self_disclosed} />}
+          {requirements.credit_self_disclosed && <Line label="Applicant-provided credit + authenticity scoring" cents={creditSelfCents(prices)} />}
           {requirements.credit                && <Line label="Bureau credit report"     cents={ADDON_PRICE_CENTS.credit} />}
           {requirements.criminal              && <Line label="Criminal background"      cents={ADDON_PRICE_CENTS.criminal} />}
           {requirements.eviction              && <Line label="Eviction history"         cents={ADDON_PRICE_CENTS.eviction} />}
@@ -739,7 +746,7 @@ function DoneCard() {
 // the CFAA, and would mislead the user. Open and obvious is the right
 // pattern.
 //
-// Cost / margin: $20 add-on, ~$19.70 net after Stripe + ~$0.07 of Claude.
+// Cost / margin: the Pro line (Pro − base, $20 in most states), ~$0.30 of Claude.
 const BUREAU_LINKS = [
   { key: 'experian',   label: 'Experian',   href: 'https://www.annualcreditreport.gov/' },
   { key: 'equifax',    label: 'Equifax',    href: 'https://www.annualcreditreport.gov/' },
@@ -810,7 +817,7 @@ function CreditSelfStep({ orderId, applicantName, onContinue }: {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <Header step={3} title="Share your free credit report" sub="$20 — required by this landlord." />
+      <Header step={3} title="Share your free credit report" sub="Part of Tenability™ Pro — required by this landlord." />
 
       <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
         <p className="text-sm text-ink leading-relaxed">

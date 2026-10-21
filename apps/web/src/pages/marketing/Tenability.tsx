@@ -30,7 +30,7 @@ export default function Tenability() {
         <div className="relative max-w-5xl mx-auto px-5 lg:px-8 pt-20 pb-16 md:pt-28 md:pb-20 text-center">
           <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
             <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Live · From $5 per applicant
+            Live · Paid by the applicant
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-ink leading-[1.05] tracking-tight">
             Meet <span className="text-brand-500">Tenability™</span>
@@ -38,7 +38,7 @@ export default function Tenability() {
           <p className="mt-5 text-lg text-mute max-w-2xl mx-auto">
             A single 0–100 rentability score on every applicant — backed by verified income, verified ID, and an
             AI signal pipeline configured to be Fair Housing safe. In minutes, not days. Two tiers:
-            <strong className="text-ink"> Tenability™ ($5)</strong> and <strong className="text-ink">Tenability™ Pro ($25)</strong>.
+            <strong className="text-ink"> Tenability™ ($15)</strong> and <strong className="text-ink">Tenability™ Pro ($35)</strong>, paid by the applicant.
           </p>
 
           <div className="mt-8 inline-flex items-baseline gap-3 bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm">
@@ -52,7 +52,7 @@ export default function Tenability() {
               to="/register"
               className="inline-flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-medium px-6 py-3 rounded-lg transition-colors"
             >
-              Get started — $5 / unit / month
+              Get started — free for landlords
               <ArrowRight className="w-4 h-4" strokeWidth={2} />
             </Link>
             <Link
@@ -174,7 +174,7 @@ export default function Tenability() {
             <div className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col">
               <p className="text-xs uppercase tracking-wider text-brand-700 font-bold">Tenability™</p>
               <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-4xl font-bold text-ink">$5</span>
+                <span className="text-4xl font-bold text-ink">$15</span>
                 <span className="text-sm text-mute">/ applicant</span>
               </div>
               <p className="mt-2 text-sm text-mute leading-relaxed">
@@ -199,7 +199,7 @@ export default function Tenability() {
               </span>
               <p className="text-xs uppercase tracking-wider text-brand-700 font-bold">Tenability™ Pro</p>
               <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-4xl font-bold text-ink">$25</span>
+                <span className="text-4xl font-bold text-ink">$35</span>
                 <span className="text-sm text-mute">/ applicant</span>
               </div>
               <p className="mt-2 text-sm text-mute leading-relaxed">
@@ -249,8 +249,8 @@ export default function Tenability() {
               document originates from the applicant, not from a bureau pulled by {BRAND.name}.
             </Faq>
             <Faq q="What's the difference between Tenability™ and Tenability™ Pro?">
-              Tenability™ ($5) gives every applicant a 0–100 score based on verified income, ID, and document
-              consistency. Tenability™ Pro ($25) keeps all of that and adds a selfie ID match (free with Pro)
+              Tenability™ ($15) gives every applicant a 0–100 score based on verified income, ID, and document
+              consistency. Tenability™ Pro ($35) keeps all of that and adds a selfie ID match (free with Pro)
               plus an applicant-provided credit report with an AI authenticity score cross-referenced against
               the rest of the file. Pro produces the more defensible score; Standard is faster and cheaper.
               The landlord picks per property.
@@ -266,8 +266,9 @@ export default function Tenability() {
               under federal and applicable state law. Only the four legitimate signals listed above are weighed.
             </Faq>
             <Faq q="Who pays — landlord or applicant?">
-              The applicant pays for their Tenability™ fee directly — $5 for Standard, $25 for Pro. Landlords
-              pay $5 per unit per month for the {BRAND.name} platform and never pay for individual applications.
+              The applicant pays for their Tenability™ fee directly — $15 for Standard, $35 for Pro. {BRAND.name}
+              is free for landlords, and landlords never pay for individual applications. A few states cap or
+              ban application fees; there, the price is lower or screening isn't offered.
             </Faq>
             <Faq q="How long does scoring take?">
               Typically under 60 seconds from the moment the applicant finishes uploading their income docs and
@@ -288,7 +289,7 @@ export default function Tenability() {
             Stop calling employers. Start screening with Tenability™.
           </h2>
           <p className="mt-3 text-white/70">
-            $5 per unit per month. Applicants pay $5 for pre-qualification. No setup fees, no upsell ladder.
+            Free for landlords. Applicants pay for their own screening. No setup fees, no upsell ladder.
           </p>
           <Link
             to="/register"

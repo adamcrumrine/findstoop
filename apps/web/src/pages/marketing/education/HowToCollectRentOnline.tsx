@@ -116,8 +116,8 @@ export default function HowToCollectRentOnline() {
       <ul>
         <li><strong>Who pays the card fee.</strong> Make sure it's charged to the party you intend, not
         silently absorbed into your revenue or the tenant's rent.</li>
-        <li><strong>ACH cost to the tenant.</strong> Free ACH removes the biggest reason a tenant reaches
-        for a card instead.</li>
+        <li><strong>ACH cost to the tenant.</strong> Cheap, capped ACH removes the biggest reason a tenant
+        reaches for a card instead.</li>
         <li><strong>Payment history you can export.</strong> You'll want this for taxes (Schedule E) and for
         any dispute, so confirm you can pull a clean CSV or PDF whenever you need one.</li>
         <li><strong>Autopay with tenant control.</strong> The tenant should be able to turn it on, adjust
@@ -126,9 +126,9 @@ export default function HowToCollectRentOnline() {
         status, disputes take longer to resolve than they should.</li>
       </ul>
       <p>
-        On {BRAND.name}, ACH rent transfers are free for tenants — the landlord's flat $5/unit/month
-        subscription covers it — and card payments carry a 3% surcharge paid by the tenant at checkout,
-        disclosed before they confirm the payment. Every payment posts to a shared ledger both the landlord
+        On {BRAND.name}, which is free for landlords, ACH rent transfers cost the tenant 0.8% — never more
+        than $5 — and card payments carry a 3% surcharge, both shown in dollars before the tenant confirms.
+        A landlord can choose to cover the fee for any tenant. Every payment posts to a shared ledger both the landlord
         and tenant can see, with CSV export for tax season.
       </p>
 

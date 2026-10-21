@@ -43,7 +43,6 @@ export default function LeasePdf() {
   const [allTenants, setAllTenants] = useState<Profile[]>([])
   const [signatures, setSignatures] = useState<SignatureRecord[]>([])
   const [signerProfiles, setSignerProfiles] = useState<Record<string, Profile>>({})
-  const [billingActive, setBillingActive] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   // Storage path of an uploaded/externally-signed lease PDF, if one exists.
   // When set, THAT document is the executed lease and the generated template
@@ -114,17 +113,6 @@ export default function LeasePdf() {
         if (managerProfile && !cancelled) {
           setSignerProfiles((prev) => ({ ...prev, [managerId!]: managerProfile as Profile }))
         }
-      }
-
-      // Check landlord billing — formatted PDF is gated on both signed AND
-      // active subscription. Uses a SECURITY DEFINER RPC so both managers
-      // and tenants can verify the landlord's subscription status without
-      // needing direct read access to the landlord's billing fields.
-      if (managerId && !cancelled) {
-        const { data: activeRes } = await supabase.rpc('manager_subscription_active', { manager_uuid: managerId })
-        if (!cancelled) setBillingActive(Boolean(activeRes))
-      } else if (!cancelled) {
-        setBillingActive(false)
       }
 
       setLoading(false)
@@ -272,14 +260,13 @@ export default function LeasePdf() {
     )
   }
 
-  // PDF is only available once both parties have signed AND the landlord's
-  // Stoop subscription is active. Admin bypasses both gates for support.
+  // The finalized PDF is available once everyone has signed. Admin bypasses
+  // the gate for support. (It was also gated on the landlord's subscription
+  // until Stoop went free for landlords, 2026-10-20.)
   const isAdmin = profile.role === 'admin'
-  if (!isAdmin && (!lease.signed_at || billingActive === false)) {
+  if (!isAdmin && !lease.signed_at) {
     const backTo = profile.role === 'tenant' ? '/tenant/dashboard' : `/manager/review-lease/${lease.id}`
-    const reason = !lease.signed_at
-      ? 'The finalized PDF is generated once both the landlord and the tenant have signed.'
-      : `The finalized PDF will be available once the landlord completes ${BRAND.name} billing setup.`
+    const reason = 'The finalized PDF is generated once the landlord and every tenant have signed.'
     return (
       <div className="max-w-xl mx-auto py-16 px-4 text-center">
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">

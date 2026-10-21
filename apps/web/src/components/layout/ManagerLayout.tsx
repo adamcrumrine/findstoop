@@ -4,7 +4,7 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import {
   LayoutGrid, Building2, Megaphone, ClipboardList, ShieldCheck,
   Users, FileText, CreditCard, Wrench, MessageSquare, Folder, BarChart3,
-  Receipt, Settings as SettingsIcon, MoreHorizontal, Upload, Calculator, type LucideIcon,
+  Settings as SettingsIcon, MoreHorizontal, Upload, Calculator, type LucideIcon,
 } from 'lucide-react'
 import Avatar from '../shared/Avatar'
 import IdleSignOut from '../shared/IdleSignOut'
@@ -37,7 +37,6 @@ const navItems: NavItem[] = [
   { to: '/manager/documents',    label: 'Documents',    Icon: Folder,         group: 'operate' },
   { to: '/manager/reports',      label: 'Reports',      Icon: BarChart3,      group: 'insights' },
   { to: '/manager/rental-analysis', label: 'Rental Analysis', Icon: Calculator, group: 'insights' },
-  { to: '/manager/billing',      label: 'Billing',      Icon: Receipt,        group: 'insights' },
   { to: '/manager/import',       label: 'Import',       Icon: Upload,         group: 'account' },
   { to: '/manager/settings',     label: 'Settings',     Icon: SettingsIcon,   group: 'account' },
 ]

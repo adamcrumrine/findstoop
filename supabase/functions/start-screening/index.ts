@@ -2,10 +2,9 @@
 //
 // Returns a Stripe PaymentIntent client secret. After the applicant confirms
 // payment, the stripe-webhook handler marks the order paid and unlocks the
-// document-upload step. Pricing for Central Ohio:
-//   • prequal: $15 ($10 margin after ~$5 of doc storage + AI inference costs)
-//   • full:    $45 upgrade, +$60 cumulative — paid only after the manager
-//              requests it AND the applicant authorizes the FCRA pull
+// document-upload step. Pricing: Tenability™ $15, Tenability™ Pro $35, by the
+// property's state — capped or unavailable where state law limits application
+// fees (_shared/screeningPricing.ts).
 //
 // One row per (application, tier) — UNIQUE constraint handles the retry case
 // (applicant abandoned mid-payment and starts again).
@@ -16,6 +15,7 @@ import { logApiCall, stripeFee, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
 import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
 import { tokensMatch } from '../_shared/screeningAuth.ts'
+import { screeningPricesFor } from '../_shared/screeningPricing.ts'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -25,19 +25,21 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 // to require; applicant pays the sum in one Stripe charge. Margins below
 // are pre-Stripe (Stripe fee is deducted at the charge level, not the
 // component level).
-const BASE_PRICING = {
-  prequal: { amount_cents: 500, margin_cents: 487 },  // $5  / ~$4.87 margin (-$0.13 COGS)
-} as const
+// Tenability™ and Pro prices come from the property's state
+// (_shared/screeningPricing.ts): $15 / $35, capped or unavailable where state
+// law limits application fees. Pro = the base + the credit_self line.
+// COGS per line, for the margin column: base ~$0.13, credit-self ~$0.30.
+const BASE_COGS_CENTS = 13
+const CREDIT_SELF_COGS_CENTS = 30
 
 const ADDON_PRICING = {
   selfie_match:           { amount_cents:  200, margin_cents:  170 },  // +$2  / +$1.70 (-$0.30 extra Claude call)
-  credit_self_disclosed:  { amount_cents: 2000, margin_cents: 1970 },  // +$20 / +$19.70 (-$0.07 Haiku+Sonnet, -$0.23 Stripe portion)
   credit_check:           { amount_cents: 1500, margin_cents:  800 },  // +$15 / +$8 (-$7 Array)        — Coming Soon
   criminal_check:         { amount_cents: 2500, margin_cents: 1500 },  // +$25 / +$15 (-$10 Vergent.ai) — Coming Soon
   eviction_check:         { amount_cents: 1000, margin_cents:  300 },  // +$10 / +$3 (-$7 LexisNexis)   — Coming Soon
 } as const
 
-type AddonKey = keyof typeof ADDON_PRICING
+type AddonKey = keyof typeof ADDON_PRICING | 'credit_self_disclosed'
 
 function json(req: Request, body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -123,13 +125,28 @@ Deno.serve(async (req) => {
         .is('ai_screening_consent_at', null)
     }
 
+    // Price by the property's state — some states cap or ban application fees.
+    const { data: unitRow } = await admin
+      .from('units')
+      .select('properties(state)')
+      .eq('id', app.unit_id)
+      .maybeSingle()
+    const propertyState = (unitRow as { properties?: { state?: string | null } | null } | null)?.properties?.state ?? null
+    const prices = screeningPricesFor(propertyState)
+    if (!prices.available) {
+      return json(req, { error: `Screening isn't offered for this property. ${prices.reason}` }, { status: 400 })
+    }
+
     const zero = { amount_cents: 0, margin_cents: 0 }
-    const base = BASE_PRICING.prequal
+    const base = { amount_cents: prices.standard * 100, margin_cents: prices.standard * 100 - BASE_COGS_CENTS }
+    const proExtraCents = (prices.pro - prices.standard) * 100
     // When selfie is bundled with credit-self, charge $0 for the selfie line —
     // but its margin reduction (extra Claude call) is absorbed into the
-    // credit-self margin since the credit-self tier nets ~$19.70 anyway.
-    const selfie     = wantsSelfie && !selfieBundled ? ADDON_PRICING.selfie_match          : zero
-    const creditSelf = wantsCreditSelf               ? ADDON_PRICING.credit_self_disclosed : zero
+    // credit-self margin.
+    const selfie     = wantsSelfie && !selfieBundled ? ADDON_PRICING.selfie_match : zero
+    const creditSelf = wantsCreditSelf
+      ? { amount_cents: proExtraCents, margin_cents: proExtraCents - CREDIT_SELF_COGS_CENTS }
+      : zero
     const credit     = wantsCredit     ? ADDON_PRICING.credit_check          : zero
     const criminal   = wantsCriminal   ? ADDON_PRICING.criminal_check        : zero
     const eviction   = wantsEviction   ? ADDON_PRICING.eviction_check        : zero

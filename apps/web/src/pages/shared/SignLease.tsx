@@ -1,15 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
-import { syncSubscriptionQuantity } from '@findstoop/shared/api/billing'
-import { PER_UNIT_MONTHLY } from '@findstoop/shared/lib/pricing'
 import { supabase } from '../../lib/supabase'
 import { fetchSigningStatus, type SignerStatus } from '../../lib/leaseSigning'
 import SignaturePad, { type SignaturePadHandle } from '../../components/shared/SignaturePad'
 import { FileSignature, ShieldCheck, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { BRAND } from '../../lib/brand'
-import ModalShell from '../../components/shared/ModalShell'
 
 interface LeaseDetail {
   id: string
@@ -63,19 +59,6 @@ export default function SignLease() {
   const [intent, setIntent] = useState(false)
   const [hasInk, setHasInk] = useState(false)
   const [completed, setCompleted] = useState(false)
-  // Per-incremental-unit billing confirmation: when a manager signs and
-  // their subscription is already active, show a confirm dialog with the
-  // updated monthly total before recording the signature.
-  const [confirmingBilling, setConfirmingBilling] = useState(false)
-  const [activeUnitCount, setActiveUnitCount] = useState<number | null>(null)
-  const [subscriptionActive, setSubscriptionActive] = useState<boolean>(false)
-  // After the manager signs the final signature on a lease but doesn't yet
-  // have an active subscription, prompt them to set up billing — the lease
-  // is now active and most platform features are paywalled.
-  const [showBillingPrompt, setShowBillingPrompt] = useState(false)
-  // A renewal's unit is already billed through the lease it replaces —
-  // billing counts units, not leases — so signing it changes nothing.
-  const [unitAlreadyBilled, setUnitAlreadyBilled] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -108,45 +91,6 @@ export default function SignLease() {
     })()
     return () => { cancelled = true }
   }, [id])
-
-  useEffect(() => {
-    if (!lease?.unit_id || lease.status === 'active') return
-    let cancelled = false
-    supabase
-      .from('leases')
-      .select('id')
-      .eq('unit_id', lease.unit_id)
-      .eq('status', 'active')
-      .neq('id', lease.id)
-      .limit(1)
-      .then(({ data }) => { if (!cancelled) setUnitAlreadyBilled((data?.length ?? 0) > 0) })
-    return () => { cancelled = true }
-  }, [lease?.id, lease?.unit_id, lease?.status])
-
-  // When the signer is the manager, pre-load their active-unit count and
-  // subscription status so the pre-sign confirmation modal can show the
-  // accurate new monthly total.
-  useEffect(() => {
-    if (!user?.id || !profile) return
-    if (profile.role !== 'manager' && profile.role !== 'admin') return
-    let cancelled = false
-    ;(async () => {
-      const [unitsRes, subRes] = await Promise.all([
-        supabase.rpc('count_manager_active_units', { manager_uuid: user.id }),
-        supabase
-          .from('profiles')
-          .select('stripe_subscription_id, subscription_status')
-          .eq('id', user.id)
-          .maybeSingle(),
-      ])
-      if (cancelled) return
-      setActiveUnitCount(Number(unitsRes.data ?? 0))
-      const sub = subRes.data as { stripe_subscription_id?: string | null; subscription_status?: string | null } | null
-      setSubscriptionActive(!!sub?.stripe_subscription_id &&
-        (sub?.subscription_status === 'active' || sub?.subscription_status === 'trialing'))
-    })()
-    return () => { cancelled = true }
-  }, [user?.id, profile?.role])
 
   if (loading) {
     return (
@@ -195,9 +139,7 @@ export default function SignLease() {
         ...otherTenantsPending.map((t) => t.full_name ?? t.email ?? 'a roommate'),
       ].join(', ').replace(/, ([^,]*)$/, ' and $1') || 'the landlord'
 
-  // The actual signature insert + completion handling. Pulled out so both
-  // the direct submit path (tenants) and the post-confirmation path
-  // (managers, after they confirm the new monthly billing total) can call it.
+  // The actual signature insert + completion handling.
   const performSignature = async () => {
     const dataUrl = padRef.current?.toDataURL()
     if (!dataUrl) {
@@ -222,23 +164,6 @@ export default function SignLease() {
     }
     setCompleted(true)
     toast.success('Signature recorded')
-    const isManager = profile!.role === 'manager' || profile!.role === 'admin'
-    if (isManager) {
-      void syncSubscriptionQuantity()
-    }
-    // Did this signature complete the lease? A manager's does when every
-    // tenant had already signed; a tenant's when they were the last one.
-    const leaseNowActive = effectiveRole === 'manager'
-      ? allTenantsSigned
-      : managerSigned && otherTenantsPending.length === 0
-    if (isManager && leaseNowActive && !subscriptionActive) {
-      // Stash return URL so the user comes back here after billing setup.
-      try {
-        sessionStorage.setItem('findstoop:billing-return-url', `/lease/sign/${lease!.id}`)
-      } catch { /* sessionStorage can throw in private mode */ }
-      setShowBillingPrompt(true)
-      return
-    }
     setTimeout(() => navigate(backHref), 2500)
   }
 
@@ -252,15 +177,6 @@ export default function SignLease() {
       toast.error('Please acknowledge the consent statement')
       return
     }
-    // Manager-side signing: when their subscription is active, surface the
-    // updated monthly bill (this unit's $5 added to the existing total) as
-    // a confirmation step. Skip when no subscription yet (the paywall flow
-    // upstream catches that case and routes to billing setup first).
-    if ((profile.role === 'manager' || profile.role === 'admin') && subscriptionActive && !unitAlreadyBilled) {
-      setConfirmingBilling(true)
-      return
-    }
-    // Tenant signing, or admin without subscription, falls through directly.
     await performSignature()
   }
 
@@ -406,104 +322,6 @@ export default function SignLease() {
         </section>
       )}
 
-      {/* Post-sign billing prompt: the manager just completed signing the
-          lease (it's now active), but they haven't set up billing yet. The
-          formatted PDF, tenant portal, and rent payments are paywalled. */}
-      {showBillingPrompt && (
-        <ModalShell
-          onClose={() => { setShowBillingPrompt(false); navigate(backHref) }}
-          maxWidth="max-w-md"
-          aria-label="Finish setting up billing"
-        >
-          <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
-            <div className="inline-flex items-center gap-2 text-xs font-medium text-red-700 bg-red-50 px-2.5 py-1 rounded-full mb-3">
-              <ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.75} />
-              Action required
-            </div>
-            <h2 className="text-lg font-semibold text-ink">Your lease is active — finish setting up billing</h2>
-            <p className="text-sm text-mute mt-1.5 leading-relaxed">
-              The lease is signed by both parties. To unlock the formatted lease
-              PDF, open the tenant's portal (rent payments, maintenance,
-              documents), and collect rent through {BRAND.name}, set up your
-              subscription now.
-            </p>
-            <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-mute">
-              $5 per active unit per month, billed only on active units.
-              Stripe-secured, cancel anytime.
-            </div>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => { setShowBillingPrompt(false); navigate(backHref) }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-mute hover:bg-gray-50"
-              >
-                Later
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/manager/billing')}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium"
-              >
-                Set up billing
-              </button>
-            </div>
-          </div>
-        </ModalShell>
-      )}
-
-      {/* Per-incremental-unit billing confirmation (manager only). */}
-      {confirmingBilling && (() => {
-        const PER_UNIT = PER_UNIT_MONTHLY
-        const currentUnits = activeUnitCount ?? 0
-        const nextUnits = currentUnits + 1
-        const newMonthly = nextUnits * PER_UNIT
-        const oldMonthly = currentUnits * PER_UNIT
-        return (
-          <ModalShell
-            onClose={() => { if (!submitting) setConfirmingBilling(false) }}
-            maxWidth="max-w-md"
-            aria-label="Confirm new monthly bill"
-          >
-            <div className="p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
-              <h2 className="text-lg font-semibold text-ink">Confirm new monthly bill</h2>
-              <p className="text-sm text-mute mt-1">
-                Signing this lease activates the unit. Your {BRAND.name} subscription will charge $5/unit/month on active units.
-              </p>
-              <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-1">
-                <div className="flex justify-between text-mute">
-                  <span>Current</span>
-                  <span>${oldMonthly.toLocaleString()}/mo ({currentUnits} {currentUnits === 1 ? 'unit' : 'units'})</span>
-                </div>
-                <div className="flex justify-between text-ink font-semibold border-t border-gray-200 pt-1.5 mt-1.5">
-                  <span>After this lease activates</span>
-                  <span>${newMonthly.toLocaleString()}/mo ({nextUnits} {nextUnits === 1 ? 'unit' : 'units'})</span>
-                </div>
-              </div>
-              <p className="text-xs text-mute mt-3 leading-relaxed">
-                Stripe will prorate the increase for the current billing period. You can review billing details any time from the Billing page.
-              </p>
-              <div className="mt-5 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setConfirmingBilling(false)}
-                  disabled={submitting}
-                  className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-mute hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => { setConfirmingBilling(false); await performSignature() }}
-                  disabled={submitting}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                >
-                  Confirm and sign
-                </button>
-              </div>
-            </div>
-          </ModalShell>
-        )
-      })()}
     </div>
   )
 }

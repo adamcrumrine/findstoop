@@ -4,7 +4,6 @@ import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useTenantBadges } from '@findstoop/shared/hooks/useTenantBadges'
 import { Home, CreditCard, Wrench, Folder, MessageSquare, Settings as SettingsIcon, LogOut, GraduationCap, type LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import TenantPaywallGate from '../shared/TenantPaywallGate'
 import Avatar from '../shared/Avatar'
 import IdleSignOut from '../shared/IdleSignOut'
 import PoweredByStoop from '../shared/PoweredByStoop'
@@ -279,9 +278,7 @@ export default function TenantLayout() {
           </div>
         )}
         <div className="relative z-10">
-          <TenantPaywallGate>
-            <Outlet />
-          </TenantPaywallGate>
+          <Outlet />
         </div>
       </main>
 

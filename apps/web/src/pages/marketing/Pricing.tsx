@@ -3,36 +3,28 @@ import { Check, ArrowRight, Sparkles } from 'lucide-react'
 import { useRouteSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
 
-// Single-tier pricing — rates live in shared/lib/pricing.ts.
-import { PER_UNIT_MONTHLY, PER_UNIT_ANNUAL, ANNUAL_DISCOUNT_PCT } from '@findstoop/shared/lib/pricing'
+// Free for landlords (2026-10-20). Screening prices live in
+// shared/lib/screeningPricing.ts; payment fees in shared/lib/paymentFees.ts.
+import { TENABILITY_PRICE, TENABILITY_PRO_PRICE } from '@findstoop/shared/lib/screeningPricing'
 
-const includedAtThisPrice = [
+const included = [
   'Unlimited properties and units',
-  'Verified pre-qualification on every applicant (applicant pays $5)',
-  'AI Tenability™ with Fair-Housing-safe scoring',
-  'Online rent collection — bank transfer fees capped at $5 per payment',
-  '50-state lease templates with e-sign',
-  'Maintenance tracking with photos',
-  '24/7 tenant portal access',
+  'Listings and online applications',
+  'Tenability™ screening — the applicant pays, not you',
+  'State-specific lease templates with e-sign for every roommate',
+  'Online rent collection, autopay, and automatic late fees',
+  'Lease renewals in a few clicks',
+  'Maintenance requests with photos',
+  'Tenant portal on any phone',
   'Income & expense tracking with CSV export',
   'In-app messaging per lease',
-  'Priority human support',
 ]
 
-const tenantCosts = [
-  { label: 'ACH rent payment',  price: 'Free', sub: 'covered by the landlord' },
-  { label: 'Card rent payment', price: '3%', sub: 'paid by the renter at checkout' },
-  { label: 'Tenability™',       price: '$5',   sub: 'income verification + ID verification + AI Tenability™ score' },
-  { label: 'Tenability™ Pro',   price: '$25',  sub: 'everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring' },
-]
-
-const billingExamples = [
-  { units: 1,  monthly: 9,    annual: 90 },
-  { units: 3,  monthly: 27,   annual: 270 },
-  { units: 5,  monthly: 45,   annual: 450 },
-  { units: 10, monthly: 90,   annual: 900 },
-  { units: 25, monthly: 225,  annual: 2250 },
-  { units: 50, monthly: 450,  annual: 4500 },
+const renterCosts = [
+  { label: 'Bank transfer (ACH) rent payment', price: '0.8%', sub: 'capped at $5 per payment, however large the rent' },
+  { label: 'Card rent payment',                price: '3%',   sub: 'paid by the renter at checkout' },
+  { label: 'Tenability™',                      price: `$${TENABILITY_PRICE}`,     sub: 'income verification + ID verification + 0–100 Tenability™ score' },
+  { label: 'Tenability™ Pro',                  price: `$${TENABILITY_PRO_PRICE}`, sub: 'everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring' },
 ]
 
 export default function Pricing() {
@@ -45,12 +37,11 @@ export default function Pricing() {
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div>
               <h1 className="text-4xl md:text-5xl font-bold text-ink tracking-tight">
-                One plan, ${PER_UNIT_MONTHLY} per unit per month.
+                Free for landlords.
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                Every feature, every integration, every state's lease templates —
-                included. Your tenants pay zero on ACH rent transfers.
-                Pay monthly or save 16.7% with annual prepay.
+                Every feature, every unit, no subscription and no card on file. Applicants pay for
+                their own screening, and whoever pays rent pays the processing — at cost.
               </p>
             </div>
             <div>
@@ -65,7 +56,7 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* Single plan card */}
+      {/* The plan */}
       <section className="py-8">
         <div className="max-w-4xl mx-auto px-5 lg:px-8">
           <article className="bg-white rounded-2xl border-2 border-brand-200 p-8 relative">
@@ -76,16 +67,11 @@ export default function Pricing() {
 
             <div className="grid md:grid-cols-2 gap-10 mt-2">
               <div>
-                <p className="text-xs uppercase tracking-wider text-mute font-semibold">{BRAND.name}</p>
+                <p className="text-xs uppercase tracking-wider text-mute font-semibold">{BRAND.name} for landlords</p>
                 <div className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-5xl font-bold text-ink">${PER_UNIT_MONTHLY}</span>
-                  <span className="text-mute">/ unit / month</span>
+                  <span className="text-5xl font-bold text-ink">$0</span>
+                  <span className="text-mute">/ month, any number of units</span>
                 </div>
-                <p className="text-sm text-mute mt-2">
-                  Or <strong className="text-ink">${PER_UNIT_ANNUAL}/unit/year</strong> with
-                  annual prepay (effective ${(PER_UNIT_ANNUAL / 12).toFixed(2)}/mo —
-                  {' '}{ANNUAL_DISCOUNT_PCT}% off; non-refundable).
-                </p>
                 <Link
                   to="/register"
                   className="mt-6 inline-flex items-center justify-center gap-2 w-full bg-brand-500 hover:bg-brand-600 text-white font-medium px-5 py-3 rounded-lg transition-colors"
@@ -94,14 +80,14 @@ export default function Pricing() {
                   <ArrowRight className="w-4 h-4" strokeWidth={2} />
                 </Link>
                 <p className="mt-3 text-xs text-mute text-center">
-                  No credit card required to sign up. You're only charged once your first lease goes active.
+                  No credit card. Nothing to cancel.
                 </p>
               </div>
 
               <div>
-                <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">Included at this price</p>
+                <p className="text-xs uppercase tracking-wider text-mute font-semibold mb-3">Included</p>
                 <ul className="space-y-2.5">
-                  {includedAtThisPrice.map((line) => (
+                  {included.map((line) => (
                     <li key={line} className="flex items-start gap-2.5 text-sm text-ink">
                       <Check className="w-4 h-4 text-brand-600 mt-0.5 shrink-0" strokeWidth={2.5} />
                       {line}
@@ -114,61 +100,33 @@ export default function Pricing() {
         </div>
       </section>
 
-      {/* Billing examples */}
-      <section className="py-12">
-        <div className="max-w-4xl mx-auto px-5 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">
-              What you'll actually pay
-            </h2>
-            <p className="mt-3 text-mute max-w-xl mx-auto">
-              Linear pricing. Pay only for active units — vacant units never count.
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="grid grid-cols-3 px-6 py-3 bg-gray-50 text-xs uppercase tracking-wider text-mute font-semibold">
-              <div>Active units</div>
-              <div className="text-center">Monthly</div>
-              <div className="text-right">Annual prepay</div>
-            </div>
-            {billingExamples.map((row) => (
-              <div key={row.units} className="grid grid-cols-3 px-6 py-4 border-t border-gray-100 text-sm">
-                <div className="text-ink">{row.units} unit{row.units === 1 ? '' : 's'}</div>
-                <div className="text-center font-semibold text-ink">${row.monthly}</div>
-                <div className="text-right text-ink">
-                  ${row.annual.toLocaleString()}
-                  <span className="text-xs text-mute ml-1">/yr</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* What renters pay */}
       <section className="py-16 bg-gradient-to-b from-white to-brand-50/40">
         <div className="max-w-4xl mx-auto px-5 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">
-              What renters pay
+              What renters and applicants pay
             </h2>
             <p className="mt-3 text-mute max-w-xl mx-auto">
-              Processing is passed through at cost on bank transfers: 0.8%, capped at $5
-              however large the rent. Card payments carry a 3% surcharge with no cap.
-              Renters see both totals in dollars and pick before paying.
+              Processing is passed through at cost — renters see both totals in dollars and pick the
+              cheaper one before paying. Screening is a one-time fee per application.
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
-            {tenantCosts.map((row) => (
-              <div key={row.label} className="flex items-center justify-between px-6 py-4">
+            {renterCosts.map((row) => (
+              <div key={row.label} className="flex items-center justify-between gap-4 px-6 py-4">
                 <div>
                   <p className="font-medium text-ink">{row.label}</p>
                   <p className="text-xs text-mute mt-0.5">{row.sub}</p>
                 </div>
-                <p className="text-lg font-semibold text-ink">{row.price}</p>
+                <p className="text-lg font-semibold text-ink shrink-0">{row.price}</p>
               </div>
             ))}
           </div>
+          <p className="mt-4 text-xs text-mute text-center max-w-xl mx-auto">
+            Some states limit application fees. Where they do, we charge less or don’t offer applicant-paid
+            screening at all — your property page shows what applies in your state.
+          </p>
         </div>
       </section>
 
@@ -179,36 +137,20 @@ export default function Pricing() {
             Pricing questions
           </h2>
           <div className="space-y-6">
-            <Faq q="When do I start paying?">
-              You can sign up, add properties, and invite tenants without paying anything.
-              Billing only starts once your first lease goes active — that's when the unit
-              counts as a "paid unit" at ${PER_UNIT_MONTHLY}/month.
+            <Faq q="Is it really free?">
+              Yes. Every feature, for any number of units, with no subscription and no card on file.
             </Faq>
-            <Faq q="What counts as a unit?">
-              Anything you'd rent to a separate household. A single-family home is one
-              unit. A duplex is two. Vacant units don't count — we only charge for active
-              leases.
+            <Faq q={`So how does ${BRAND.name} make money?`}>
+              Applicants pay ${TENABILITY_PRICE} for Tenability™ (or ${TENABILITY_PRO_PRICE} for Pro) when they apply to
+              your listing. That's the business model — we don't sell your data, and rent processing isn't a profit center.
             </Faq>
-            <Faq q="Can I cancel?">
-              Yes, in one click. Monthly subscriptions stop at the end of the current
-              billing period; you keep access until then. Annual prepay isn't refundable,
-              but access continues through the end of your prepaid term.
+            <Faq q="What do my tenants pay to pay rent?">
+              Only the processing cost: 0.8% on a bank transfer, never more than $5, or 3% on a card. They see both
+              totals in dollars and choose. You can cover the fee for a particular tenant if you like.
             </Faq>
-            <Faq q="What about portfolios over 50 units?">
-              The standard plan covers up to 50 units. If you're managing more, you've
-              outgrown the DIY category — reach out and we'll talk about volume pricing.
-            </Faq>
-            <Faq q="Why isn't there a free tier?">
-              We could offer one, but every other landlord platform with a free tier
-              monetizes by charging your tenants — surcharges, screening reports, optional
-              "speed-up" fees. We'd rather charge a flat, honest ${PER_UNIT_MONTHLY}/unit/mo
-              and keep the experience clean for your renters.
-            </Faq>
-            <Faq q="Annual prepay — what's the catch?">
-              No catch other than the non-refundable bit: prepaying ${PER_UNIT_ANNUAL}/unit
-              for the year saves you 16.7% over monthly. If you cancel mid-year, you keep
-              access through the end of the prepaid term — but no refund. Units you remove
-              mid-year don't generate a credit.
+            <Faq q="Is there a catch?">
+              No contract, no tier ladder, no “upgrade to unlock.” If we ever introduce a paid plan, everything
+              you're using now stays free.
             </Faq>
           </div>
         </div>
@@ -218,10 +160,10 @@ export default function Pricing() {
       <section className="bg-gradient-to-br from-brand-500 to-brand-600 text-white">
         <div className="max-w-3xl mx-auto px-5 lg:px-8 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Sign up free. Bring your portfolio.
+            Free for landlords. Bring your portfolio.
           </h2>
           <p className="mt-3 text-white/85">
-            You're not billed until your first lease goes active. CSV import included.
+            CSV import included.
           </p>
           <Link
             to="/register"

@@ -40,10 +40,10 @@ const steps: Step[] = [
     number: '03',
     Icon: ShieldCheck,
     title: 'Get verified applicants with a Tenability™ score',
-    body: 'Every applicant fills out one standardized form, then completes Tenability™ — our proprietary screening pipeline. Pick the tier per property: Tenability™ ($5 — income + ID + 0–100 score) for fast pre-qualification, or Tenability™ Pro ($25 — adds selfie ID match and an applicant-provided credit report with authenticity scoring; selfie is free with Pro). Both tiers are Fair-Housing-safe by design.',
+    body: 'Every applicant fills out one standardized form, then completes Tenability™ — our proprietary screening pipeline. Pick the tier per property: Tenability™ ($15, paid by the applicant — income + ID + 0–100 score) for fast pre-qualification, or Tenability™ Pro ($35 — adds selfie ID match and an applicant-provided credit report with authenticity scoring; selfie is free with Pro). Both tiers are Fair-Housing-safe by design.',
     detail: [
-      'Tenability™ ($5): verified income + verified ID + 0–100 score',
-      'Tenability™ Pro ($25): adds selfie + applicant-provided credit + authenticity check',
+      'Tenability™ ($15): verified income + verified ID + 0–100 score',
+      'Tenability™ Pro ($35): adds selfie + applicant-provided credit + authenticity check',
       'Fair-Housing-safe — protected-class signals ignored by design',
     ],
   },

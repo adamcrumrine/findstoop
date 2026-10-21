@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { supabase } from '../../lib/supabase'
 import {
@@ -722,6 +722,12 @@ export default function ManagerSettings() {
           <div>
             <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Role</dt>
             <dd className="text-ink mt-0.5 capitalize">{profile?.role ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wider text-mute font-semibold">Plan</dt>
+            <dd className="text-ink mt-0.5">
+              Free · <Link to="/manager/billing" className="text-brand-700 hover:underline">details</Link>
+            </dd>
           </div>
         </dl>
       </section>

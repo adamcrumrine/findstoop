@@ -5,21 +5,8 @@ import {
   getLeaseTenantsForLeaseIds, createLease, updateLease,
 } from '../api/leases'
 import { getProfiles } from '../api/profiles'
-import { syncSubscriptionQuantity } from '../api/billing'
 import type { Lease, LeaseStatus } from '../types/lease'
 import type { Profile } from '../types/profile'
-
-// Fire-and-forget background sync. We only want to call when a change
-// crosses the "active" boundary, since paid-unit count is derived from
-// active leases.
-function maybeSyncSubscription(prevStatus: LeaseStatus | undefined, nextStatus: LeaseStatus | undefined) {
-  const crossesActive =
-    (prevStatus !== 'active' && nextStatus === 'active') ||
-    (prevStatus === 'active' && nextStatus !== 'active')
-  if (crossesActive) {
-    void syncSubscriptionQuantity()
-  }
-}
 
 export interface LeaseWithTenant extends Lease {
   profile: Profile | null      // legacy primary (leases.tenant_id) — kept for back-compat
@@ -78,16 +65,12 @@ export function useLeases(unitIds: string[]) {
     const profiles = await getProfiles([lease.tenant_id])
     const withTenant: LeaseWithTenant = { ...lease, profile: profiles[0] ?? null }
     setLeases((prev) => [withTenant, ...prev])
-    // If the new lease started as active, paid-unit count just went up.
-    maybeSyncSubscription(undefined, lease.status)
     return lease
   }
 
   const update = async (id: string, data: Partial<Omit<Lease, 'id' | 'created_at'>>) => {
-    const previous = leases.find((l) => l.id === id)
     const lease = await updateLease(id, data)
     setLeases((prev) => prev.map((l) => l.id === id ? { ...l, ...lease } : l))
-    maybeSyncSubscription(previous?.status, lease.status)
     return lease
   }
 

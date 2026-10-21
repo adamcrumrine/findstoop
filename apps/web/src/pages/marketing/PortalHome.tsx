@@ -72,7 +72,7 @@ export default function PortalHome() {
           <ActionCard
             Icon={CreditCard}
             title="Pay rent"
-            body="Free ACH transfers, automatic receipts, and payment history you can export any time."
+            body="Low-cost bank transfers (never more than $5), automatic receipts, and payment history you can export any time."
           />
           <ActionCard
             Icon={Wrench}

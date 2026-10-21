@@ -23,6 +23,7 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
+import { checkRateLimit } from '../_shared/rateLimit.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const MODEL = 'claude-haiku-4-5-20251001'
@@ -96,6 +97,12 @@ Deno.serve(async (req) => {
       return json(req, { ok: false, message: 'Not authenticated' }, { status: 401 })
     }
     const managerId = userData.user.id
+
+    // Stoop is free for landlords, so AI calls are capped per account.
+    const underCap = await checkRateLimit({ key: `extract-lease-fields:${managerId}`, windowSeconds: 86400, maxCount: 30 })
+    if (!underCap) {
+      return json(req, { ok: false, message: "You've reached today's limit for reading lease PDFs — try again tomorrow." }, { status: 429 })
+    }
 
     const admin: SupabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',

@@ -71,8 +71,11 @@ Deno.serve(async (req) => {
 
   try {
     const ip = clientIp(req)
-    const allowed = await checkRateLimit({ key: `check-deposit:${ip}`, windowSeconds: 3600, maxCount: 15 })
-    if (!allowed) return json(req, { ok: false, message: "You've checked a lot — try again in a little while." }, { status: 429 })
+    // Free, no-account tool — 10 per IP per day plus a 200/day site-wide
+    // ceiling, so a scripted run across many IPs can't run up the bill.
+    const allowed = await checkRateLimit({ key: `check-deposit:${ip}`, windowSeconds: 86400, maxCount: 10 })
+      && await checkRateLimit({ key: 'check-deposit:global', windowSeconds: 86400, maxCount: 200 })
+    if (!allowed) return json(req, { ok: false, message: "We've hit today's limit for deposit checks — please try again tomorrow." }, { status: 429 })
 
     const body = await req.json().catch(() => ({})) as { pdf_base64?: string; text?: string; ref?: string }
     const pdf = body.pdf_base64 ?? ''

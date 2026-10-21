@@ -54,7 +54,6 @@ export interface DashboardData {
   awaitingManagerSignature: Lease[]
   /** True once the manager has at least one fully-signed lease but no
    *  active FindStoop subscription. Surfaces a hard CTA to complete billing. */
-  needsBillingSetup: boolean
   properties: Property[]
   units: Unit[]
   leases: Lease[]
@@ -76,7 +75,6 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
   const [allMaintenance, setAllMaintenance] = useState<MaintenanceRequest[]>([])
   const [upcomingRenewals, setUpcomingRenewals] = useState<Lease[]>([])
   const [awaitingManagerSignature, setAwaitingManagerSignature] = useState<Lease[]>([])
-  const [needsBillingSetup, setNeedsBillingSetup] = useState(false)
 
   useEffect(() => {
     if (!managerId) {
@@ -159,29 +157,6 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
         })
         setAwaitingManagerSignature(awaiting)
 
-        // Billing-setup detection: if the manager has any fully-signed lease
-        // (or the tenant has signed and they're about to finalize), check
-        // whether their FindStoop subscription is active. If not, surface a
-        // hard CTA on the dashboard.
-        const hasExecutedLease = allLeases.some((l) => l.signed_at != null) ||
-          awaiting.length > 0
-        if (hasExecutedLease) {
-          const { data: subData } = await supabase
-            .from('profiles')
-            .select('stripe_subscription_id, subscription_status, subscription_complimentary')
-            .eq('id', managerId)
-            .single()
-          const sub = subData as { stripe_subscription_id?: string | null; subscription_status?: string | null; subscription_complimentary?: boolean } | null
-          // Complimentary managers (dogfood / partner comps) bypass the
-          // paywall — they shouldn't see the "set up billing" prompt.
-          const subscriptionActive = !!sub?.subscription_complimentary || (
-            !!sub?.stripe_subscription_id &&
-            (sub?.subscription_status === 'active' || sub?.subscription_status === 'trialing')
-          )
-          if (!cancelled) setNeedsBillingSetup(!subscriptionActive)
-        } else {
-          if (!cancelled) setNeedsBillingSetup(false)
-        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load dashboard')
       } finally {
@@ -240,7 +215,6 @@ export function useManagerDashboard(managerId: string | undefined): DashboardDat
     allMaintenance,
     upcomingRenewals,
     awaitingManagerSignature,
-    needsBillingSetup,
     properties,
     units,
     leases,

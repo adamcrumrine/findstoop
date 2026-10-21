@@ -14,7 +14,7 @@ export default function ScreeningTerms() {
       <Link to="/" className="text-sm text-brand-600 hover:underline">← {BRAND.name}</Link>
       <h1 className="text-2xl font-bold text-ink mt-4">Screening Terms</h1>
       <p className="text-sm text-mute mt-2">
-        Last updated May 23, 2026. Plain English. If anything's unclear, email{' '}
+        Last updated October 20, 2026. Plain English. If anything's unclear, email{' '}
         <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
       </p>
 
@@ -76,7 +76,7 @@ export default function ScreeningTerms() {
           <p className="mt-1 text-mute">
             You can ask us to delete your screening documents at any time by emailing{' '}
             <a href={`mailto:${BRAND.supportEmail}`} className="text-brand-600 hover:underline">{BRAND.supportEmail}</a>.
-            The $5 pre-qualification fee is non-refundable once your documents have been
+            The Tenability™ fee is non-refundable once your documents have been
             processed (which happens immediately).
           </p>
         </div>

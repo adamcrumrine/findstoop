@@ -81,10 +81,13 @@ Deno.serve(async (req) => {
 
   try {
     const ip = clientIp(req)
-    // Free tool — guard spend. ~15 analyses per IP per hour.
-    const allowed = await checkRateLimit({ key: `explain-lease:${ip}`, windowSeconds: 3600, maxCount: 15 })
+    // Free, no-account tool — guard spend: 10 analyses per IP per day, and a
+    // site-wide ceiling of 200 a day (~$4 at Sonnet rates) so a scripted run
+    // across many IPs can't run up the bill.
+    const allowed = await checkRateLimit({ key: `explain-lease:${ip}`, windowSeconds: 86400, maxCount: 10 })
+      && await checkRateLimit({ key: 'explain-lease:global', windowSeconds: 86400, maxCount: 200 })
     if (!allowed) {
-      return json(req, { ok: false, message: "You've checked a lot of leases — try again in a little while." }, { status: 429 })
+      return json(req, { ok: false, message: "We've hit today's limit for lease checks — please try again tomorrow." }, { status: 429 })
     }
 
     const body = await req.json().catch(() => ({})) as { pdf_base64?: string; ref?: string }

@@ -9,6 +9,7 @@
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
+import { checkRateLimit } from '../_shared/rateLimit.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const MODEL = 'claude-haiku-4-5-20251001'
@@ -61,6 +62,11 @@ Deno.serve(async (req) => {
     )
     const { data: { user }, error: authErr } = await admin.auth.getUser(token)
     if (authErr || !user) return json({ error: 'Unauthorized' }, { status: 401 })
+
+    // AI calls are capped per account (Stoop is free for landlords).
+    if (!await checkRateLimit({ key: `triage-maintenance:${user.id}`, windowSeconds: 86400, maxCount: 50 })) {
+      return json({ error: "Today's limit for automatic triage is reached — the request is saved; triage it by hand." }, { status: 429 })
+    }
 
     const { data: reqRow, error: rErr } = await admin
       .from('maintenance_requests')

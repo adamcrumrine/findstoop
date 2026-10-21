@@ -8,7 +8,6 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import { useManagerDashboard } from '@findstoop/shared/hooks/useManagerDashboard'
 import { formatUsd, formatUsdCents } from '@findstoop/shared/lib/format'
-import { PER_UNIT_MONTHLY } from '@findstoop/shared/lib/pricing'
 import { rowStatus, paymentAnchor, pausedLeaseIds } from '@findstoop/shared/lib/paymentRails'
 import MonthlyDonut from '../../components/manager/MonthlyDonut'
 import { useTurnovers } from '../../hooks/useTurnovers'
@@ -17,7 +16,7 @@ import { assessRenewalRisk, RISK_TIER_LABEL } from '../../lib/renewalRisk'
 import type { Payment } from '@findstoop/shared/types/payment'
 import type { MaintenanceRequest } from '@findstoop/shared/types/maintenance'
 import type { Lease } from '@findstoop/shared/types/lease'
-import { BRAND, PORTAL_BASE_DOMAIN } from '../../lib/brand'
+import { PORTAL_BASE_DOMAIN } from '../../lib/brand'
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Skeleton({ className }: { className?: string }) {
@@ -201,7 +200,7 @@ function Section({ title, children, loading, empty, emptyText }: {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function ManagerDashboard() {
   const { profile } = useAuth()
-  const { stats, recentPayments, allPayments, openMaintenance, allMaintenance, upcomingRenewals, awaitingManagerSignature, needsBillingSetup, properties, units, leases, loading, error } =
+  const { stats, recentPayments, allPayments, openMaintenance, allMaintenance, upcomingRenewals, awaitingManagerSignature, properties, units, leases, loading, error } =
     useManagerDashboard(profile?.id)
 
   const pausedLeases = useMemo(() => pausedLeaseIds(leases), [leases])
@@ -435,31 +434,6 @@ export default function ManagerDashboard() {
           ))}
         </div>
       </div>
-
-      {/* Billing setup required — surfaces once the manager has any executed lease but no active subscription. */}
-      {!loading && needsBillingSetup && (
-        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-              <CreditCard className="w-5 h-5 text-red-700" strokeWidth={1.75} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-red-900">Action required — set up {BRAND.name} billing</p>
-              <p className="text-sm text-red-800 mt-0.5 leading-relaxed">
-                You have at least one signed lease. To unlock the formatted lease PDF, open your tenant's portal (rent payments, maintenance, documents), and start collecting rent through {BRAND.name}, set up your subscription now.
-                {formatUsd(PER_UNIT_MONTHLY)}/unit per month, billed only on active units.
-              </p>
-              <Link
-                to="/manager/billing"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
-              >
-                Set up billing now
-                <ChevronRight className="w-4 h-4" strokeWidth={2} />
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Awaiting your signature — surfaces when a tenant has signed but the manager hasn't */}
       {!loading && awaitingManagerSignature.length > 0 && (

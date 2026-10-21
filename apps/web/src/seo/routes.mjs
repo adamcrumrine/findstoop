@@ -92,14 +92,14 @@ export const ROUTES = [
   {
     path: '/',
     title: 'Property management for landlords with a handful of units',
-    description: 'List vacancies, screen applicants, sign leases, and accept rent online — built for landlords who own a handful of properties, not a hundred. $5 per unit per month.',
-    lastmod: '2026-07-14', changefreq: 'weekly', priority: 1.0,
+    description: 'List vacancies, screen applicants, sign leases, and accept rent online — built for landlords who own a handful of properties, not a hundred. Free for landlords.',
+    lastmod: '2026-10-20', changefreq: 'weekly', priority: 1.0,
   },
   {
     path: '/tenability',
-    title: 'Tenability™ — the 0–100 AI rentability score (from $5)',
-    description: `Tenability™ is Stoop's private 0–100 rentability score. Two tiers: Tenability™ ($5 — verified income + ID + score) and Tenability™ Pro ($25 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.`,
-    lastmod: '2026-07-14', changefreq: 'monthly', priority: 0.95,
+    title: 'Tenability™ — the 0–100 AI rentability score',
+    description: `Tenability™ is Stoop's private 0–100 rentability score, paid for by the applicant. Two tiers: Tenability™ ($15 — verified income + ID + score) and Tenability™ Pro ($35 — adds selfie ID match and applicant-provided credit with AI authenticity scoring). Fair-Housing-safe by design, in minutes not days.`,
+    lastmod: '2026-10-20', changefreq: 'monthly', priority: 0.95,
   },
   {
     path: '/migrate',
@@ -115,9 +115,9 @@ export const ROUTES = [
   },
   {
     path: '/pricing',
-    title: 'Pricing — $5 per unit per month',
-    description: 'Simple per-unit pricing — $5 per unit per month, $50 per unit per year. Every feature included. Applicants pay $5 for verified pre-qualification. No setup fees, no upsells.',
-    lastmod: '2026-07-14', changefreq: 'monthly', priority: 0.9,
+    title: 'Pricing — free for landlords',
+    description: 'Stoop is free for landlords — every feature, any number of units, no subscription. Applicants pay $15 for Tenability™ screening; rent processing is passed through at cost.',
+    lastmod: '2026-10-20', changefreq: 'monthly', priority: 0.9,
   },
   {
     path: '/how-it-works',
@@ -128,8 +128,8 @@ export const ROUTES = [
   {
     path: '/tenants',
     title: 'For renters',
-    description: 'Apply for rentals on Stoop with verified pre-qualification for $5, e-sign your lease from your phone, and pay rent free by ACH. Verified applications jump the queue and decisions land in under 24 hours.',
-    lastmod: '2026-07-14', changefreq: 'monthly', priority: 0.8,
+    description: 'Apply for rentals on Stoop with verified Tenability™ pre-qualification, e-sign your lease from your phone, and pay rent by bank transfer for 0.8% (never more than $5). Verified applications jump the queue.',
+    lastmod: '2026-10-20', changefreq: 'monthly', priority: 0.8,
   },
   {
     path: '/education',
@@ -278,50 +278,34 @@ for (const r of ROUTES) {
     mainEntity: [
       {
         '@type': 'Question',
-        name: 'When do I start paying?',
+        name: "Is it really free?",
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `You can sign up, add properties, and invite tenants without paying anything. Billing only starts once your first lease goes active — that's when the unit counts as a "paid unit" at $5/month.`,
+          text: "Yes. Every feature, for any number of units, with no subscription and no card on file.",
         },
       },
       {
         '@type': 'Question',
-        name: 'What counts as a unit?',
+        name: "So how does Stoop make money?",
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `Anything you'd rent to a separate household. A single-family home is one unit. A duplex is two. Vacant units don't count — we only charge for active leases.`,
+          text: "Applicants pay $15 for Tenability™ (or $35 for Pro) when they apply to your listing. That's the business model — we don't sell your data, and rent processing isn't a profit center.",
         },
       },
       {
         '@type': 'Question',
-        name: 'Can I cancel?',
+        name: "What do my tenants pay to pay rent?",
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `Yes, in one click. Monthly subscriptions stop at the end of the current billing period; you keep access until then. Annual prepay isn't refundable, but access continues through the end of your prepaid term.`,
+          text: "Only the processing cost: 0.8% on a bank transfer, never more than $5, or 3% on a card. They see both totals in dollars and choose. You can cover the fee for a particular tenant if you like.",
         },
       },
       {
         '@type': 'Question',
-        name: 'What about portfolios over 50 units?',
+        name: "Is there a catch?",
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `The standard plan covers up to 50 units. If you're managing more, you've outgrown the DIY category — reach out and we'll talk about volume pricing.`,
-        },
-      },
-      {
-        '@type': 'Question',
-        name: `Why isn't there a free tier?`,
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: `We could offer one, but every other landlord platform with a free tier monetizes by charging your tenants — surcharges, screening reports, optional "speed-up" fees. We'd rather charge a flat, honest $5/unit/mo and keep the experience clean for your renters.`,
-        },
-      },
-      {
-        '@type': 'Question',
-        name: `Annual prepay — what's the catch?`,
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: `No catch other than the non-refundable bit: prepaying $50/unit for the year saves you 16.7% over monthly. If you cancel mid-year, you keep access through the end of the prepaid term — but no refund. Units you remove mid-year don't generate a credit.`,
+          text: "No contract, no tier ladder, no “upgrade to unlock.” If we ever introduce a paid plan, everything you're using now stays free.",
         },
       },
     ],

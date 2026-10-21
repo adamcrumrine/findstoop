@@ -51,7 +51,7 @@ const perks: Perk[] = [
   },
   {
     Icon: Sparkles,
-    title: 'Get verified for $5 — and jump the line',
+    title: 'Get verified — and jump the line',
     body: 'Verified applicants land at the top of the landlord\'s review queue with a Tenability™ — our private AI-generated rentability score the landlord sees with your application. Most decisions come back in under 24 hours instead of 3–7 days. Upload your income docs and ID — you\'re done.',
   },
   {
@@ -62,7 +62,7 @@ const perks: Perk[] = [
   {
     Icon: CreditCard,
     title: 'Pay rent without writing a check',
-    body: 'Free ACH transfers from any US bank. We send a receipt the moment it clears so you have a paper trail you actually control.',
+    body: 'Bank transfers from any US bank for 0.8%, never more than $5. We send a receipt the moment it clears so you have a paper trail you actually control.',
   },
   {
     Icon: Wrench,
@@ -93,8 +93,9 @@ export default function Tenants() {
                 Renting, with the receipts.
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                Apply, get verified for $5, and skip ahead of unverified applicants. Sign
-                the lease on your phone. Pay rent free by ACH. Send maintenance with a photo.
+                Apply, get verified, and skip ahead of unverified applicants. Sign the lease
+                on your phone. Pay rent by bank transfer for 0.8% — never more than $5. Send
+                maintenance with a photo.
                 Renting on {BRAND.name} is the way it should've always worked.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -113,7 +114,7 @@ export default function Tenants() {
                 </Link>
               </div>
               <p className="mt-4 text-xs text-mute">
-                Free to create an account. Pre-qualification is optional — only $5 if you choose it.
+                Free to create an account. Tenability™ is $15 when a landlord asks for it.
               </p>
             </div>
             <div>
@@ -156,13 +157,13 @@ export default function Tenants() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
             <Row label="Create an account + apply" sub="Apply, message, see lease docs" price="Free" />
-            <Row label="Tenability™" sub="Income verification + ID verification + your AI Tenability™ score" price="$5" />
-            <Row label="Tenability™ Pro" sub="Everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring. Selfie is free." price="$25" />
-            <Row label="Pay rent by ACH" sub="From any US bank, free for renters" price="$0" />
+            <Row label="Tenability™" sub="Income verification + ID verification + your AI Tenability™ score" price="$15" />
+            <Row label="Tenability™ Pro" sub="Everything in Tenability™ + selfie ID match + applicant-provided credit + authenticity scoring. Selfie is free." price="$35" />
+            <Row label="Pay rent by bank transfer (ACH)" sub="From any US bank — 0.8%, never more than $5" price="0.8%" />
             <Row label="Pay rent by card" sub="Convenience fee, only if you choose" price="3%" />
           </div>
           <p className="text-xs text-mute text-center mt-3">
-            The $20 credit-report tier is a copy of <em>your own</em> AnnualCreditReport.gov report — federally free to pull —
+            Pro's credit report is a copy of <em>your own</em> AnnualCreditReport.gov report — federally free to pull —
             with our AI consistency check on top. Full bureau-pulled credit + criminal + eviction reports are coming
             soon as a separate upgrade.
           </p>
@@ -209,7 +210,7 @@ export default function Tenants() {
             Renter questions, answered
           </h2>
           <div className="space-y-6">
-            <Faq q="What does the $5 pre-qualification get me?">
+            <Faq q="What does Tenability™ pre-qualification get me?">
               It gets you a verified-applicant status with the landlord: confirmed income
               from your paystubs, confirmed identity from your driver's license, and an
               AI-generated Tenability™ the landlord sees alongside your application.
@@ -252,10 +253,10 @@ export default function Tenants() {
       <section className="bg-gradient-to-br from-brand-500 to-brand-600 text-white">
         <div className="max-w-3xl mx-auto px-5 lg:px-8 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Apply, get verified, sign on your phone, pay free by ACH.
+            Apply, get verified, sign on your phone, pay rent online.
           </h2>
           <p className="mt-3 text-white/85">
-            $5 for a verified pre-qualification that gets you to the front of the landlord's queue.
+            A verified pre-qualification gets you to the front of the landlord's queue.
           </p>
           <Link
             to="/register/renter"

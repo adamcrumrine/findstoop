@@ -41,13 +41,13 @@ export default function Home() {
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-100 px-3 py-1.5 rounded-full mb-5">
                 <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-                $5 per unit per month. Every feature included.
+                Free for landlords. Every feature included.
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-ink leading-[1.05] tracking-tight">
                 Run your rentals like a pro — without <span className="text-brand-500">becoming one.</span>
               </h1>
               <p className="mt-5 text-lg text-mute max-w-xl">
-                Every applicant arrives pre-qualified with a Tenability™ score (from $5)
+                Every applicant arrives pre-qualified with a Tenability™ score
                 — verified income, verified ID, and an AI rentability number in minutes. Plus
                 listings, e-sign leases, and online rent in one place.
               </p>
@@ -101,9 +101,8 @@ export default function Home() {
             </span>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 text-mute">
-            <Stat number="$5" label="verified pre-qualification per applicant" />
+            <Stat number="$0" label="for landlords — every feature, any number of units" />
             <Stat number="0–100" label="AI Tenability™ on every applicant" />
-            <Stat number="$5" label="per unit / month for landlords, every feature" />
             <Stat number="50-state" label="lease templates included" />
           </div>
         </div>
@@ -115,7 +114,7 @@ export default function Home() {
         eyebrow="Meet Tenability™"
         status="live"
         title="Every applicant arrives with a Tenability™ — a 0–100 score, in minutes."
-        body="Tenability™ ($5) gives every applicant a private 0–100 rentability score with verified income and ID. Tenability™ Pro ($25) adds a selfie ID match (free with Pro) and an applicant-provided credit report with AI authenticity scoring. Both tiers are configured to ignore protected-class signals under the Fair Housing Act."
+        body="Tenability™ ($15, paid by the applicant) gives every applicant a private 0–100 rentability score with verified income and ID. Tenability™ Pro ($35) adds a selfie ID match (free with Pro) and an applicant-provided credit report with AI authenticity scoring. Both tiers are configured to ignore protected-class signals under the Fair Housing Act."
         learnMore="/tenability"
         Icon={ShieldCheck}
         illustrationName="screening"
@@ -189,37 +188,37 @@ export default function Home() {
         <div className="max-w-3xl mx-auto px-5 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-ink tracking-tight">
-              One plan. Every feature. No upsell ladder.
+              Free for landlords. No upsell ladder.
             </h2>
             <p className="mt-4 text-lg text-mute">
-              $5 per active unit per month. Every feature included. Payment processing is passed
-              through to whoever pays, so it never comes out of your rent. Pay monthly or save
-              16.7% with annual prepay.
+              Every feature, any number of units, no subscription. Applicants pay for their own
+              screening, and payment processing is passed through to whoever pays, so it never
+              comes out of your rent.
             </p>
           </div>
 
           <PlanCard
             name={BRAND.name}
-            price="$5"
-            priceSub="/ unit / month"
-            tagline="Or $50/unit/year with annual prepay (non-refundable). Every feature included."
+            price="$0"
+            priceSub="/ month, any number of units"
+            tagline="No credit card, nothing to cancel. Every feature included."
             cta="Get started"
             ctaHref="/register"
             features={[
-              'Verified pre-qualification on every applicant ($5 paid by applicant)',
+              'Verified pre-qualification on every applicant (the applicant pays)',
               'AI Tenability™ with Fair-Housing-safe scoring',
-              'Online rent collection — bank transfer fees capped at $5 per payment',
+              'Online rent collection — bank transfer fees capped at $5, paid by the tenant',
               'State-specific lease templates with e-sign',
               'Maintenance tracking with photos',
               '24/7 tenant portal + messaging per lease',
               'Income & expense tracking with CSV export',
-              'Priority human support',
+              'Lease renewals in a few clicks',
             ]}
             accent="brand"
           />
 
           <p className="text-center text-sm text-mute mt-8">
-            See <Link to="/pricing" className="text-brand-600 font-medium hover:underline">the full pricing page</Link> for billing examples and FAQ.
+            See <Link to="/pricing" className="text-brand-600 font-medium hover:underline">the full pricing page</Link> for what renters and applicants pay.
           </p>
         </div>
       </section>

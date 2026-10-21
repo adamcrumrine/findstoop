@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_APP_ENV: string
   /** White-label brand id (see src/lib/brand.ts). Unset → 'stoop'. */
   readonly VITE_BRAND?: string
+  /** Cloudflare Turnstile site key. Unset → the human check is off. */
+  readonly VITE_TURNSTILE_SITE_KEY?: string
 }
 
 interface ImportMeta {

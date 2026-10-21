@@ -5,10 +5,11 @@
 // university channel; co-brandable ("Powered by Stoop"). General information,
 // not legal advice.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
+import HumanCheck, { HUMAN_CHECK_ENABLED, type HumanCheckHandle } from '../../components/shared/HumanCheck'
 import { useRenterPartner } from '../../hooks/useRenterPartner'
 import { BRAND } from '../../lib/brand'
 import { useRouteSeo } from '../../lib/useSeo'
@@ -51,16 +52,21 @@ export default function RenterCheck() {
   const [emailSent, setEmailSent] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
   const [funnelBusy, setFunnelBusy] = useState<'' | 'email' | 'invite'>('')
+  // Free AI tool — the human check keeps scripts from running up the bill.
+  const [humanToken, setHumanToken] = useState<string | null>(null)
+  const humanRef = useRef<HumanCheckHandle>(null)
 
   const analyze = async (file: File) => {
     if (file.type !== 'application/pdf') { setError('Please upload a PDF lease.'); setStatus('error'); return }
     if (file.size > MAX_MB * 1024 * 1024) { setError(`That file is over ${MAX_MB}MB — try a smaller PDF.`); setStatus('error'); return }
+    if (HUMAN_CHECK_ENABLED && !humanToken) { setError('Please complete the “I’m human” check first.'); setStatus('error'); return }
     setFileName(file.name)
     setStatus('analyzing')
     setError('')
     try {
       const pdf_base64 = await fileToBase64(file)
-      const { data, error: invokeErr } = await supabase.functions.invoke('explain-lease', { body: { pdf_base64, ref } })
+      const { data, error: invokeErr } = await supabase.functions.invoke('explain-lease', { body: { pdf_base64, ref, humanToken } })
+      humanRef.current?.reset()
       if (invokeErr) throw new Error(invokeErr.message)
       const res = data as ExplainLeaseResponse
       if (!res.ok || !res.analysis) throw new Error(res.message || 'Could not analyze the lease.')
@@ -153,6 +159,8 @@ export default function RenterCheck() {
             )}
           </div>
         )}
+
+        <HumanCheck ref={humanRef} onToken={setHumanToken} className="flex justify-center mb-4" />
 
         {/* Upload */}
         {(status === 'idle' || status === 'error') && (

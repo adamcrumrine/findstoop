@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
 import { BRAND } from '../../lib/brand'
+import HumanCheck, { HUMAN_CHECK_ENABLED, type HumanCheckHandle } from '../../components/shared/HumanCheck'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
 
@@ -11,14 +12,21 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  const [humanToken, setHumanToken] = useState<string | null>(null)
+  const humanRef = useRef<HumanCheckHandle>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (HUMAN_CHECK_ENABLED && !humanToken) {
+      toast.error('Please complete the “I’m human” check.')
+      return
+    }
     setLoading(true)
     try {
-      await sendPasswordReset(email)
+      await sendPasswordReset(email, humanToken ?? undefined)
       setSent(true)
     } catch (err) {
+      humanRef.current?.reset()
       toast.error(err instanceof Error ? err.message : 'Failed to send reset link')
     } finally {
       setLoading(false)
@@ -70,6 +78,8 @@ export default function ForgotPassword() {
                   placeholder="you@example.com"
                 />
               </div>
+
+              <HumanCheck ref={humanRef} onToken={setHumanToken} />
 
               <button
                 type="submit"

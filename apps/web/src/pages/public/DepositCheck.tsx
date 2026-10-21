@@ -5,10 +5,11 @@
 // with the total they may be owed back — then hands off to the demand letter.
 // General information, not legal advice.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PoweredByStoop from '../../components/shared/PoweredByStoop'
+import HumanCheck, { HUMAN_CHECK_ENABLED, type HumanCheckHandle } from '../../components/shared/HumanCheck'
 import { useRenterPartner } from '../../hooks/useRenterPartner'
 import { BRAND } from '../../lib/brand'
 import { useRouteSeo } from '../../lib/useSeo'
@@ -42,11 +43,16 @@ export default function DepositCheck() {
   const [error, setError] = useState('')
   const [text, setText] = useState('')
   const [analysis, setAnalysis] = useState<DepositCheckResult | null>(null)
+  // Free AI tool — the human check keeps scripts from running up the bill.
+  const [humanToken, setHumanToken] = useState<string | null>(null)
+  const humanRef = useRef<HumanCheckHandle>(null)
 
   const run = async (payload: { pdf_base64?: string; text?: string }) => {
+    if (HUMAN_CHECK_ENABLED && !humanToken) { setError('Please complete the “I’m human” check first.'); setStatus('error'); return }
     setStatus('analyzing'); setError('')
     try {
-      const { data, error: e } = await supabase.functions.invoke('check-deposit', { body: { ...payload, ref } })
+      const { data, error: e } = await supabase.functions.invoke('check-deposit', { body: { ...payload, ref, humanToken } })
+      humanRef.current?.reset()
       if (e) throw new Error(e.message)
       const res = data as CheckDepositResponse
       if (!res.ok || !res.analysis) throw new Error(res.message || 'Could not analyze the deductions.')
@@ -103,6 +109,8 @@ export default function DepositCheck() {
             {partner?.tagline && <p className="text-xs text-brand-700 mt-2 font-medium">{partner.tagline}</p>}
           </div>
         )}
+
+        <HumanCheck ref={humanRef} onToken={setHumanToken} className="flex justify-center mb-4" />
 
         {(status === 'idle' || status === 'error') && (
           <div className="max-w-xl mx-auto space-y-4">

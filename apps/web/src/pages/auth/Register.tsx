@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -9,6 +9,8 @@ import { defaultPathForRole } from '../../lib/roleRouting'
 import { checkPasswordStrength, hibpCheckPassword } from '../../lib/passwordSecurity'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import PasswordInput from '../../components/shared/PasswordInput'
+import HumanCheck, { HUMAN_CHECK_ENABLED, type HumanCheckHandle } from '../../components/shared/HumanCheck'
+import Honeypot from '../../components/shared/Honeypot'
 import { BRAND } from '../../lib/brand'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
@@ -43,6 +45,11 @@ export default function Register({ role }: Props) {
   const [transitioning, setTransitioning] = useState(false)
   const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({})
   const [success, setSuccess] = useState(false)
+  // Bot defenses: Turnstile token (when enabled) + a honeypot field humans
+  // never see. A filled honeypot gets a fake success and no account.
+  const [humanToken, setHumanToken] = useState<string | null>(null)
+  const humanRef = useRef<HumanCheckHandle>(null)
+  const [website, setWebsite] = useState('')
 
   // OAuth-return seam: user is signed in but profile hasn't loaded yet.
   // Render the branded loader instead of letting the form flash through.
@@ -83,8 +90,13 @@ export default function Register({ role }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (website) { setSuccess(true); return }
     const v = validate()
     if (!v.ok) return
+    if (HUMAN_CHECK_ENABLED && !humanToken) {
+      toast.error('Please complete the “I’m human” check.')
+      return
+    }
     setLoading(true)
     try {
       // HIBP check — block passwords known to be in leaked-credential dumps.
@@ -95,10 +107,11 @@ export default function Register({ role }: Props) {
         setLoading(false)
         return
       }
-      await signUp(email, password, role, fullName)
+      await signUp(email, password, role, fullName, humanToken ?? undefined)
       trackAuth('sign_up')
       setSuccess(true)
     } catch (err) {
+      humanRef.current?.reset()
       toast.error(err instanceof Error ? err.message : 'Registration failed')
     } finally {
       setLoading(false)
@@ -220,6 +233,9 @@ export default function Register({ role }: Props) {
             />
             {errors.confirm && <p id="register-confirm-error" className="text-xs text-red-500 mt-1">{errors.confirm}</p>}
           </div>
+
+          <Honeypot value={website} onChange={setWebsite} />
+          <HumanCheck ref={humanRef} onToken={setHumanToken} />
 
           <button
             type="submit"

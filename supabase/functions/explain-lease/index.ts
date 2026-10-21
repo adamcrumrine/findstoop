@@ -17,6 +17,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
 import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
+import { verifyHuman } from '../_shared/turnstile.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const admin = createClient(
@@ -90,7 +91,10 @@ Deno.serve(async (req) => {
       return json(req, { ok: false, message: "We've hit today's limit for lease checks — please try again tomorrow." }, { status: 429 })
     }
 
-    const body = await req.json().catch(() => ({})) as { pdf_base64?: string; ref?: string }
+    const body = await req.json().catch(() => ({})) as { pdf_base64?: string; ref?: string; humanToken?: string }
+    if (!await verifyHuman(body.humanToken, ip)) {
+      return json(req, { ok: false, message: 'Please complete the “I’m human” check and try again.' }, { status: 403 })
+    }
     const pdfBase64 = body.pdf_base64 ?? ''
     if (!pdfBase64) return json(req, { ok: false, message: 'No lease PDF received.' }, { status: 400 })
     if (pdfBase64.length > MAX_B64_LEN) {

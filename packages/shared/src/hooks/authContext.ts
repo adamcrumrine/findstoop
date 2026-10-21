@@ -15,11 +15,13 @@ export interface AuthState {
   profileError: string | null
   /** Re-attempt the profile fetch for the current session. */
   retryProfile: () => Promise<void>
-  signIn: (email: string, password: string) => Promise<Profile>
-  signUp: (email: string, password: string, role: UserRole, fullName: string) => Promise<void>
+  // captchaToken: the Turnstile token from HumanCheck. Required by Supabase
+  // Auth once captcha is enabled in its config; ignored until then.
+  signIn: (email: string, password: string, captchaToken?: string) => Promise<Profile>
+  signUp: (email: string, password: string, role: UserRole, fullName: string, captchaToken?: string) => Promise<void>
   signInWithGoogle: (role: UserRole) => Promise<void>
   signOut: () => Promise<void>
-  sendPasswordReset: (email: string) => Promise<void>
+  sendPasswordReset: (email: string, captchaToken?: string) => Promise<void>
   // MFA — TOTP (Supabase native)
   getTotpChallenge: () => Promise<{ factorId: string; challengeId: string }>
   verifyTotp: (factorId: string, challengeId: string, code: string) => Promise<void>

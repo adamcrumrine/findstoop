@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '@findstoop/shared/hooks/useAuth'
 import toast from 'react-hot-toast'
@@ -7,6 +7,7 @@ import { defaultPathForRole } from '../../lib/roleRouting'
 import { supabase } from '../../lib/supabase'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import PasswordInput from '../../components/shared/PasswordInput'
+import HumanCheck, { HUMAN_CHECK_ENABLED, type HumanCheckHandle } from '../../components/shared/HumanCheck'
 import { BRAND } from '../../lib/brand'
 
 const inputClass = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ink focus:border-transparent placeholder-mute'
@@ -40,6 +41,11 @@ export default function Login({ role }: Props) {
   // setLoading(false) and the actual route change.
   const [transitioning, setTransitioning] = useState(false)
   const [wrongRoleError, setWrongRoleError] = useState<{ actual: 'manager' | 'tenant' } | null>(null)
+  // Turnstile token (when the human check is on). One widget serves both the
+  // sign-in form and the "send a new link" form; tokens are single-use, so
+  // it's reset after every attempt.
+  const [humanToken, setHumanToken] = useState<string | null>(null)
+  const humanRef = useRef<HumanCheckHandle>(null)
 
   // An expired or already-used email link bounces back here with the reason in
   // the URL fragment — which nothing read, so the visitor just met a sign-in
@@ -79,13 +85,18 @@ export default function Login({ role }: Props) {
   const handleResendLink = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!resendEmail.trim()) return
+    if (HUMAN_CHECK_ENABLED && !humanToken) {
+      toast.error('Please complete the “I’m human” check below.')
+      return
+    }
     setResending(true)
     try {
-      await sendPasswordReset(resendEmail.trim())
+      await sendPasswordReset(resendEmail.trim(), humanToken ?? undefined)
       setResent(true)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not send a new link')
     } finally {
+      humanRef.current?.reset()
       setResending(false)
     }
   }
@@ -131,6 +142,10 @@ export default function Login({ role }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setWrongRoleError(null)
+    if (HUMAN_CHECK_ENABLED && !humanToken) {
+      toast.error('Please complete the “I’m human” check.')
+      return
+    }
     setLoading(true)
 
     // Account-lockout precheck — block before the Supabase Auth call so
@@ -149,10 +164,11 @@ export default function Login({ role }: Props) {
     }
 
     try {
-      const p = await signIn(email, password)
+      const p = await signIn(email, password, humanToken ?? undefined)
       // Admin can sign in from either login page; everyone else must match
       if (p.role !== 'admin' && p.role !== role) {
         setWrongRoleError({ actual: p.role as 'manager' | 'tenant' })
+        humanRef.current?.reset()
         // Report the wrong-role attempt for audit, but not as a "real" failure
         void supabase.functions.invoke('auth-guard', {
           body: { action: 'report', email, success: false, reason: 'wrong_role' },
@@ -187,6 +203,7 @@ export default function Login({ role }: Props) {
       void supabase.functions.invoke('auth-guard', {
         body: { action: 'report', email, success: false, reason: 'invalid_credentials' },
       })
+      humanRef.current?.reset()
       toast.error(err instanceof Error ? err.message : 'Invalid credentials')
       setLoading(false)
     }
@@ -324,6 +341,8 @@ export default function Login({ role }: Props) {
               placeholder="••••••••"
             />
           </div>
+
+          <HumanCheck ref={humanRef} onToken={setHumanToken} />
 
           <button
             type="submit"

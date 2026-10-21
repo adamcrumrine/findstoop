@@ -1,7 +1,7 @@
 // Public rental application form. No auth required.
 // Renter lands here from a landlord-shared link: /apply/:unitId
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import {
@@ -9,8 +9,24 @@ import {
 } from 'lucide-react'
 import ScreeningFlow from '../../components/apply/ScreeningFlow'
 import { screeningPricesFor } from '@findstoop/shared/lib/screeningPricing'
+import HumanCheck, { HUMAN_CHECK_ENABLED, type HumanCheckHandle } from '../../components/shared/HumanCheck'
+import Honeypot from '../../components/shared/Honeypot'
 import { useSeo } from '../../lib/useSeo'
 import { BRAND } from '../../lib/brand'
+
+// A non-2xx edge-function reply arrives as an error whose Response is on
+// .context — the human-readable reason ("too many applications…") is in its
+// JSON body, so read it out instead of showing a bare "failed".
+async function readFunctionError(err: unknown): Promise<string | null> {
+  try {
+    const ctx = (err as { context?: Response } | null)?.context
+    if (ctx && typeof ctx.json === 'function') {
+      const body = await ctx.json() as { error?: string }
+      return body?.error ?? null
+    }
+  } catch { /* fall through */ }
+  return null
+}
 
 interface UnitCtx {
   unit_id: string
@@ -83,6 +99,10 @@ export default function Apply() {
   // proof-of-ownership for start-screening (the flow has no auth session).
   const [submittedApp, setSubmittedApp] = useState<{ id: string; statusToken: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Bot defenses, checked again server-side by submit-application.
+  const [humanToken, setHumanToken] = useState<string | null>(null)
+  const humanRef = useRef<HumanCheckHandle>(null)
+  const [website, setWebsite] = useState('')
 
   useEffect(() => {
     if (!unitId) return
@@ -105,10 +125,15 @@ export default function Apply() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!unitId) return
+    if (HUMAN_CHECK_ENABLED && !humanToken) {
+      setError('Please complete the “I’m human” check.')
+      return
+    }
     setSubmitting(true)
     setError(null)
-    const { data: inserted, error: insertError } = await supabase.from('applications').insert({
-      unit_id: unitId,
+    // Applications go through submit-application (honeypot, rate limits,
+    // human check) — direct inserts are closed (migration 20261021000001).
+    const fields = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       email: form.email.trim().toLowerCase(),
@@ -130,13 +155,18 @@ export default function Apply() {
       household_size: form.household_size ? Number(form.household_size) : null,
       has_pets: form.has_pets,
       pets_description: form.has_pets ? form.pets_description.trim() || null : null,
-    }).select('id, status_token').single()
+    }
+    const { data, error: fnError } = await supabase.functions.invoke('submit-application', {
+      body: { unitId, fields, website, humanToken },
+    })
     setSubmitting(false)
-    if (insertError || !inserted) {
-      setError(insertError?.message ?? 'Could not submit application')
+    const result = data as { ok?: boolean; id?: string; statusToken?: string; error?: string } | null
+    if (fnError || !result?.ok || !result.id || !result.statusToken) {
+      humanRef.current?.reset()
+      setError(result?.error ?? (await readFunctionError(fnError)) ?? 'Could not submit application')
       return
     }
-    setSubmittedApp({ id: inserted.id as string, statusToken: inserted.status_token as string })
+    setSubmittedApp({ id: result.id, statusToken: result.statusToken })
   }
 
   if (loading) {
@@ -318,6 +348,9 @@ export default function Apply() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-900 text-sm px-4 py-3 rounded-xl">{error}</div>
         )}
+
+        <Honeypot value={website} onChange={setWebsite} />
+        <HumanCheck ref={humanRef} onToken={setHumanToken} />
 
         <button
           type="submit"

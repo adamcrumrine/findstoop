@@ -12,6 +12,7 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.3'
 import { logApiCall, anthropicCost, timed } from '../_shared/logging.ts'
 import { corsHeaders, corsPreflight } from '../_shared/cors.ts'
 import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
+import { verifyHuman } from '../_shared/turnstile.ts'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' })
 const MODEL = 'claude-sonnet-4-6'
@@ -77,7 +78,10 @@ Deno.serve(async (req) => {
       && await checkRateLimit({ key: 'check-deposit:global', windowSeconds: 86400, maxCount: 200 })
     if (!allowed) return json(req, { ok: false, message: "We've hit today's limit for deposit checks — please try again tomorrow." }, { status: 429 })
 
-    const body = await req.json().catch(() => ({})) as { pdf_base64?: string; text?: string; ref?: string }
+    const body = await req.json().catch(() => ({})) as { pdf_base64?: string; text?: string; ref?: string; humanToken?: string }
+    if (!await verifyHuman(body.humanToken, ip)) {
+      return json(req, { ok: false, message: 'Please complete the “I’m human” check and try again.' }, { status: 403 })
+    }
     const pdf = body.pdf_base64 ?? ''
     const text = (body.text ?? '').trim()
     if (!pdf && !text) return json(req, { ok: false, message: 'Paste the deductions or upload the landlord’s letter.' }, { status: 400 })

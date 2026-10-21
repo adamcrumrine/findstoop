@@ -145,8 +145,8 @@ function useAuthState(): AuthState {
 
   // ── Auth actions ──────────────────────────────────────────────────────────
 
-  const signIn = async (email: string, password: string): Promise<Profile> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  const signIn = async (email: string, password: string, captchaToken?: string): Promise<Profile> => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } })
     if (error) throw new Error(error.message)
     const meta = (data.user.user_metadata ?? {}) as Record<string, string>
     const p = await ensureProfile(data.user.id, data.user.email ?? '', meta)
@@ -154,13 +154,14 @@ function useAuthState(): AuthState {
     return p
   }
 
-  const signUp = async (email: string, password: string, role: UserRole, fullName: string): Promise<void> => {
+  const signUp = async (email: string, password: string, role: UserRole, fullName: string, captchaToken?: string): Promise<void> => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { role, full_name: fullName },
         emailRedirectTo: `${window.location.origin}/login`,
+        captchaToken,
       },
     })
     if (error) throw new Error(error.message)
@@ -187,9 +188,10 @@ function useAuthState(): AuthState {
     setProfile(null)
   }
 
-  const sendPasswordReset = async (email: string): Promise<void> => {
+  const sendPasswordReset = async (email: string, captchaToken?: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/login`,
+      captchaToken,
     })
     if (error) throw new Error(error.message)
   }
